@@ -69,45 +69,47 @@ def office_dashboard(request):
 
 
 @staff_required
-def office_visits(request):
-    return render(request, 'dashboard/office_visits.html', {'visits': VisitRequest.objects.select_related('property', 'requester').order_by('-created_at')})
-
-
-@staff_required
+@require_POST
 def office_approve_visit(request, visit_id):
-    visit = get_object_or_404(VisitRequest, visit_id=visit_id)
-    if request.method == 'POST':
-        with transaction.atomic():
-            visit = VisitRequest.objects.select_for_update().get(pk=visit.pk)
-            if visit.status != 'REQUESTED':
-                messages.error(request, 'Cette demande de visite n’est plus en attente.')
-                return redirect('office_visits')
-            if request.POST.get('action') == 'approve':
-                visit.fasthome_approved = True
-                if visit.landlord_approved:
-                    visit.status = 'CONFIRMED'
-            else:
-                visit.status = 'REFUSED'
+    with transaction.atomic():
+        visit = get_object_or_404(VisitRequest.objects.select_for_update(), visit_id=visit_id)
+        if visit.status != 'REQUESTED':
+            messages.error(request, 'Cette demande de visite n’est plus en attente.')
+            return redirect('office_visits')
+        if request.POST.get('action') == 'approve':
+            visit.fasthome_approved = True
+            if visit.landlord_approved:
+                visit.status = 'CONFIRMED'
             visit.save(update_fields=['fasthome_approved', 'status'])
-            Notification.objects.create(recipient=visit.requester, level='INFO', title='Mise à jour de votre demande de visite', message='Votre demande de visite a été mise à jour par Fasthome.', object_type='VisitRequest', object_id=visit.visit_id)
+        elif request.POST.get('action') == 'refuse':
+            visit.status = 'REFUSED'
+            visit.save(update_fields=['status'])
+        else:
+            messages.error(request, 'Action invalide.')
+            return redirect('office_visits')
+        Notification.objects.create(recipient=visit.requester, level='INFO', title='Mise à jour de votre demande de visite', message='Votre demande de visite a été mise à jour par Fasthome.', object_type='VisitRequest', object_id=visit.visit_id)
     return redirect('office_visits')
 
 
 @staff_required
+@require_POST
 def office_complete_visit(request, visit_id):
-    visit = get_object_or_404(VisitRequest, visit_id=visit_id, status='CONFIRMED')
-    if request.method == 'POST':
-        with transaction.atomic():
-            visit = VisitRequest.objects.select_for_update().get(pk=visit.pk)
-            if visit.status != 'CONFIRMED':
-                messages.error(request, 'La visite n’est plus confirmée.')
-                return redirect('office_visits')
-            visit.status = 'COMPLETED'
-            visit.completed_at = timezone.now()
-            visit.completed_by = request.user
-            visit.save(update_fields=['status', 'completed_at', 'completed_by'])
-            Notification.objects.create(recipient=visit.requester, level='SUCCESS', title='Visite effectuée', message='La visite est enregistrée. Vous pouvez maintenant choisir de prendre ou non le logement.', object_type='VisitRequest', object_id=visit.visit_id)
+    with transaction.atomic():
+        visit = get_object_or_404(VisitRequest.objects.select_for_update(), visit_id=visit_id)
+        if visit.status != 'CONFIRMED':
+            messages.error(request, 'La visite n’est plus confirmée.')
+            return redirect('office_visits')
+        visit.status = 'COMPLETED'
+        visit.completed_at = timezone.now()
+        visit.completed_by = request.user
+        visit.save(update_fields=['status', 'completed_at', 'completed_by'])
+        Notification.objects.create(recipient=visit.requester, level='SUCCESS', title='Visite effectuée', message='La visite est enregistrée. Vous pouvez maintenant choisir de prendre ou non le logement.', object_type='VisitRequest', object_id=visit.visit_id)
     return redirect('office_visits')
+
+
+@staff_required
+def office_visits(request):
+    return render(request, 'dashboard/office_visits.html', {'visits': VisitRequest.objects.select_related('property').order_by('-created_at')})
 
 
 @staff_required
@@ -116,15 +118,14 @@ def office_cases(request):
 
 
 @staff_required
+@require_POST
 def office_accept_case(request, case_id):
-    if request.method != 'POST':
-        return redirect('office_cases')
     with transaction.atomic():
-        case = get_object_or_404(RentalCase.objects.select_for_update().select_related('property', 'tenant'), case_id=case_id)
-        if case.status not in {'OPEN', 'UNDER_REVIEW'}:
-            messages.error(request, 'Ce dossier n’est plus éligible à l’acceptation.')
+        case = get_object_or_404(RentalCase.objects.select_for_update().select_related('property', 'tenant', 'visit'), case_id=case_id)
+        if case.status not in {'OPEN', 'UNDER_REVIEW'} or case.visit.status != 'COMPLETED':
+            messages.error(request, 'Ce dossier n’est pas éligible à la contractualisation.')
             return redirect('office_cases')
-        lease, _ = Lease.objects.get_or_create(rental_case=case, defaults={'property': case.property, 'tenant': case.tenant, 'landlord': case.property.owner, 'monthly_rent': case.property.monthly_rent or Decimal('0'), 'guarantee_amount': case.property.guarantee_amount, 'status': 'PENDING'})
+        lease, _ = Lease.objects.select_for_update().get_or_create(rental_case=case, defaults={'property': case.property, 'tenant': case.tenant, 'landlord': case.property.owner, 'monthly_rent': case.property.monthly_rent or Decimal('0'), 'guarantee_amount': case.property.guarantee_amount, 'status': 'PENDING'})
         Contract.objects.get_or_create(lease=lease, contract_type='TENANT')
         Contract.objects.get_or_create(lease=lease, contract_type='LANDLORD')
         InspectionReport.objects.get_or_create(lease=lease, property=lease.property, report_type='ENTRY', defaults={'status': 'DRAFT'})
@@ -142,23 +143,34 @@ def office_contracts(request):
 
 
 @staff_required
+@require_POST
 def office_contract_upload(request, contract_id):
     contract = get_object_or_404(Contract, contract_id=contract_id)
-    if request.method == 'POST' and request.FILES.get('signed_document'):
+    if not request.FILES.get('signed_document'):
+        messages.error(request, 'Aucun document signé fourni.')
+        return redirect('office_contracts')
+    with transaction.atomic():
+        contract = Contract.objects.select_for_update().get(pk=contract.pk)
+        if contract.status not in {'PENDING', 'REJECTED'}:
+            messages.error(request, 'Ce contrat ne peut plus être téléversé dans son état actuel.')
+            return redirect('office_contracts')
         contract.signed_document = request.FILES['signed_document']
         contract.status = 'UPLOADED'
         contract.uploaded_at = timezone.now()
         contract.uploaded_by = request.user
-        contract.save(update_fields=['signed_document', 'status', 'uploaded_at', 'uploaded_by'])
-        messages.success(request, 'Contrat signé téléversé.')
-        return redirect('office_contracts')
-    return render(request, 'dashboard/office_contract_upload.html', {'contract': contract})
+        contract.save()
+    messages.success(request, 'Contrat signé téléversé.')
+    return redirect('office_contracts')
 
 
 @staff_required
+@require_POST
 def office_contract_validate(request, contract_id):
-    contract = get_object_or_404(Contract, contract_id=contract_id)
-    if request.method == 'POST' and contract.signed_document:
+    with transaction.atomic():
+        contract = get_object_or_404(Contract.objects.select_for_update(), contract_id=contract_id)
+        if contract.status != 'UPLOADED' or not contract.signed_document or not contract.uploaded_by_id:
+            messages.error(request, 'Ce contrat ne peut pas être validé dans son état actuel.')
+            return redirect('office_contracts')
         contract.status = 'VALIDATED'
         contract.signed_at = timezone.now()
         contract.save(update_fields=['status', 'signed_at'])
@@ -172,9 +184,13 @@ def office_reports(request):
 
 
 @staff_required
+@require_POST
 def office_report_validate(request, report_id):
-    report = get_object_or_404(InspectionReport, report_id=report_id)
-    if request.method == 'POST':
+    with transaction.atomic():
+        report = get_object_or_404(InspectionReport.objects.select_for_update(), report_id=report_id)
+        if report.status != 'DRAFT':
+            messages.error(request, 'Ce PV n’est plus en brouillon.')
+            return redirect('office_reports')
         report.status = 'VALIDATED'
         report.save(update_fields=['status'])
         messages.success(request, 'PV validé.')
@@ -182,19 +198,27 @@ def office_report_validate(request, report_id):
 
 
 @staff_required
+@require_POST
 def office_officialize_lease(request, lease_id):
-    if request.method != 'POST':
-        return redirect('office_dashboard')
     with transaction.atomic():
-        lease = get_object_or_404(Lease.objects.select_for_update(), lease_id=lease_id, status='PENDING')
+        lease = get_object_or_404(Lease.objects.select_for_update().select_related('rental_case'), lease_id=lease_id)
+        if lease.status != 'PENDING':
+            messages.error(request, 'Cette location n’est plus en attente d’officialisation.')
+            return redirect('office_dashboard')
+        if lease.rental_case.status != 'CONTRACTING' or lease.rental_case.visit.status != 'COMPLETED':
+            messages.error(request, 'Le dossier ou la visite ne permet pas encore l’officialisation.')
+            return redirect('office_dashboard')
         contracts = list(lease.contracts.all())
         reports = list(lease.inspection_reports.filter(report_type='ENTRY'))
-        if len([c for c in contracts if c.status == 'VALIDATED']) < 2 or not any(r.status == 'VALIDATED' for r in reports):
+        if len([c for c in contracts if c.status == 'VALIDATED']) != 2 or len([c for c in contracts if c.contract_type == 'TENANT']) != 1 or len([c for c in contracts if c.contract_type == 'LANDLORD']) != 1 or not any(r.status == 'VALIDATED' for r in reports):
             messages.error(request, 'Impossible d’officialiser : les deux contrats et le PV d’entrée doivent être validés.')
+            return redirect('office_dashboard')
+        property_obj = Property.objects.select_for_update().get(pk=lease.property_id)
+        if property_obj.status != 'UNDER_REVIEW':
+            messages.error(request, 'Le logement n’est pas dans l’état attendu pour l’officialisation.')
             return redirect('office_dashboard')
         lease.status = 'ACTIVE'
         lease.save(update_fields=['status'])
-        property_obj = Property.objects.select_for_update().get(pk=lease.property_id)
         property_obj.status = 'RENTED'
         property_obj.save(update_fields=['status', 'updated_at'])
         publication = getattr(property_obj, 'publication', None)
@@ -208,6 +232,7 @@ def office_officialize_lease(request, lease_id):
 
 
 @staff_required
+@require_POST
 def office_receipt(request):
     form = ReceiptForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
@@ -230,6 +255,7 @@ def office_receipt(request):
 
 
 @staff_required
+@require_POST
 def office_payout(request):
     form = PayoutForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
