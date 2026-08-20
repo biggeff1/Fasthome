@@ -3,14 +3,18 @@ from datetime import date
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from properties.models import Property
-from notifications.models import Notification
 from leasing.models import RentalCase
+from notifications.models import Notification
+from properties.models import Property
 from .models import VisitRequest
+
+
+def _staff_required(request):
+    return request.user.is_active and request.user.is_staff
 
 
 @login_required
@@ -39,16 +43,70 @@ def request_visit(request, property_id):
             requested_date=parsed_date,
             requested_time_slot=request.POST.get('requested_time_slot', '').strip()[:80],
         )
-        Notification.objects.create(recipient=prop.owner, level='ACTION', title='Demande de visite à valider', message='Une demande de visite pour votre logement nécessite votre validation. L’identité du demandeur reste masquée à cette étape.', object_type='VisitRequest', object_id=visit.visit_id)
+        Notification.objects.create(
+            recipient=prop.owner,
+            level='ACTION',
+            title='Demande de visite à valider',
+            message='Une demande de visite pour votre logement nécessite votre validation. L’identité du demandeur reste masquée à cette étape.',
+            object_type='VisitRequest',
+            object_id=visit.visit_id,
+        )
         messages.success(request, f'Demande {visit.visit_id} envoyée à Fasthome et au bailleur.')
     return redirect('property_detail', property_id=prop.property_id)
 
 
 @login_required
 @require_POST
+def fasthome_visit_decision(request, visit_id):
+    if not _staff_required(request):
+        messages.error(request, 'Accès réservé aux intervenants Fasthome autorisés.')
+        return redirect('activity')
+    with transaction.atomic():
+        visit = get_object_or_404(
+            VisitRequest.objects.select_for_update().select_related('property', 'requester'),
+            visit_id=visit_id,
+            status='REQUESTED',
+        )
+        action = request.POST.get('action')
+        if action == 'approve':
+            visit.fasthome_approved = True
+            if visit.landlord_approved:
+                visit.status = 'CONFIRMED'
+            visit.save(update_fields=['fasthome_approved', 'status'])
+            if visit.status == 'CONFIRMED':
+                Notification.objects.create(
+                    recipient=visit.requester,
+                    level='SUCCESS',
+                    title='Visite confirmée',
+                    message='Fasthome et le bailleur ont validé votre demande de visite.',
+                    object_type='VisitRequest',
+                    object_id=visit.visit_id,
+                )
+        elif action == 'refuse':
+            visit.status = 'REFUSED'
+            visit.save(update_fields=['status'])
+            Notification.objects.create(
+                recipient=visit.requester,
+                level='INFO',
+                title='Demande de visite non confirmée',
+                message='Votre demande de visite n’a pas été confirmée.',
+                object_type='VisitRequest',
+                object_id=visit.visit_id,
+            )
+        else:
+            messages.error(request, 'Action de visite invalide.')
+    return redirect('activity')
+
+
+@login_required
+@require_POST
 def landlord_visit_decision(request, visit_id):
     with transaction.atomic():
-        visit = get_object_or_404(VisitRequest.objects.select_for_update().select_related('property'), visit_id=visit_id, property__owner=request.user)
+        visit = get_object_or_404(
+            VisitRequest.objects.select_for_update().select_related('property'),
+            visit_id=visit_id,
+            property__owner=request.user,
+        )
         if visit.status != 'REQUESTED':
             messages.error(request, 'Cette demande de visite n’est plus en attente.')
             return redirect('activity')
@@ -66,6 +124,29 @@ def landlord_visit_decision(request, visit_id):
             Notification.objects.create(recipient=visit.requester, level='INFO', title='Demande de visite non confirmée', message='Votre demande de visite n’a pas été confirmée.', object_type='VisitRequest', object_id=visit.visit_id)
         else:
             messages.error(request, 'Action de visite invalide.')
+    return redirect('activity')
+
+
+@login_required
+@require_POST
+def mark_visit_completed(request, visit_id):
+    if not _staff_required(request):
+        messages.error(request, 'Seuls les intervenants Fasthome autorisés peuvent clôturer une visite.')
+        return redirect('activity')
+    with transaction.atomic():
+        visit = get_object_or_404(VisitRequest.objects.select_for_update(), visit_id=visit_id, status='CONFIRMED')
+        visit.status = 'COMPLETED'
+        visit.completed_at = timezone.now()
+        visit.completed_by = request.user
+        visit.save(update_fields=['status', 'completed_at', 'completed_by'])
+        Notification.objects.create(
+            recipient=visit.requester,
+            level='ACTION',
+            title='Visite effectuée',
+            message='La visite a été enregistrée. Vous pouvez maintenant décider si vous souhaitez prendre le logement.',
+            object_type='VisitRequest',
+            object_id=visit.visit_id,
+        )
     return redirect('activity')
 
 
