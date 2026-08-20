@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Créer un compte — Fasthome{% endblock %}
+{% block content %}
+<main class="container"><div class="form"><h1>Créer votre compte</h1><p class="muted">Votre ID Fasthome est créé automatiquement après l'inscription.</p>
+<form method="post">{% csrf_token %}{{ form.non_field_errors }}
+<div class="row">{% for field in form %}<div class="field"><label>{{ field.label }}</label>{{ field }}{% for e in field.errors %}<small class="alert">{{ e }}</small>{% endfor %}</div>{% endfor %}</div>
+<button class="btn btn-primary" type="submit">Créer mon compte</button></form>
+<p>Déjà inscrit ? <a href="{% url 'login' %}">Se connecter</a></p></div></main>
+{% endblock %}
