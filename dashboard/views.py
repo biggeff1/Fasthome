@@ -12,7 +12,7 @@ from visits.models import VisitRequest
 from leasing.models import RentalCase, Lease
 from contracts.models import Contract
 from inspections.models import InspectionReport
-from payments.models import PaymentReceipt, LandlordPayout
+from payments.models import PaymentReceipt, LandlordPayout, RentInstallment
 from notifications.models import Notification
 from .office_forms import ReceiptForm, PayoutForm
 
@@ -23,9 +23,7 @@ def staff_required(view):
 
 @login_required
 def favorites(request):
-    return render(request, 'dashboard/favorites.html', {
-        'items': Favorite.objects.filter(user=request.user).select_related('property', 'property__property_type').order_by('-created_at')
-    })
+    return render(request, 'dashboard/favorites.html', {'items': Favorite.objects.filter(user=request.user).select_related('property', 'property__property_type').order_by('-created_at')})
 
 
 @login_required
@@ -62,43 +60,26 @@ def lease_detail(request, lease_id):
     lease = get_object_or_404(Lease.objects.select_related('property', 'tenant', 'landlord'), lease_id=lease_id)
     if request.user not in (lease.tenant, lease.landlord) and not request.user.is_staff:
         return redirect('activity')
-    return render(request, 'dashboard/lease_detail.html', {
-        'lease': lease,
-        'contracts': lease.contracts.all(),
-        'reports': lease.inspection_reports.all(),
-        'installments': lease.installments.order_by('due_date'),
-        'receipts': lease.payment_receipts.order_by('-received_at'),
-        'payouts': lease.landlord_payouts.order_by('-paid_at'),
-    })
+    return render(request, 'dashboard/lease_detail.html', {'lease': lease, 'contracts': lease.contracts.all(), 'reports': lease.inspection_reports.all(), 'installments': lease.installments.order_by('due_date'), 'receipts': lease.payment_receipts.order_by('-received_at'), 'payouts': lease.landlord_payouts.order_by('-paid_at')})
 
 
 @staff_required
 def office_dashboard(request):
-    return render(request, 'dashboard/office.html', {
-        'pending_publications': Property.objects.filter(publication__status__in=['SUBMITTED', 'UNDER_REVIEW']).count(),
-        'pending_visits': VisitRequest.objects.filter(status='REQUESTED').count(),
-        'cases': RentalCase.objects.filter(status__in=['OPEN', 'UNDER_REVIEW']).count(),
-        'pending_contracts': Contract.objects.filter(status__in=['PENDING', 'UPLOADED']).count(),
-        'pending_reports': InspectionReport.objects.filter(status='DRAFT').count(),
-        'payments': PaymentReceipt.objects.count(),
-        'payouts': LandlordPayout.objects.count(),
-    })
+    return render(request, 'dashboard/office.html', {'pending_publications': Property.objects.filter(publication__status__in=['SUBMITTED', 'UNDER_REVIEW']).count(), 'pending_visits': VisitRequest.objects.filter(status='REQUESTED').count(), 'cases': RentalCase.objects.filter(status__in=['OPEN', 'UNDER_REVIEW']).count(), 'pending_contracts': Contract.objects.filter(status__in=['PENDING', 'UPLOADED']).count(), 'pending_reports': InspectionReport.objects.filter(status='DRAFT').count(), 'payments': PaymentReceipt.objects.count(), 'payouts': LandlordPayout.objects.count()})
 
 
 @staff_required
 def office_visits(request):
-    return render(request, 'dashboard/office_visits.html', {
-        'visits': VisitRequest.objects.select_related('property', 'requester').order_by('-created_at')
-    })
+    return render(request, 'dashboard/office_visits.html', {'visits': VisitRequest.objects.select_related('property', 'requester').order_by('-created_at')})
 
 
 @staff_required
 def office_approve_visit(request, visit_id):
-    visit = get_object_or_404(VisitRequest.objects.select_for_update() if request.method == 'POST' else VisitRequest.objects.all(), visit_id=visit_id)
+    visit = get_object_or_404(VisitRequest, visit_id=visit_id)
     if request.method == 'POST':
         with transaction.atomic():
             visit = VisitRequest.objects.select_for_update().get(pk=visit.pk)
-            if visit.status not in {'REQUESTED'}:
+            if visit.status != 'REQUESTED':
                 messages.error(request, 'Cette demande de visite n’est plus en attente.')
                 return redirect('office_visits')
             if request.POST.get('action') == 'approve':
@@ -108,14 +89,7 @@ def office_approve_visit(request, visit_id):
             else:
                 visit.status = 'REFUSED'
             visit.save(update_fields=['fasthome_approved', 'status'])
-            Notification.objects.create(
-                recipient=visit.requester,
-                level='INFO',
-                title='Mise à jour de votre demande de visite',
-                message='Votre demande de visite a été mise à jour par Fasthome.',
-                object_type='VisitRequest',
-                object_id=visit.visit_id,
-            )
+            Notification.objects.create(recipient=visit.requester, level='INFO', title='Mise à jour de votre demande de visite', message='Votre demande de visite a été mise à jour par Fasthome.', object_type='VisitRequest', object_id=visit.visit_id)
     return redirect('office_visits')
 
 
@@ -132,22 +106,13 @@ def office_complete_visit(request, visit_id):
             visit.completed_at = timezone.now()
             visit.completed_by = request.user
             visit.save(update_fields=['status', 'completed_at', 'completed_by'])
-            Notification.objects.create(
-                recipient=visit.requester,
-                level='SUCCESS',
-                title='Visite effectuée',
-                message='La visite est enregistrée. Vous pouvez maintenant choisir de prendre ou non le logement.',
-                object_type='VisitRequest',
-                object_id=visit.visit_id,
-            )
+            Notification.objects.create(recipient=visit.requester, level='SUCCESS', title='Visite effectuée', message='La visite est enregistrée. Vous pouvez maintenant choisir de prendre ou non le logement.', object_type='VisitRequest', object_id=visit.visit_id)
     return redirect('office_visits')
 
 
 @staff_required
 def office_cases(request):
-    return render(request, 'dashboard/office_cases.html', {
-        'cases': RentalCase.objects.select_related('property', 'tenant', 'visit').order_by('-created_at')
-    })
+    return render(request, 'dashboard/office_cases.html', {'cases': RentalCase.objects.select_related('property', 'tenant', 'visit').order_by('-created_at')})
 
 
 @staff_required
@@ -159,47 +124,21 @@ def office_accept_case(request, case_id):
         if case.status not in {'OPEN', 'UNDER_REVIEW'}:
             messages.error(request, 'Ce dossier n’est plus éligible à l’acceptation.')
             return redirect('office_cases')
-        lease, created = Lease.objects.get_or_create(
-            rental_case=case,
-            defaults={
-                'property': case.property,
-                'tenant': case.tenant,
-                'landlord': case.property.owner,
-                'monthly_rent': case.property.monthly_rent or Decimal('0'),
-                'guarantee_amount': case.property.guarantee_amount,
-                'status': 'PENDING',
-            },
-        )
+        lease, _ = Lease.objects.get_or_create(rental_case=case, defaults={'property': case.property, 'tenant': case.tenant, 'landlord': case.property.owner, 'monthly_rent': case.property.monthly_rent or Decimal('0'), 'guarantee_amount': case.property.guarantee_amount, 'status': 'PENDING'})
         Contract.objects.get_or_create(lease=lease, contract_type='TENANT')
         Contract.objects.get_or_create(lease=lease, contract_type='LANDLORD')
         InspectionReport.objects.get_or_create(lease=lease, property=lease.property, report_type='ENTRY', defaults={'status': 'DRAFT'})
         case.status = 'CONTRACTING'
         case.save(update_fields=['status'])
-        Notification.objects.create(
-            recipient=case.tenant,
-            level='ACTION',
-            title='Contrats en préparation',
-            message=f'Les contrats de la location {lease.lease_id} sont en préparation.',
-            object_type='Lease',
-            object_id=lease.lease_id,
-        )
-        Notification.objects.create(
-            recipient=lease.landlord,
-            level='ACTION',
-            title='Contrat bailleur en préparation',
-            message=f'Le contrat du logement {lease.property.property_id} est en préparation.',
-            object_type='Lease',
-            object_id=lease.lease_id,
-        )
+        Notification.objects.create(recipient=case.tenant, level='ACTION', title='Contrats en préparation', message=f'Les contrats de la location {lease.lease_id} sont en préparation.', object_type='Lease', object_id=lease.lease_id)
+        Notification.objects.create(recipient=lease.landlord, level='ACTION', title='Contrat bailleur en préparation', message=f'Le contrat du logement {lease.property.property_id} est en préparation.', object_type='Lease', object_id=lease.lease_id)
         messages.success(request, f'Location {lease.lease_id} prête pour la contractualisation.')
     return redirect('office_cases')
 
 
 @staff_required
 def office_contracts(request):
-    return render(request, 'dashboard/office_contracts.html', {
-        'contracts': Contract.objects.select_related('lease', 'lease__property').order_by('-contract_id')
-    })
+    return render(request, 'dashboard/office_contracts.html', {'contracts': Contract.objects.select_related('lease', 'lease__property').order_by('-contract_id')})
 
 
 @staff_required
@@ -229,9 +168,7 @@ def office_contract_validate(request, contract_id):
 
 @staff_required
 def office_reports(request):
-    return render(request, 'dashboard/office_reports.html', {
-        'reports': InspectionReport.objects.select_related('lease', 'property').order_by('-created_at')
-    })
+    return render(request, 'dashboard/office_reports.html', {'reports': InspectionReport.objects.select_related('lease', 'property').order_by('-created_at')})
 
 
 @staff_required
