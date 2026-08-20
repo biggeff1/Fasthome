@@ -84,18 +84,21 @@ class AccessControlTests(TestCase):
         self.client.force_login(self.owner)
         response = self.client.get(reverse('lease_detail', args=[lease.lease_id]), follow=True)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['lease'].lease_id, lease.lease_id)
 
         self.client.force_login(self.other)
         response = self.client.get(reverse('lease_detail', args=[lease.lease_id]), follow=True)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['lease'].lease_id, lease.lease_id)
 
         outsider = User.objects.create_user(
             email='outsider@example.com', password='A-secure-password-123',
             phone='+243900001004', last_name='Outsider', first_name='Test',
         )
         self.client.force_login(outsider)
-        response = self.client.get(reverse('lease_detail', args=[lease.lease_id]), follow=True)
+        response = self.client.get(reverse('lease_detail', args=[lease.lease_id]), follow=False)
         self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('activity'))
 
     def test_staff_dashboard_access(self):
         self.client.force_login(self.staff)
