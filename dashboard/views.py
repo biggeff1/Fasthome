@@ -58,7 +58,7 @@ def activity(request):
 @login_required
 def lease_detail(request, lease_id):
     lease = get_object_or_404(Lease.objects.select_related('property', 'tenant', 'landlord'), lease_id=lease_id)
-    if request.user not in (lease.tenant, lease.landlord) and not request.user.is_staff:
+    if not (request.user.is_staff or request.user.is_superuser or request.user.pk in {lease.tenant_id, lease.landlord_id}):
         return redirect('activity')
     return render(request, 'dashboard/lease_detail.html', {'lease': lease, 'contracts': lease.contracts.all(), 'reports': lease.inspection_reports.all(), 'installments': lease.installments.order_by('due_date'), 'receipts': lease.payment_receipts.order_by('-received_at'), 'payouts': lease.landlord_payouts.order_by('-paid_at')})
 
