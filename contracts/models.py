@@ -1,5 +1,9 @@
 import uuid
+from django.core.exceptions import ValidationError
 from django.db import models
+
+from core.validators import validate_identity_document
+
 
 class Contract(models.Model):
     TYPES = [('TENANT', 'Sofasthome - Locataire'), ('LANDLORD', 'Sofasthome - Bailleur')]
@@ -8,10 +12,18 @@ class Contract(models.Model):
     lease = models.ForeignKey('leasing.Lease', on_delete=models.PROTECT, related_name='contracts')
     contract_type = models.CharField(max_length=10, choices=TYPES)
     status = models.CharField(max_length=20, choices=STATUS, default='PENDING')
-    signed_document = models.FileField(upload_to='private/contracts/', null=True, blank=True)
+    signed_document = models.FileField(upload_to='private/contracts/', null=True, blank=True, validators=[validate_identity_document])
     signed_at = models.DateTimeField(null=True, blank=True)
     uploaded_at = models.DateTimeField(null=True, blank=True)
     uploaded_by = models.ForeignKey('users.User', on_delete=models.PROTECT, null=True, blank=True, related_name='uploaded_contracts')
+
+    def clean(self):
+        super().clean()
+        if self.status in {'UPLOADED', 'VALIDATED'} and not self.signed_document:
+            raise ValidationError({'signed_document': 'Un contrat téléversé ou validé doit posséder un document signé.'})
+        if self.status == 'VALIDATED' and not self.uploaded_by:
+            raise ValidationError({'uploaded_by': 'Un contrat validé doit être téléversé par un utilisateur interne identifié.'})
+
     def save(self, *args, **kwargs):
         if not self.contract_id:
             prefix = 'FCL' if self.contract_type == 'TENANT' else 'FCB'
