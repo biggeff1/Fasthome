@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block title %}Connexion — Fasthome{% endblock %}
+{% block content %}<main class="container"><div class="form"><h1>Connexion</h1><form method="post">{% csrf_token %}{{ form.non_field_errors }}{% for field in form %}<div class="field"><label>{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}<button class="btn btn-primary" type="submit">Se connecter</button></form><p>Pas encore de compte ? <a href="{% url 'register' %}">Créer un compte</a></p></div></main>{% endblock %}
