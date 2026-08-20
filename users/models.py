@@ -1,6 +1,9 @@
 import uuid
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
+
+from core.validators import validate_identity_document, validate_image_upload
 
 
 def make_code(prefix: str) -> str:
@@ -22,7 +25,7 @@ class User(AbstractUser):
     is_phone_verified = models.BooleanField(default=False)
     is_email_verified = models.BooleanField(default=False)
     is_certified = models.BooleanField(default=False)
-    profile_photo = models.ImageField(upload_to='profiles/', null=True, blank=True)
+    profile_photo = models.ImageField(upload_to='profiles/', null=True, blank=True, validators=[validate_image_upload])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -43,12 +46,26 @@ class IdentityVerification(models.Model):
     STATUS = [('PENDING', 'En attente'), ('IN_REVIEW', 'En vérification'), ('VERIFIED', 'Vérifiée'), ('REJECTED', 'Refusée'), ('RETRY', 'À refaire')]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='identity_verification')
     document_type = models.CharField(max_length=30, choices=DOCUMENT_TYPES)
-    document_file = models.FileField(upload_to='private/identity/')
+    document_file = models.FileField(upload_to='private/identity/', validators=[validate_identity_document])
     facial_status = models.CharField(max_length=20, choices=STATUS, default='PENDING')
     status = models.CharField(max_length=20, choices=STATUS, default='PENDING')
     submitted_at = models.DateTimeField(auto_now_add=True)
     verified_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)
+
+    def clean(self):
+        super().clean()
+        if self.status == 'VERIFIED' and self.facial_status != 'VERIFIED':
+            raise ValidationError({'facial_status': 'La certification ne peut être validée tant que la vérification faciale n’est pas validée.'})
+        if self.facial_status == 'VERIFIED' and self.status != 'VERIFIED':
+            raise ValidationError({'status': 'La vérification faciale ne peut être finale avant la validation du document.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+        certified = self.status == 'VERIFIED' and self.facial_status == 'VERIFIED'
+        if self.user.is_certified != certified:
+            type(self.user).objects.filter(pk=self.user_id).update(is_certified=certified)
 
     def __str__(self):
         return f'{self.user.fasthome_id} - {self.status}'
