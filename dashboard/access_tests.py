@@ -59,7 +59,7 @@ class AccessControlTests(TestCase):
         visit.refresh_from_db()
         self.assertEqual(visit.status, 'CONFIRMED')
 
-    def test_tenant_cannot_read_another_users_lease_detail(self):
+    def test_landlord_and_tenant_can_read_their_lease_but_outsider_cannot(self):
         visit = VisitRequest.objects.create(
             property=self.property,
             requester=self.other,
@@ -72,7 +72,12 @@ class AccessControlTests(TestCase):
             tenant=self.other, landlord=self.owner,
             monthly_rent=Decimal('300000'), status='ACTIVE',
         )
+
         self.client.force_login(self.owner)
+        response = self.client.get(reverse('lease_detail', args=[lease.lease_id]), follow=True)
+        self.assertEqual(response.status_code, 200)
+
+        self.client.force_login(self.other)
         response = self.client.get(reverse('lease_detail', args=[lease.lease_id]), follow=True)
         self.assertEqual(response.status_code, 200)
 
@@ -82,7 +87,7 @@ class AccessControlTests(TestCase):
         )
         self.client.force_login(outsider)
         response = self.client.get(reverse('lease_detail', args=[lease.lease_id]), follow=True)
-        self.assertIn(response.status_code, {302, 403})
+        self.assertEqual(response.status_code, 302)
 
     def test_staff_dashboard_access(self):
         self.client.force_login(self.staff)
