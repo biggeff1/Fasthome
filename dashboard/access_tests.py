@@ -66,11 +66,19 @@ class AccessControlTests(TestCase):
             requested_date=date.today() + timedelta(days=1),
             status='COMPLETED',
         )
-        case = RentalCase.objects.create(property=self.property, tenant=self.other, visit=visit, status='CONTRACTING')
+        case = RentalCase.objects.create(
+            property=self.property,
+            tenant=self.other,
+            visit=visit,
+            status='CONTRACTING',
+        )
         lease = Lease.objects.create(
-            rental_case=case, property=self.property,
-            tenant=self.other, landlord=self.owner,
-            monthly_rent=Decimal('300000'), status='ACTIVE',
+            rental_case=case,
+            property=self.property,
+            tenant=self.other,
+            landlord=self.owner,
+            monthly_rent=Decimal('300000'),
+            status='ACTIVE',
         )
 
         self.client.force_login(self.owner)
