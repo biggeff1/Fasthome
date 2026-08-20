@@ -1,5 +1,3 @@
-from io import BytesIO
-
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.exceptions import ValidationError
 from django.test import TestCase
