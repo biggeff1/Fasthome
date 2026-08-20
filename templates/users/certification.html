@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block title %}Certification — Fasthome{% endblock %}
+{% block content %}<main class="container"><div class="form"><h1>Certification du compte</h1><p>Choisissez une pièce : passeport, carte d'électeur ou permis de conduire. Le dossier est ensuite traité par Fasthome.</p>{% if verification %}<p class="badge">Statut : {{ verification.get_status_display }}</p>{% endif %}<form method="post" enctype="multipart/form-data">{% csrf_token %}{% for field in form %}<div class="field"><label>{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}<button class="btn btn-primary">Envoyer pour vérification</button></form></div></main>{% endblock %}
