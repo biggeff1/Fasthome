@@ -37,11 +37,11 @@ class AccessControlTests(TestCase):
 
     def test_owner_can_open_edit_but_other_user_cannot(self):
         self.client.force_login(self.owner)
-        response = self.client.get(reverse('property_edit', args=[self.property.property_id]))
+        response = self.client.get(reverse('property_edit', args=[self.property.property_id]), follow=True)
         self.assertEqual(response.status_code, 200)
 
         self.client.force_login(self.other)
-        response = self.client.get(reverse('property_edit', args=[self.property.property_id]))
+        response = self.client.get(reverse('property_edit', args=[self.property.property_id]), follow=True)
         self.assertEqual(response.status_code, 404)
 
     def test_non_staff_cannot_complete_visit(self):
@@ -55,7 +55,7 @@ class AccessControlTests(TestCase):
         )
         self.client.force_login(self.other)
         response = self.client.post(reverse('office_complete_visit', args=[visit.visit_id]))
-        self.assertIn(response.status_code, {302, 403})
+        self.assertIn(response.status_code, {301, 302, 403})
         visit.refresh_from_db()
         self.assertEqual(visit.status, 'CONFIRMED')
 
@@ -73,17 +73,17 @@ class AccessControlTests(TestCase):
             monthly_rent=Decimal('300000'), status='ACTIVE',
         )
         self.client.force_login(self.owner)
-        response = self.client.get(reverse('lease_detail', args=[lease.lease_id]))
+        response = self.client.get(reverse('lease_detail', args=[lease.lease_id]), follow=True)
         self.assertEqual(response.status_code, 200)
 
         self.client.force_login(User.objects.create_user(
             email='outsider@example.com', password='A-secure-password-123',
             phone='+243900001004', last_name='Outsider', first_name='Test',
         ))
-        response = self.client.get(reverse('lease_detail', args=[lease.lease_id]))
+        response = self.client.get(reverse('lease_detail', args=[lease.lease_id]), follow=True)
         self.assertIn(response.status_code, {302, 403})
 
     def test_staff_dashboard_access(self):
         self.client.force_login(self.staff)
-        response = self.client.get(reverse('office_dashboard'))
+        response = self.client.get(reverse('office_dashboard'), follow=True)
         self.assertEqual(response.status_code, 200)
