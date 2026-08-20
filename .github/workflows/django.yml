@@ -6,20 +6,24 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
     env:
       DJANGO_SETTINGS_MODULE: config.settings
       DJANGO_DEBUG: '0'
-      DJANGO_SECRET_KEY: 'ci-only-not-for-production'
+      DJANGO_SECRET_KEY: 'ci-only-secret-key-7f2d9a4c6e8b1f3a5d7c9e2f4a6b8c0d1e3f5a7b9c2d4e6f8a0b2c4d6e8f1a3'
       DJANGO_ALLOWED_HOSTS: 'localhost,127.0.0.1'
       DJANGO_CSRF_TRUSTED_ORIGINS: 'https://localhost'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+          cache: 'pip'
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt
       - run: python manage.py check --deploy
