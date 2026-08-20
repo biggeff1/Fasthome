@@ -106,6 +106,52 @@ class PaymentInvariantTests(TestCase):
                 recorded_by=self._user(),
             )
 
+    def test_payment_must_be_positive(self):
+        for amount in (Decimal('0'), Decimal('-1')):
+            with self.subTest(amount=amount):
+                with self.assertRaises(ValidationError):
+                    PaymentReceipt.objects.create(
+                        lease=self.lease,
+                        installment=self.installment,
+                        amount=amount,
+                        received_at='2026-08-20T10:00:00Z',
+                        recorded_by=self._user(),
+                    )
+
+    def test_payment_installment_must_belong_to_lease(self):
+        other_installment = RentInstallment.objects.create(
+            lease=Lease.objects.create(
+                rental_case=RentalCase.objects.create(
+                    property=self.property,
+                    tenant=self.tenant,
+                    visit=VisitRequest.objects.create(
+                        property=self.property,
+                        requester=self.tenant,
+                        requested_date=date.today(),
+                        fasthome_approved=True,
+                        landlord_approved=True,
+                        status='COMPLETED',
+                    ),
+                    status='CONTRACTING',
+                ),
+                property=self.property,
+                tenant=self.tenant,
+                landlord=self.landlord,
+                monthly_rent=Decimal('300000'),
+                status='ACTIVE',
+            ),
+            due_date=date.today(),
+            amount_due=Decimal('300000'),
+        )
+        with self.assertRaises(ValidationError):
+            PaymentReceipt.objects.create(
+                lease=self.lease,
+                installment=other_installment,
+                amount=Decimal('1000'),
+                received_at='2026-08-20T10:00:00Z',
+                recorded_by=self._user(),
+            )
+
     def test_payout_cannot_exceed_amount_received(self):
         PaymentReceipt.objects.create(
             lease=self.lease,
@@ -147,3 +193,22 @@ class PaymentInvariantTests(TestCase):
         )
         self.assertEqual(self.installment.total_paid_to_landlord(), Decimal('300000'))
         self.assertEqual(self.installment.remaining_to_pay_out(), Decimal('0'))
+
+    def test_payout_must_be_positive(self):
+        PaymentReceipt.objects.create(
+            lease=self.lease,
+            installment=self.installment,
+            amount=Decimal('100000'),
+            received_at='2026-08-20T10:00:00Z',
+            recorded_by=self._user(),
+        )
+        for amount in (Decimal('0'), Decimal('-1')):
+            with self.subTest(amount=amount):
+                with self.assertRaises(ValidationError):
+                    LandlordPayout.objects.create(
+                        lease=self.lease,
+                        installment=self.installment,
+                        amount=amount,
+                        paid_at='2026-08-20T12:00:00Z',
+                        recorded_by=self._user(),
+                    )
