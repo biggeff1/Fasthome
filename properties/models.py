@@ -1,6 +1,9 @@
 import uuid
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+
+from core.validators import image_extension_validator, validate_image_upload
 
 
 def code(prefix: str):
@@ -46,6 +49,22 @@ class Property(models.Model):
     furniture_condition = models.CharField(max_length=20, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.monthly_rent is not None and self.monthly_rent <= 0:
+            errors['monthly_rent'] = 'Le loyer doit être supérieur à zéro.'
+        if self.guarantee_amount is not None and self.guarantee_amount < 0:
+            errors['guarantee_amount'] = 'Le montant garanti ne peut pas être négatif.'
+        if self.max_occupants < 1:
+            errors['max_occupants'] = 'Le nombre maximal d’occupants doit être au moins égal à 1.'
+        if self.latitude is not None and not -90 <= float(self.latitude) <= 90:
+            errors['latitude'] = 'Latitude invalide.'
+        if self.longitude is not None and not -180 <= float(self.longitude) <= 180:
+            errors['longitude'] = 'Longitude invalide.'
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         if not self.property_id:
@@ -134,7 +153,7 @@ class Toilet(models.Model):
 class PropertyPhoto(models.Model):
     CATEGORIES = [('GENERAL', 'Générale'), ('EXTERIOR', 'Extérieur'), ('LIVING_ROOM', 'Salon'), ('BEDROOM', 'Chambre'), ('KITCHEN', 'Cuisine'), ('BATHROOM', 'Salle de bain'), ('TOILET', 'Toilette'), ('PARKING', 'Parking'), ('GARDEN', 'Jardin'), ('OTHER', 'Autre')]
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='photos')
-    image = models.ImageField(upload_to='properties/photos/')
+    image = models.ImageField(upload_to='properties/photos/', validators=[image_extension_validator, validate_image_upload])
     category = models.CharField(max_length=20, choices=CATEGORIES, default='GENERAL')
     is_primary = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
