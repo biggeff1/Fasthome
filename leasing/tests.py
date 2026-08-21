@@ -17,7 +17,7 @@ class LeaseLifecycleTests(TestCase):
         self.staff = User.objects.create_user(email='life-staff@example.com', password='A-secure-password-123', phone='+243900001103', last_name='Staff', first_name='Life', is_staff=True)
         ptype = PropertyType.objects.create(name='Maison lifecycle')
         self.property = Property.objects.create(owner=self.landlord, property_type=ptype, province='Haut-Katanga', city_or_territory='Lubumbashi', neighborhood='Golf', bedroom_count=2, living_room_count=1, max_occupants=4, monthly_rent=Decimal('300000'), status='RENTED')
-        self.visit = VisitRequest.objects.create(property=self.property, requester=self.tenant, status='COMPLETED')
+        self.visit = VisitRequest.objects.create(property=self.property, requester=self.tenant, requested_date=date.today(), requested_time_slot='09:00-10:00', status='COMPLETED')
         self.case = RentalCase.objects.create(property=self.property, tenant=self.tenant, visit=self.visit, status='OFFICIAL')
         self.lease = Lease.objects.create(rental_case=self.case, property=self.property, tenant=self.tenant, landlord=self.landlord, start_date=date.today(), end_date=date.today() + timedelta(days=365), monthly_rent=Decimal('300000'), status='ACTIVE')
 
