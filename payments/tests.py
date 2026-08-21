@@ -14,18 +14,12 @@ from .models import LandlordPayout, PaymentReceipt, RentInstallment
 class PaymentInvariantTests(TestCase):
     def setUp(self):
         self.landlord = User.objects.create_user(
-            email='landlord@example.com',
-            password='A-secure-password-123',
-            phone='+243900000101',
-            last_name='Landlord',
-            first_name='Test',
+            email='landlord@example.com', password='A-secure-password-123',
+            phone='+243900000101', last_name='Landlord', first_name='Test',
         )
         self.tenant = User.objects.create_user(
-            email='tenant@example.com',
-            password='A-secure-password-123',
-            phone='+243900000102',
-            last_name='Tenant',
-            first_name='Test',
+            email='tenant@example.com', password='A-secure-password-123',
+            phone='+243900000102', last_name='Tenant', first_name='Test',
         )
         property_type = PropertyType.objects.create(name='Appartement')
         self.property = Property.objects.create(
@@ -49,166 +43,104 @@ class PaymentInvariantTests(TestCase):
             status='COMPLETED',
         )
         self.case = RentalCase.objects.create(
-            property=self.property,
-            tenant=self.tenant,
-            visit=self.visit,
-            status='CONTRACTING',
+            property=self.property, tenant=self.tenant, visit=self.visit, status='CONTRACTING',
         )
         self.lease = Lease.objects.create(
-            rental_case=self.case,
-            property=self.property,
-            tenant=self.tenant,
-            landlord=self.landlord,
-            monthly_rent=Decimal('300000'),
-            status='ACTIVE',
+            rental_case=self.case, property=self.property, tenant=self.tenant,
+            landlord=self.landlord, monthly_rent=Decimal('300000'), status='ACTIVE',
         )
         self.installment = RentInstallment.objects.create(
-            lease=self.lease,
-            due_date=date.today(),
-            amount_due=Decimal('300000'),
+            lease=self.lease, due_date=date.today(), amount_due=Decimal('300000'),
         )
 
     def _user(self):
         return self.landlord
 
+    def _payment(self, amount):
+        return PaymentReceipt.objects.create(
+            lease=self.lease, installment=self.installment, amount=Decimal(amount),
+            received_at='2026-08-20T10:00:00Z', recorded_by=self._user(),
+        )
+
     def test_payment_can_be_split_into_multiple_tranches(self):
-        PaymentReceipt.objects.create(
-            lease=self.lease,
-            installment=self.installment,
-            amount=Decimal('100000'),
-            received_at='2026-08-20T10:00:00Z',
-            recorded_by=self._user(),
-        )
-        PaymentReceipt.objects.create(
-            lease=self.lease,
-            installment=self.installment,
-            amount=Decimal('200000'),
-            received_at='2026-08-20T11:00:00Z',
-            recorded_by=self._user(),
-        )
+        self._payment('100000')
+        self._payment('200000')
         self.installment.refresh_from_db()
         self.assertEqual(self.installment.total_received(), Decimal('300000'))
+        self.assertEqual(self.installment.status, 'PAID')
+
+    def test_partial_payment_marks_installment_partial(self):
+        self._payment('100000')
+        self.installment.refresh_from_db()
+        self.assertEqual(self.installment.status, 'PARTIAL')
+        self.assertEqual(self.installment.remaining_to_receive(), Decimal('200000'))
+
+    def test_full_payment_creates_next_month_installment(self):
+        self._payment('300000')
+        self.assertEqual(RentInstallment.objects.filter(lease=self.lease).count(), 2)
+        next_installment = RentInstallment.objects.exclude(pk=self.installment.pk).get()
+        self.assertEqual(next_installment.amount_due, Decimal('300000'))
+        self.assertEqual(next_installment.status, 'UPCOMING')
 
     def test_payment_cannot_exceed_due_amount(self):
-        PaymentReceipt.objects.create(
-            lease=self.lease,
-            installment=self.installment,
-            amount=Decimal('250000'),
-            received_at='2026-08-20T10:00:00Z',
-            recorded_by=self._user(),
-        )
+        self._payment('250000')
         with self.assertRaises(ValidationError):
-            PaymentReceipt.objects.create(
-                lease=self.lease,
-                installment=self.installment,
-                amount=Decimal('60000'),
-                received_at='2026-08-20T11:00:00Z',
-                recorded_by=self._user(),
-            )
+            self._payment('60000')
 
     def test_payment_must_be_positive(self):
         for amount in (Decimal('0'), Decimal('-1')):
             with self.subTest(amount=amount):
                 with self.assertRaises(ValidationError):
-                    PaymentReceipt.objects.create(
-                        lease=self.lease,
-                        installment=self.installment,
-                        amount=amount,
-                        received_at='2026-08-20T10:00:00Z',
-                        recorded_by=self._user(),
-                    )
+                    self._payment(amount)
 
     def test_payment_installment_must_belong_to_lease(self):
+        other_visit = VisitRequest.objects.create(
+            property=self.property, requester=self.tenant, requested_date=date.today(),
+            fasthome_approved=True, landlord_approved=True, status='COMPLETED',
+        )
+        other_case = RentalCase.objects.create(
+            property=self.property, tenant=self.tenant, visit=other_visit, status='CONTRACTING',
+        )
+        other_lease = Lease.objects.create(
+            rental_case=other_case, property=self.property, tenant=self.tenant,
+            landlord=self.landlord, monthly_rent=Decimal('300000'), status='ACTIVE',
+        )
         other_installment = RentInstallment.objects.create(
-            lease=Lease.objects.create(
-                rental_case=RentalCase.objects.create(
-                    property=self.property,
-                    tenant=self.tenant,
-                    visit=VisitRequest.objects.create(
-                        property=self.property,
-                        requester=self.tenant,
-                        requested_date=date.today(),
-                        fasthome_approved=True,
-                        landlord_approved=True,
-                        status='COMPLETED',
-                    ),
-                    status='CONTRACTING',
-                ),
-                property=self.property,
-                tenant=self.tenant,
-                landlord=self.landlord,
-                monthly_rent=Decimal('300000'),
-                status='ACTIVE',
-            ),
-            due_date=date.today(),
-            amount_due=Decimal('300000'),
+            lease=other_lease, due_date=date.today(), amount_due=Decimal('300000'),
         )
         with self.assertRaises(ValidationError):
             PaymentReceipt.objects.create(
-                lease=self.lease,
-                installment=other_installment,
-                amount=Decimal('1000'),
-                received_at='2026-08-20T10:00:00Z',
-                recorded_by=self._user(),
+                lease=self.lease, installment=other_installment, amount=Decimal('1000'),
+                received_at='2026-08-20T10:00:00Z', recorded_by=self._user(),
             )
 
     def test_payout_cannot_exceed_amount_received(self):
-        PaymentReceipt.objects.create(
-            lease=self.lease,
-            installment=self.installment,
-            amount=Decimal('150000'),
-            received_at='2026-08-20T10:00:00Z',
-            recorded_by=self._user(),
-        )
+        self._payment('150000')
         with self.assertRaises(ValidationError):
             LandlordPayout.objects.create(
-                lease=self.lease,
-                installment=self.installment,
-                amount=Decimal('150001'),
-                paid_at='2026-08-20T12:00:00Z',
-                recorded_by=self._user(),
+                lease=self.lease, installment=self.installment, amount=Decimal('150001'),
+                paid_at='2026-08-20T12:00:00Z', recorded_by=self._user(),
             )
 
     def test_payout_can_be_split_and_cannot_exceed_remaining_received_balance(self):
-        PaymentReceipt.objects.create(
-            lease=self.lease,
-            installment=self.installment,
-            amount=Decimal('300000'),
-            received_at='2026-08-20T10:00:00Z',
-            recorded_by=self._user(),
+        self._payment('300000')
+        LandlordPayout.objects.create(
+            lease=self.lease, installment=self.installment, amount=Decimal('100000'),
+            paid_at='2026-08-20T12:00:00Z', recorded_by=self._user(),
         )
         LandlordPayout.objects.create(
-            lease=self.lease,
-            installment=self.installment,
-            amount=Decimal('100000'),
-            paid_at='2026-08-20T12:00:00Z',
-            recorded_by=self._user(),
-        )
-        LandlordPayout.objects.create(
-            lease=self.lease,
-            installment=self.installment,
-            amount=Decimal('200000'),
-            paid_at='2026-08-20T13:00:00Z',
-            recorded_by=self._user(),
+            lease=self.lease, installment=self.installment, amount=Decimal('200000'),
+            paid_at='2026-08-20T13:00:00Z', recorded_by=self._user(),
         )
         self.assertEqual(self.installment.total_paid_to_landlord(), Decimal('300000'))
         self.assertEqual(self.installment.remaining_to_pay_out(), Decimal('0'))
 
     def test_payout_must_be_positive(self):
-        PaymentReceipt.objects.create(
-            lease=self.lease,
-            installment=self.installment,
-            amount=Decimal('100000'),
-            received_at='2026-08-20T10:00:00Z',
-            recorded_by=self._user(),
-        )
+        self._payment('100000')
         for amount in (Decimal('0'), Decimal('-1')):
             with self.subTest(amount=amount):
                 with self.assertRaises(ValidationError):
                     LandlordPayout.objects.create(
-                        lease=self.lease,
-                        installment=self.installment,
-                        amount=amount,
-                        paid_at='2026-08-20T12:00:00Z',
-                        recorded_by=self._user(),
+                        lease=self.lease, installment=self.installment, amount=amount,
+                        paid_at='2026-08-20T12:00:00Z', recorded_by=self._user(),
                     )
