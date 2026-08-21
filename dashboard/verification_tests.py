@@ -30,21 +30,12 @@ class VerificationModerationTests(TestCase):
 
     def test_document_then_face_makes_user_certified(self):
         self.client.force_login(self.staff)
-        self.client.post(
-            reverse('office_verification_decision', args=[self.verification.pk]),
-            {'action': 'verify_document'},
-            follow=True,
-        )
+        self.client.post(reverse('office_verification_decision', args=[self.verification.pk]), {'action': 'verify_document'})
         self.verification.refresh_from_db()
         self.user.refresh_from_db()
         self.assertEqual(self.verification.status, 'VERIFIED')
         self.assertFalse(self.user.is_certified)
-
-        self.client.post(
-            reverse('office_verification_decision', args=[self.verification.pk]),
-            {'action': 'verify_face'},
-            follow=True,
-        )
+        self.client.post(reverse('office_verification_decision', args=[self.verification.pk]), {'action': 'verify_face'})
         self.verification.refresh_from_db()
         self.user.refresh_from_db()
         self.assertEqual(self.verification.facial_status, 'VERIFIED')
@@ -52,11 +43,7 @@ class VerificationModerationTests(TestCase):
 
     def test_face_cannot_be_finalized_before_document(self):
         self.client.force_login(self.staff)
-        response = self.client.post(
-            reverse('office_verification_decision', args=[self.verification.pk]),
-            {'action': 'verify_face'},
-            follow=True,
-        )
+        response = self.client.post(reverse('office_verification_decision', args=[self.verification.pk]), {'action': 'verify_face'}, follow=True)
         self.assertEqual(response.status_code, 200)
         self.verification.refresh_from_db()
         self.assertEqual(self.verification.status, 'PENDING')
@@ -68,23 +55,15 @@ class VerificationModerationTests(TestCase):
         self.client.post(reverse('office_verification_decision', args=[self.verification.pk]), {'action': 'verify_face'})
         self.user.refresh_from_db()
         self.assertTrue(self.user.is_certified)
-
-        self.client.post(
-            reverse('office_verification_decision', args=[self.verification.pk]),
-            {'action': 'reject', 'reason': 'Document illisible.'},
-            follow=True,
-        )
+        self.client.post(reverse('office_verification_decision', args=[self.verification.pk]), {'action': 'reject', 'reason': 'Document illisible.'})
         self.verification.refresh_from_db()
         self.user.refresh_from_db()
-        self.assertEqual(self.verification.status, 'REJECTED')
+        self.assertEqual(self.verification.status, 'RETRY')
+        self.assertEqual(self.verification.facial_status, 'RETRY')
         self.assertFalse(self.user.is_certified)
 
     def test_non_staff_cannot_moderate_kyc(self):
         self.client.force_login(self.user)
-        self.client.post(
-            reverse('office_verification_decision', args=[self.verification.pk]),
-            {'action': 'verify_document'},
-            follow=True,
-        )
+        self.client.post(reverse('office_verification_decision', args=[self.verification.pk]), {'action': 'verify_document'}, follow=True)
         self.verification.refresh_from_db()
         self.assertEqual(self.verification.status, 'PENDING')
