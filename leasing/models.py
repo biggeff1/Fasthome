@@ -50,11 +50,17 @@ class RenewalRequest(models.Model):
     decided_at = models.DateTimeField(null=True, blank=True)
     decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name='decided_renewals')
 
+    def clean(self):
+        super().clean()
+        if self.lease_id and self.requested_end_date:
+            baseline = self.lease.end_date or self.lease.start_date
+            if baseline and self.requested_end_date <= baseline:
+                raise ValidationError({'requested_end_date': 'La nouvelle date de fin doit être postérieure à la date de fin actuelle.'})
+
     def save(self, *args, **kwargs):
         if not self.request_id:
             self.request_id = f'REN-{uuid.uuid4().hex[:10].upper()}'
-        if self.requested_end_date <= (self.lease.end_date or self.lease.start_date):
-            raise ValidationError('La nouvelle date de fin doit être postérieure à la date de fin actuelle.')
+        self.full_clean()
         super().save(*args, **kwargs)
 
 
@@ -70,9 +76,15 @@ class LeaseExit(models.Model):
     decided_at = models.DateTimeField(null=True, blank=True)
     decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name='decided_lease_exits')
 
+    def clean(self):
+        super().clean()
+        if self.lease_id and self.requested_date:
+            baseline = self.lease.start_date
+            if baseline and self.requested_date < baseline:
+                raise ValidationError({'requested_date': 'La date de sortie ne peut pas précéder le début de la location.'})
+
     def save(self, *args, **kwargs):
         if not self.exit_id:
             self.exit_id = f'SOR-{uuid.uuid4().hex[:10].upper()}'
-        if self.requested_date < (self.lease.start_date or self.requested_date):
-            raise ValidationError('La date de sortie ne peut pas précéder le début de la location.')
+        self.full_clean()
         super().save(*args, **kwargs)
