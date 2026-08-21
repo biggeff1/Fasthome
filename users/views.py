@@ -25,8 +25,23 @@ def register(request):
 def login_view(request):
     form = EmailLoginForm(request, request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        login(request, form.get_user())
-        return redirect(request.GET.get('next') or 'home')
+        user = form.get_user()
+        login(request, user)
+
+        # Respect a protected destination first, otherwise route the user
+        # according to their Fasthome role.
+        next_url = request.GET.get('next')
+        if next_url:
+            return redirect(next_url)
+
+        if user.is_superuser:
+            return redirect('/admin/')
+
+        if user.is_staff:
+            return redirect('dashboard:office')
+
+        return redirect('home')
+
     return render(request, 'users/login.html', {'form': form})
 
 
