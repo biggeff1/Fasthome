@@ -34,7 +34,7 @@
           <div id="upload-status" class="upload-status" hidden aria-live="polite">
             <div class="upload-status-head"><strong id="upload-title">Préparation des fichiers…</strong><span id="upload-percent">0 %</span></div>
             <div class="upload-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="upload-progress-bar"></span></div>
-            <p id="upload-detail" class="muted">Les images sont redimensionnées et compressées avant l'envoi pour éviter le gel de la page.</p>
+            <p id="upload-detail" class="muted">Les photos sont traitées une par une et compressées avant l'envoi pour limiter l'utilisation de mémoire.</p>
           </div>
           <button id="upload-button" class="btn btn-primary" type="submit">{% if facial_retry %}Renvoyer la photo faciale{% else %}Envoyer pour vérification{% endif %}</button>
         </form>
@@ -49,38 +49,137 @@
   {% if not verification or verification.status == 'REJECTED' or verification.status == 'RETRY' or facial_retry %}
 <script>
 (() => {
-  const form=document.getElementById('identity-form'), button=document.getElementById('upload-button'), status=document.getElementById('upload-status');
-  const title=document.getElementById('upload-title'), percent=document.getElementById('upload-percent'), detail=document.getElementById('upload-detail'), bar=document.getElementById('upload-progress-bar'), progress=status?.querySelector('[role="progressbar"]');
+  'use strict';
+  const form=document.getElementById('identity-form');
+  const button=document.getElementById('upload-button');
+  const status=document.getElementById('upload-status');
+  const title=document.getElementById('upload-title');
+  const percent=document.getElementById('upload-percent');
+  const detail=document.getElementById('upload-detail');
+  const bar=document.getElementById('upload-progress-bar');
+  const progress=status?.querySelector('[role="progressbar"]');
   if(!form||!button||!status||!progress)return;
-  const MAX_DIMENSION=1800, JPEG_QUALITY=.78, MAX_CLIENT_SIZE=2.5*1024*1024, imageTypes=new Set(['image/jpeg','image/png','image/webp']);
+
+  // Keep browser memory low: never decode several full-resolution photos at once.
+  // The server still validates the final upload size independently.
+  const MAX_DIMENSION=1400;
+  const TARGET_BYTES=1.5*1024*1024;
+  const HARD_INPUT_BYTES=8*1024*1024;
+  const imageTypes=new Set(['image/jpeg','image/png','image/webp']);
   const inputs=[document.getElementById('id_document_file'),document.getElementById('id_facial_photo')].filter(Boolean);
-  function setProgress(v,msg){const n=Math.max(0,Math.min(100,Math.round(v)));bar.style.width=n+'%';percent.textContent=n+' %';progress.setAttribute('aria-valuenow',String(n));if(msg)detail.textContent=msg}
+  let submitting=false;
+
+  function setProgress(v,msg){
+    const n=Math.max(0,Math.min(100,Math.round(v)));
+    bar.style.width=n+'%';percent.textContent=n+' %';progress.setAttribute('aria-valuenow',String(n));
+    if(msg)detail.textContent=msg;
+  }
   function formatSize(b){return b<1048576?Math.max(1,Math.round(b/1024))+' Ko':(b/1048576).toFixed(1)+' Mo'}
-  function canvasBlob(c){return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('Compression impossible.')),'image/jpeg',JPEG_QUALITY))}
+  function yieldToBrowser(){return new Promise(resolve=>setTimeout(resolve,0))}
+
+  function loadImage(file){
+    return new Promise((resolve,reject)=>{
+      const url=URL.createObjectURL(file);
+      const img=new Image();
+      img.decoding='async';
+      img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};
+      img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Cette image ne peut pas être lue. Essayez une autre photo.'))};
+      img.src=url;
+    });
+  }
+
+  function canvasToBlob(canvas,quality){
+    return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Compression impossible.')),'image/jpeg',quality));
+  }
+
   async function compressImage(file){
-    if(!imageTypes.has(file.type)||file.size<=MAX_CLIENT_SIZE&&file.type==='image/jpeg')return file;
-    const bitmap=await createImageBitmap(file,{imageOrientation:'from-image'}), scale=Math.min(1,MAX_DIMENSION/Math.max(bitmap.width,bitmap.height));
-    const w=Math.max(1,Math.round(bitmap.width*scale)),h=Math.max(1,Math.round(bitmap.height*scale)),canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
-    const ctx=canvas.getContext('2d',{alpha:false});if(!ctx){bitmap.close();throw new Error('Préparation de l’image impossible.')}ctx.drawImage(bitmap,0,0,w,h);bitmap.close();
-    const blob=await canvasBlob(canvas);if(blob.size>=file.size&&file.size<=8*1024*1024)return file;
+    if(!imageTypes.has(file.type))return file;
+    if(file.size>HARD_INPUT_BYTES)throw new Error(`La photo originale est trop volumineuse (${formatSize(file.size)}). Choisissez une photo plus légère.`);
+    // Small JPEGs are already inexpensive: don't decode them needlessly.
+    if(file.type==='image/jpeg'&&file.size<=TARGET_BYTES)return file;
+
+    await yieldToBrowser();
+    const img=await loadImage(file);
+    const longest=Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height);
+    const scale=Math.min(1,MAX_DIMENSION/Math.max(1,longest));
+    const width=Math.max(1,Math.round((img.naturalWidth||img.width)*scale));
+    const height=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));
+    const canvas=document.createElement('canvas');
+    canvas.width=width;canvas.height=height;
+    const ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
+    if(!ctx){canvas.width=canvas.height=1;throw new Error('Le navigateur ne peut pas préparer cette image.');}
+    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='medium';
+    ctx.drawImage(img,0,0,width,height);
+    // Drop the decoded image reference before waiting for the encoded blob.
+    img.src='';
+    await yieldToBrowser();
+
+    let blob=await canvasToBlob(canvas,.76);
+    if(blob.size>TARGET_BYTES)blob=await canvasToBlob(canvas,.64);
+    if(blob.size>TARGET_BYTES)blob=await canvasToBlob(canvas,.52);
+    canvas.width=canvas.height=1;
+    if(blob.size>=file.size&&file.type==='image/jpeg')return file;
     return new File([blob],(file.name.replace(/\.[^.]+$/,'')||'image')+'.jpg',{type:'image/jpeg',lastModified:Date.now()});
   }
-  function replaceFile(input,file){const dt=new DataTransfer();dt.items.add(file);input.files=dt.files}
+
+  function replaceFile(input,file){
+    const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;
+  }
+
   form.addEventListener('submit',async e=>{
     e.preventDefault();
-    if(!inputs.some(i=>i.files.length)){form.submit();return}
-    button.disabled=true;status.hidden=false;setProgress(0,'Préparation des fichiers…');
+    if(submitting)return;
+    submitting=true;button.disabled=true;status.hidden=false;
+    setProgress(0,'Préparation des fichiers…');
     try{
-      for(let i=0;i<inputs.length;i++){
-        const input=inputs[i];if(!input.files.length)continue;const original=input.files[0];
-        title.textContent=input.id==='id_facial_photo'?'Optimisation de la photo faciale…':'Optimisation de la pièce d’identité…';setProgress(5+i*20,`Fichier original : ${formatSize(original.size)}`);
-        if(imageTypes.has(original.type)){const file=await compressImage(original);replaceFile(input,file);detail.textContent=`${formatSize(original.size)} → ${formatSize(file.size)}. Fichier prêt.`}
+      let processed=0;
+      const selected=inputs.filter(input=>input.files&&input.files.length);
+      if(!selected.length){submitting=false;button.disabled=false;form.submit();return;}
+
+      // Sequential processing is deliberate: it prevents two large camera images
+      // from being decoded into memory at the same time.
+      for(const input of selected){
+        const original=input.files[0];
+        const label=input.id==='id_facial_photo'?'photo faciale':'pièce d’identité';
+        title.textContent=`Préparation de la ${label}…`;
+        setProgress(processed*25,`Fichier original : ${formatSize(original.size)}`);
+        if(imageTypes.has(original.type)){
+          const optimized=await compressImage(original);
+          replaceFile(input,optimized);
+          detail.textContent=`${formatSize(original.size)} → ${formatSize(optimized.size)}. Image optimisée.`;
+        }else if(original.size>HARD_INPUT_BYTES){
+          throw new Error(`Le fichier « ${label} » dépasse 8 Mo. Choisissez un fichier plus léger.`);
+        }
+        processed++;
+        setProgress(25+processed*25,'Fichiers préparés.');
+        await yieldToBrowser();
       }
-      const xhr=new XMLHttpRequest();xhr.open('POST',form.action||window.location.href,true);xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
-      xhr.upload.addEventListener('progress',e=>{if(!e.lengthComputable)return;const p=Math.round(e.loaded/e.total*100);setProgress(50+p*.5,p>=100?'Fichiers reçus…':`Téléversement : ${p} %`);title.textContent=p>=100?'Fichiers reçus…':'Téléversement sécurisé…'});
-      xhr.addEventListener('load',()=>{if(xhr.status>=200&&xhr.status<400){setProgress(100,'Dossier reçu. Votre certification est maintenant en cours de vérification.');title.textContent='Dossier envoyé ✓';window.location.assign(xhr.responseURL||window.location.href);return}button.disabled=false;title.textContent='Échec du téléversement';setProgress(0,xhr.status===403?'Session expirée. Rechargez la page.':'Le serveur a refusé les fichiers. Vérifiez-les puis réessayez.')});
-      xhr.addEventListener('error',()=>{button.disabled=false;title.textContent='Connexion interrompue';setProgress(0,'Aucun fichier incomplet n’a été enregistré. Réessayez.')});xhr.addEventListener('abort',()=>{button.disabled=false;title.textContent='Téléversement annulé';setProgress(0,'Vous pouvez réessayer.')});xhr.send(new FormData(form));
-    }catch(err){console.error(err);button.disabled=false;title.textContent='Préparation impossible';setProgress(0,err.message||'Impossible de préparer les images.')}
+
+      title.textContent='Téléversement sécurisé…';
+      const xhr=new XMLHttpRequest();
+      xhr.open('POST',form.action||window.location.href,true);
+      xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
+      xhr.upload.addEventListener('progress',e=>{
+        if(!e.lengthComputable)return;
+        const p=Math.round(e.loaded/e.total*100);
+        setProgress(50+p*.5,p>=100?'Fichiers reçus…':`Téléversement : ${p} %`);
+      });
+      xhr.addEventListener('load',()=>{
+        if(xhr.status>=200&&xhr.status<400){
+          setProgress(100,'Dossier reçu. Votre certification est maintenant en cours de vérification.');
+          title.textContent='Dossier envoyé ✓';
+          window.location.assign(xhr.responseURL||window.location.href);
+          return;
+        }
+        submitting=false;button.disabled=false;title.textContent='Échec du téléversement';
+        setProgress(0,xhr.status===403?'Session expirée. Rechargez la page.':'Le serveur a refusé les fichiers. Vérifiez-les puis réessayez.');
+      });
+      xhr.addEventListener('error',()=>{submitting=false;button.disabled=false;title.textContent='Connexion interrompue';setProgress(0,'Le téléversement a échoué. Vous pouvez réessayer sans recharger plusieurs fois la page.')});
+      xhr.addEventListener('abort',()=>{submitting=false;button.disabled=false;title.textContent='Téléversement annulé';setProgress(0,'Vous pouvez réessayer.')});
+      xhr.send(new FormData(form));
+    }catch(err){
+      console.error(err);submitting=false;button.disabled=false;title.textContent='Préparation impossible';setProgress(0,err.message||'Impossible de préparer les images.');
+    }
   });
 })();
 </script>
