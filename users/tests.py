@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
@@ -16,38 +17,20 @@ class UserSecurityTests(TestCase):
 
     def test_document_can_be_verified_before_face_without_certifying_user(self):
         user = self.make_user('cert@example.com', '+243900000003')
-        verification = IdentityVerification(
-            user=user,
-            document_type='PASSPORT',
-            document_file=SimpleUploadedFile('passport.pdf', b'%PDF-1.4 test', content_type='application/pdf'),
-            status='VERIFIED',
-            facial_status='PENDING',
-        )
+        verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=SimpleUploadedFile('passport.pdf', b'%PDF-1.4 test', content_type='application/pdf'), status='VERIFIED', facial_status='PENDING')
         verification.save()
         user.refresh_from_db()
         self.assertFalse(user.is_certified)
 
     def test_facial_verification_cannot_be_final_without_document(self):
         user = self.make_user('cert-face@example.com', '+243900000007')
-        verification = IdentityVerification(
-            user=user,
-            document_type='PASSPORT',
-            document_file=SimpleUploadedFile('passport.pdf', b'%PDF-1.4 test', content_type='application/pdf'),
-            status='PENDING',
-            facial_status='VERIFIED',
-        )
-        with self.assertRaises(Exception):
+        verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=SimpleUploadedFile('passport.pdf', b'%PDF-1.4 test', content_type='application/pdf'), status='PENDING', facial_status='VERIFIED')
+        with self.assertRaises(ValidationError):
             verification.full_clean()
 
     def test_user_is_certified_only_after_both_checks(self):
         user = self.make_user('cert2@example.com', '+243900000004')
-        verification = IdentityVerification(
-            user=user,
-            document_type='PASSPORT',
-            document_file=SimpleUploadedFile('passport.pdf', b'%PDF-1.4 test', content_type='application/pdf'),
-            status='VERIFIED',
-            facial_status='VERIFIED',
-        )
+        verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=SimpleUploadedFile('passport.pdf', b'%PDF-1.4 test', content_type='application/pdf'), status='VERIFIED', facial_status='VERIFIED')
         verification.save()
         user.refresh_from_db()
         self.assertTrue(user.is_certified)
