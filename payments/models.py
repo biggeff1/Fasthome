@@ -1,8 +1,9 @@
+from calendar import monthrange
 from decimal import Decimal
 import uuid
 
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 
 
 class RentInstallment(models.Model):
@@ -30,6 +31,34 @@ class RentInstallment(models.Model):
     def remaining_to_pay_out(self):
         return max(self.total_received() - self.total_paid_to_landlord(), Decimal('0'))
 
+    def refresh_payment_status(self):
+        total = self.total_received()
+        if total >= self.amount_due:
+            new_status = 'PAID'
+        elif total > 0:
+            new_status = 'PARTIAL'
+        else:
+            new_status = self.status if self.status == 'LATE' else 'UPCOMING'
+        if self.status != new_status:
+            self.status = new_status
+            self.save(update_fields=['status'])
+        return self.status
+
+    def next_due_date(self):
+        year = self.due_date.year + (1 if self.due_date.month == 12 else 0)
+        month = 1 if self.due_date.month == 12 else self.due_date.month + 1
+        return self.due_date.replace(year=year, month=month, day=min(self.due_date.day, monthrange(year, month)[1]))
+
+    def ensure_next_installment(self):
+        if self.total_received() < self.amount_due:
+            return None
+        installment, _ = RentInstallment.objects.get_or_create(
+            lease=self.lease,
+            due_date=self.next_due_date(),
+            defaults={'amount_due': self.lease.monthly_rent, 'status': 'UPCOMING'},
+        )
+        return installment
+
 
 class PaymentReceipt(models.Model):
     payment_id = models.CharField(max_length=40, unique=True, editable=False)
@@ -54,9 +83,14 @@ class PaymentReceipt(models.Model):
 
     def save(self, *args, **kwargs):
         self.full_clean()
-        if not self.payment_id:
-            self.payment_id = f'PAY-{uuid.uuid4().hex[:10].upper()}'
-        super().save(*args, **kwargs)
+        with transaction.atomic():
+            if not self.payment_id:
+                self.payment_id = f'PAY-{uuid.uuid4().hex[:10].upper()}'
+            super().save(*args, **kwargs)
+            installment = RentInstallment.objects.get(pk=self.installment_id)
+            installment.refresh_payment_status()
+            if installment.status == 'PAID':
+                installment.ensure_next_installment()
 
 
 class LandlordPayout(models.Model):
