@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from . import publication_views, verification_views
+from . import publication_views, verification_views, lease_lifecycle_views
 
 urlpatterns = [
     path('', views.activity, name='activity'),
@@ -8,6 +8,9 @@ urlpatterns = [
     path('favorites/<str:property_id>/toggle/', views.toggle_favorite, name='toggle_favorite'),
     path('notifications/', views.notifications, name='notifications'),
     path('leases/<str:lease_id>/', views.lease_detail, name='lease_detail'),
+    path('leases/<str:lease_id>/requests/', lease_lifecycle_views.lease_requests, name='lease_requests'),
+    path('leases/<str:lease_id>/renew/', lease_lifecycle_views.request_renewal, name='request_renewal'),
+    path('leases/<str:lease_id>/exit/', lease_lifecycle_views.request_exit, name='request_exit'),
     path('office/', views.office_dashboard, name='office_dashboard'),
     path('office/publications/', publication_views.office_publications, name='office_publications'),
     path('office/publications/<str:publication_id>/decision/', publication_views.office_publication_decision, name='office_publication_decision'),
@@ -24,6 +27,9 @@ urlpatterns = [
     path('office/pv/', views.office_reports, name='office_reports'),
     path('office/pv/<str:report_id>/validate/', views.office_report_validate, name='office_report_validate'),
     path('office/leases/<str:lease_id>/officialize/', views.office_officialize_lease, name='office_officialize_lease'),
+    path('office/lifecycle/', lease_lifecycle_views.office_lifecycle_requests, name='office_lifecycle_requests'),
+    path('office/lifecycle/renewals/<str:request_id>/decision/', lease_lifecycle_views.decide_renewal, name='decide_renewal'),
+    path('office/lifecycle/exits/<str:exit_id>/decision/', lease_lifecycle_views.decide_exit, name='decide_exit'),
     path('office/payments/receipt/', views.office_receipt, name='office_receipt'),
     path('office/payments/payout/', views.office_payout, name='office_payout'),
 ]
