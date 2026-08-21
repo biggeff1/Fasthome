@@ -1,4 +1,6 @@
 from decimal import Decimal
+import unicodedata
+from difflib import SequenceMatcher
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -15,19 +17,36 @@ WEIGHTS = {
 }
 
 
+def _normalize(value):
+    value = unicodedata.normalize('NFKD', value or '')
+    return ''.join(c for c in value if not unicodedata.combining(c)).strip().casefold()
+
+
+def _location_match(actual, requested, fuzzy=False):
+    actual_n = _normalize(actual)
+    requested_n = _normalize(requested)
+    if not actual_n or not requested_n:
+        return False
+    if actual_n == requested_n:
+        return True
+    if fuzzy:
+        return SequenceMatcher(None, actual_n, requested_n).ratio() >= 0.86
+    return False
+
+
 def score_property(prop, search):
     """Compute a deterministic score only from criteria supplied by the user."""
     checks = {}
     if search.maximum_budget is not None:
         checks['budget'] = prop.monthly_rent is not None and prop.monthly_rent <= search.maximum_budget
     if search.province:
-        checks['province'] = prop.province.strip().casefold() == search.province.strip().casefold()
+        checks['province'] = _location_match(prop.province, search.province)
     if search.city_or_territory:
-        checks['city'] = prop.city_or_territory.strip().casefold() == search.city_or_territory.strip().casefold()
+        checks['city'] = _location_match(prop.city_or_territory, search.city_or_territory)
     if search.administrative_subdivision:
-        checks['subdivision'] = prop.administrative_subdivision.strip().casefold() == search.administrative_subdivision.strip().casefold()
+        checks['subdivision'] = _location_match(prop.administrative_subdivision, search.administrative_subdivision)
     if search.neighborhood:
-        checks['neighborhood'] = prop.neighborhood.strip().casefold() == search.neighborhood.strip().casefold()
+        checks['neighborhood'] = _location_match(prop.neighborhood, search.neighborhood, fuzzy=True)
     if search.minimum_bedrooms:
         checks['bedrooms'] = prop.bedroom_count >= search.minimum_bedrooms
     if search.minimum_living_rooms:
@@ -71,9 +90,13 @@ def matching(request):
             if maximum_budget is not None and maximum_budget < 0:
                 raise ValidationError('Le budget maximum ne peut pas être négatif.')
 
+            furnished_preference = request.POST.get('furnished_preference', 'ANY')
+            if furnished_preference not in {'ANY', 'YES', 'NO'}:
+                raise ValidationError('Préférence meublé invalide.')
+
             search = SearchRequest.objects.create(
                 user=request.user if request.user.is_authenticated else None,
-                furnished_preference=request.POST.get('furnished_preference', 'ANY'),
+                furnished_preference=furnished_preference,
                 province=request.POST.get('province', '').strip(),
                 city_or_territory=request.POST.get('city_or_territory', '').strip(),
                 administrative_subdivision=request.POST.get('administrative_subdivision', '').strip(),
@@ -93,6 +116,7 @@ def matching(request):
                         search=search, property=prop, score=score,
                         criteria_breakdown=breakdown,
                     ))
+            results.sort(key=lambda item: item.score, reverse=True)
         except (ValidationError, ArithmeticError) as exc:
             messages.error(request, str(exc))
 
