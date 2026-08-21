@@ -1,13 +1,61 @@
 {% extends 'base.html' %}
-{% block title %}Espace Fasthome — Agent/Admin{% endblock %}
+{% block title %}Espace Fasthome — {{ request.user.is_superuser|yesno:'Administration,Agent' }}{% endblock %}
 {% block content %}
 <main class="container">
-  <h1>🏢 Espace Fasthome</h1>
-  <div class="grid">
-    <div class="list-item"><h3>Publications à traiter</h3><strong>{{ pending_publications }}</strong></div><div class="list-item"><h3>Certifications</h3><strong>{{ pending_verifications }}</strong></div><div class="list-item"><h3>Visites</h3><strong>{{ pending_visits }}</strong></div><div class="list-item"><h3>Dossiers</h3><strong>{{ cases }}</strong></div><div class="list-item"><h3>Contrats</h3><strong>{{ pending_contracts }}</strong></div><div class="list-item"><h3>PV</h3><strong>{{ pending_reports }}</strong></div><div class="list-item"><h3>Cycle locations</h3><strong>{{ lifecycle_requests }}</strong></div><div class="list-item"><h3>Paiements reçus</h3><strong>{{ payments }}</strong></div><div class="list-item"><h3>Versements bailleurs</h3><strong>{{ payouts }}</strong></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap">
+    <div>
+      <h1>🏢 Espace {{ request.user.is_superuser|yesno:'Administration,Agent' }}</h1>
+      <p class="muted">{{ request.user.get_full_name }} · {{ request.user.fasthome_id }}</p>
+    </div>
+    {% if is_admin %}<span class="badge">ADMINISTRATEUR</span>{% else %}<span class="badge">AGENT OPÉRATIONNEL</span>{% endif %}
   </div>
-  <section class="section"><div class="actions">
-    <a class="btn btn-primary" href="{% url 'office_publications' %}">🏠 Publications</a><a class="btn btn-primary" href="{% url 'office_verifications' %}">🪪 Certifications</a><a class="btn btn-light" href="{% url 'office_visits' %}">📅 Visites</a><a class="btn btn-light" href="{% url 'office_cases' %}">📂 Dossiers</a><a class="btn btn-light" href="{% url 'office_contracts' %}">📄 Contrats</a><a class="btn btn-light" href="{% url 'office_reports' %}">📋 PV</a><a class="btn btn-light" href="{% url 'office_lifecycle_requests' %}">🔄 Renouvellements / sorties</a><a class="btn btn-light" href="{% url 'office_receipt' %}">💰 Loyer reçu</a><a class="btn btn-light" href="{% url 'office_payout' %}">💸 Versement bailleur</a>
-  </div></section>
+
+  <section class="section">
+    <h2>À traiter maintenant</h2>
+    <div class="grid">
+      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_publications' %}"><h3>🏠 Publications</h3><strong>{{ pending_publications }}</strong><p class="muted">À vérifier et publier</p></a>
+      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_verifications' %}"><h3>🪪 Certifications</h3><strong>{{ pending_verifications }}</strong><p class="muted">Dossiers KYC</p></a>
+      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_visits' %}"><h3>📅 Visites</h3><strong>{{ pending_visits }}</strong><p class="muted">Demandes en attente</p></a>
+      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_cases' %}"><h3>📂 Dossiers</h3><strong>{{ cases }}</strong><p class="muted">Dossiers à traiter</p></a>
+      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_contracts' %}"><h3>📄 Contrats</h3><strong>{{ pending_contracts }}</strong><p class="muted">Contrats à compléter</p></a>
+      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_reports' %}"><h3>📋 PV</h3><strong>{{ pending_reports }}</strong><p class="muted">États des lieux</p></a>
+      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_lifecycle_requests' %}"><h3>🔄 Cycle location</h3><strong>{{ lifecycle_requests }}</strong><p class="muted">Renouvellements / sorties</p></a>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Actions opérationnelles</h2>
+    <div class="actions" style="justify-content:flex-start">
+      <a class="btn btn-primary" href="{% url 'office_publications' %}">Publications</a>
+      <a class="btn btn-primary" href="{% url 'office_verifications' %}">Certifications</a>
+      <a class="btn btn-light" href="{% url 'office_visits' %}">Visites</a>
+      <a class="btn btn-light" href="{% url 'office_cases' %}">Dossiers</a>
+      <a class="btn btn-light" href="{% url 'office_contracts' %}">Contrats</a>
+      <a class="btn btn-light" href="{% url 'office_reports' %}">PV</a>
+      <a class="btn btn-light" href="{% url 'office_lifecycle_requests' %}">Cycle des locations</a>
+      <a class="btn btn-light" href="{% url 'office_receipt' %}">Loyer reçu</a>
+      <a class="btn btn-light" href="{% url 'office_payout' %}">Versement bailleur</a>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Administration</h2>
+    <div class="actions" style="justify-content:flex-start">
+      {% if is_admin %}
+        <a class="btn btn-primary" href="{% url 'office_users' %}">👥 Utilisateurs & agents</a>
+        <a class="btn btn-light" href="{% url 'admin:index' %}">⚙ Administration Django</a>
+      {% else %}
+        <span class="muted">Les fonctions de gestion des utilisateurs sont réservées à l’administrateur.</span>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Suivi financier</h2>
+    <div class="grid">
+      <div class="list-item"><h3>💰 Paiements reçus</h3><strong>{{ payments }}</strong></div>
+      <div class="list-item"><h3>💸 Versements bailleurs</h3><strong>{{ payouts }}</strong></div>
+    </div>
+  </section>
 </main>
 {% endblock %}
