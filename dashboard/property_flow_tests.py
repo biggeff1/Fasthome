@@ -12,8 +12,8 @@ class PropertyFlowTests(TestCase):
 
     def test_owner_can_create_draft(self):
         self.client.force_login(self.owner)
-        response = self.client.post(reverse('property_create'), {'property_type': self.ptype.pk, 'province': 'Haut-Katanga', 'city_or_territory': 'Lubumbashi', 'neighborhood': 'Golf', 'bedroom_count': '2', 'living_room_count': '1', 'bathroom_count': '1', 'toilet_count': '1', 'has_kitchen': 'yes', 'monthly_rent': '300000', 'max_occupants': '4'}, follow=True)
-        self.assertNotEqual(response.status_code, 404)
+        response = self.client.post(reverse('property_create'), {'property_type': self.ptype.pk, 'province': 'Haut-Katanga', 'city_or_territory': 'Lubumbashi', 'neighborhood': 'Golf', 'bedroom_count': '2', 'living_room_count': '1', 'bathroom_count': '1', 'toilet_count': '1', 'has_kitchen': 'yes', 'monthly_rent': '300000', 'max_occupants': '4'})
+        self.assertEqual(response.status_code, 302)
         prop = Property.objects.get(owner=self.owner)
         self.assertEqual(prop.status, 'DRAFT')
         self.assertEqual(prop.publication.status, 'DRAFT')
@@ -22,8 +22,8 @@ class PropertyFlowTests(TestCase):
         self.owner.is_certified = False
         self.owner.save(update_fields=['is_certified'])
         self.client.force_login(self.owner)
-        response = self.client.get(reverse('property_create'), follow=True)
-        self.assertNotEqual(response.status_code, 404)
+        response = self.client.get(reverse('property_create'))
+        self.assertIn(response.status_code, {302, 403})
         self.assertFalse(Property.objects.filter(owner=self.owner).exists())
 
     def test_owner_cannot_edit_another_owners_property(self):
@@ -38,7 +38,7 @@ class PropertyFlowTests(TestCase):
         PropertyPublication.objects.create(property=prop, status='DRAFT')
         self.client.force_login(self.owner)
         response = self.client.post(reverse('property_edit', args=[prop.property_id]), {'submit': '1', 'province': 'Haut-Katanga', 'city_or_territory': 'Lubumbashi', 'neighborhood': 'Golf', 'monthly_rent': '300000', 'max_occupants': '4', 'bedroom_count': '2', 'living_room_count': '1', 'bathroom_count': '1', 'toilet_count': '1', 'has_kitchen': 'yes'}, follow=True)
-        self.assertNotEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
         prop.refresh_from_db()
         self.assertEqual(prop.status, 'DRAFT')
         self.assertEqual(prop.publication.status, 'DRAFT')
