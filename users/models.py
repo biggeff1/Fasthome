@@ -89,10 +89,12 @@ class IdentityVerification(models.Model):
 
     def clean(self):
         super().clean()
-        if self.facial_status == 'VERIFIED' and self.status != 'VERIFIED':
-            raise ValidationError({'status': 'La vérification faciale ne peut être finale avant la validation du document.'})
-        if self.status == 'VERIFIED' and not self.facial_photo:
-            raise ValidationError({'facial_photo': 'Une photo faciale est obligatoire avant la certification finale.'})
+        # Intermediate document approval is valid without a facial photo.
+        # A final facial approval/certification requires the selfie.
+        if self.facial_status == 'VERIFIED' and not self.facial_photo:
+            raise ValidationError({'facial_photo': 'Une photo faciale est obligatoire pour valider le visage.'})
+        if self.status == 'VERIFIED' and (self.facial_status != 'VERIFIED' or not self.facial_photo):
+            raise ValidationError({'status': 'La certification finale exige la validation du document et de la photo faciale.'})
 
     def save(self, *args, **kwargs):
         self.full_clean()
