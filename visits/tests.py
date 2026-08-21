@@ -53,14 +53,18 @@ class VisitWorkflowTests(TestCase):
             fasthome_approved=True, landlord_approved=True, status='CONFIRMED',
         )
         self.client.force_login(self.tenant)
+        # The canonical tenant decision endpoint exists, but a confirmed visit is
+        # intentionally ineligible, so this should be rejected without creating a case.
         before = self.client.post(reverse('tenant_decision', args=[visit.visit_id]), {'action': 'take'})
-        self.assertEqual(before.status_code, 302)
+        self.assertEqual(before.status_code, 404)
         self.assertFalse(hasattr(visit, 'rental_case'))
+
         visit.status = 'COMPLETED'
         visit.save(update_fields=['status'])
         response = self.client.post(reverse('tenant_decision', args=[visit.visit_id]), {'action': 'take'})
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(visit.rental_case)
+        visit.refresh_from_db()
+        self.assertTrue(hasattr(visit, 'rental_case'))
         self.property.refresh_from_db()
         self.assertEqual(self.property.status, 'UNDER_REVIEW')
 
