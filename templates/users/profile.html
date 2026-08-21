@@ -1,3 +1,17 @@
 {% extends 'base.html' %}
 {% block title %}Mon profil — Fasthome{% endblock %}
-{% block content %}<main class="container"><div class="form"><h1>{{ profile_user.get_full_name }}</h1><p class="badge">{% if profile_user.is_certified %}✓ Compte certifié{% else %}Certification à compléter{% endif %}</p><p><strong>Fasthome ID :</strong> {{ profile_user.fasthome_id }}</p><div class="row"><div class="list-item"><h3>Mes informations</h3><p>{{ profile_user.email }}<br>{{ profile_user.phone }}<br>{{ profile_user.profession }}</p></div><div class="list-item"><h3>Certification</h3><p>Téléphone : {% if profile_user.is_phone_verified %}✓{% else %}—{% endif %}<br>Email : {% if profile_user.is_email_verified %}✓{% else %}—{% endif %}<br>Identité : {% if profile_user.is_certified %}✓{% else %}À faire{% endif %}</p><a class="btn btn-light" href="{% url 'certification' %}">Gérer ma certification</a></div></div><section class="section"><h2>Mon activité</h2><div class="actions"><a class="btn btn-light" href="{% url 'activity' %}">Ouvrir Mon activité</a><a class="btn btn-light" href="{% url 'favorites' %}">❤️ Mes favoris</a><a class="btn btn-light" href="{% url 'notifications' %}">🔔 Notifications</a></div></section></div></main>{% endblock %}
+{% block content %}
+<main class="container">
+  <div class="form">
+    <div class="profile-head">
+      <div class="profile-avatar">
+        {% if profile_user.profile_photo %}<img src="{{ profile_user.profile_photo.url }}" alt="Photo de profil de {{ profile_user.get_full_name }}">{% else %}<span>👤</span>{% endif %}
+      </div>
+      <div><h1>{{ profile_user.get_full_name }}</h1><p class="badge">{% if profile_user.is_certified %}✓ Compte certifié{% else %}Certification à compléter{% endif %}</p><p class="muted">{{ profile_user.fasthome_id }}</p></div>
+    </div>
+    <div class="row"><div class="list-item"><h3>Mes informations</h3><p>{{ profile_user.email }}<br>{{ profile_user.phone }}<br>{{ profile_user.profession }}</p></div><div class="list-item"><h3>Certification</h3><p>Téléphone : {% if profile_user.is_phone_verified %}✓{% else %}—{% endif %}<br>Email : {% if profile_user.is_email_verified %}✓{% else %}—{% endif %}<br>Identité : {% if profile_user.is_certified %}✓{% else %}À faire{% endif %}</p><a class="btn btn-light" href="{% url 'certification' %}">Gérer ma certification</a></div></div>
+    <section class="section"><h2>Mon activité</h2><div class="actions"><a class="btn btn-light" href="{% url 'activity' %}">Ouvrir Mon activité</a><a class="btn btn-light" href="{% url 'favorites' %}">❤️ Mes favoris</a><a class="btn btn-light" href="{% url 'notifications' %}">🔔 Notifications</a></div></section>
+  </div>
+</main>
+<style>.profile-head{display:flex;align-items:center;gap:18px;margin-bottom:24px}.profile-avatar{width:104px;height:104px;border-radius:50%;overflow:hidden;background:#eef2f6;display:flex;align-items:center;justify-content:center;font-size:2.4rem;border:3px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,.08)}.profile-avatar img{width:100%;height:100%;object-fit:cover}.profile-head h1{margin:0 0 6px}.profile-head .muted{margin:6px 0 0}@media(max-width:600px){.profile-head{align-items:flex-start}.profile-avatar{width:82px;height:82px}}</style>
+{% endblock %}
