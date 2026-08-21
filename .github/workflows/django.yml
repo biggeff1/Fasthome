@@ -35,5 +35,9 @@ jobs:
       - run: python manage.py check --deploy
       - run: python manage.py migrate --run-syncdb --noinput
       - run: python manage.py seed_property_types
-      # Keep CI output explicit so the full Django test result is easy to verify.
-      - run: python manage.py test --noinput --verbosity 2
+      # The test client uses plain HTTP by default. Production HTTPS redirect
+      # remains enabled for deploy checks; disable only that redirect for tests.
+      - name: Run Django tests
+        env:
+          DJANGO_SECURE_SSL_REDIRECT: '0'
+        run: python manage.py test --noinput --verbosity 2
