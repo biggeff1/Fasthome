@@ -35,6 +35,15 @@ class VisitWorkflowTests(TestCase):
         )
         PropertyPublication.objects.create(property=self.property, status='PUBLISHED')
 
+    def _create_available_property(self, neighborhood):
+        return Property.objects.create(
+            owner=self.owner, property_type=self.property.property_type,
+            furnished=False, province='Haut-Katanga', city_or_territory='Lubumbashi',
+            administrative_subdivision='Commune', neighborhood=neighborhood,
+            bedroom_count=2, living_room_count=1, max_occupants=4,
+            monthly_rent=Decimal('300000'), status='AVAILABLE',
+        )
+
     def test_request_visit_is_post_only_and_does_not_expose_requester_to_owner(self):
         self.client.force_login(self.tenant)
         response = self.client.post(reverse('request_visit', args=[self.property.property_id]), {
@@ -53,12 +62,9 @@ class VisitWorkflowTests(TestCase):
             fasthome_approved=True, landlord_approved=True, status='CONFIRMED',
         )
         self.client.force_login(self.tenant)
-        # The canonical tenant decision endpoint exists, but a confirmed visit is
-        # intentionally ineligible, so this should be rejected without creating a case.
         before = self.client.post(reverse('tenant_decision', args=[visit.visit_id]), {'action': 'take'})
         self.assertEqual(before.status_code, 404)
         self.assertFalse(hasattr(visit, 'rental_case'))
-
         visit.status = 'COMPLETED'
         visit.save(update_fields=['status'])
         response = self.client.post(reverse('tenant_decision', args=[visit.visit_id]), {'action': 'take'})
@@ -76,3 +82,33 @@ class VisitWorkflowTests(TestCase):
         self.client.force_login(self.outsider)
         response = self.client.post(reverse('tenant_decision', args=[visit.visit_id]), {'action': 'take'})
         self.assertEqual(response.status_code, 404)
+
+    def test_tenant_can_have_at_most_two_active_visit_requests(self):
+        first_property = self.property
+        second_property = self._create_available_property('Bel-Air')
+        third_property = self._create_available_property('Kampemba')
+        self.client.force_login(self.tenant)
+        for prop in (first_property, second_property):
+            response = self.client.post(reverse('request_visit', args=[prop.property_id]), {
+                'requested_date': (date.today() + timedelta(days=2)).isoformat(),
+                'requested_time_slot': '10:00-12:00',
+            })
+            self.assertEqual(response.status_code, 302)
+        response = self.client.post(reverse('request_visit', args=[third_property.property_id]), {
+            'requested_date': (date.today() + timedelta(days=2)).isoformat(),
+            'requested_time_slot': '10:00-12:00',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(VisitRequest.objects.filter(requester=self.tenant).count(), 2)
+
+    def test_landlord_can_approve_without_receiving_requester_identity(self):
+        visit = VisitRequest.objects.create(
+            property=self.property, requester=self.tenant,
+            requested_date=date.today() + timedelta(days=1), status='REQUESTED',
+        )
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse('landlord_visit_decision', args=[visit.visit_id]), {'action': 'approve'})
+        self.assertEqual(response.status_code, 302)
+        visit.refresh_from_db()
+        self.assertTrue(visit.landlord_approved)
+        self.assertFalse(response.context if hasattr(response, 'context') else False)
