@@ -15,7 +15,11 @@ def staff_required(view):
 
 @staff_required
 def office_verifications(request):
-    verifications = IdentityVerification.objects.select_related('user').filter(status__in=['PENDING', 'IN_REVIEW', 'RETRY']).order_by('submitted_at')
+    verifications = (
+        IdentityVerification.objects.select_related('user')
+        .filter(status__in=['PENDING', 'IN_REVIEW', 'RETRY'])
+        .order_by('submitted_at')
+    )
     return render(request, 'dashboard/office_verifications.html', {'verifications': verifications})
 
 
@@ -31,14 +35,19 @@ def office_verification_decision(request, verification_id):
         )
 
         if action == 'verify_document':
+            if verification.status == 'VERIFIED' and verification.facial_status == 'VERIFIED':
+                messages.info(request, 'Ce dossier est déjà entièrement certifié.')
+                return redirect('office_verifications')
             verification.status = 'VERIFIED'
-            if verification.facial_status == 'RETRY':
+            verification.verified_at = None
+            # Après un refus, le nouveau dossier doit repasser par une
+            # vérification faciale, même si l'ancien selfie existe encore.
+            if verification.facial_status in {'RETRY', 'VERIFIED'}:
                 verification.facial_status = 'PENDING'
-            verification.verified_at = timezone.now() if verification.facial_status == 'VERIFIED' else None
 
         elif action == 'verify_face':
             if verification.status != 'VERIFIED':
-                messages.error(request, 'Le document d’identité doit être validé avant la vérification faciale finale.')
+                messages.error(request, 'Validez d’abord la pièce d’identité.')
                 return redirect('office_verifications')
             if not verification.facial_photo:
                 messages.error(request, 'Aucune photo faciale n’est enregistrée. Le visage ne peut pas être validé.')
