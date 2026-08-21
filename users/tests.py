@@ -13,6 +13,10 @@ class UserSecurityTests(TestCase):
     def make_document(self, name='passport.pdf'):
         return SimpleUploadedFile(name, b'%PDF-1.4 test', content_type='application/pdf')
 
+    def make_facial_photo(self, name='selfie.jpg'):
+        # Small valid-enough image upload for the project size/content validators.
+        return SimpleUploadedFile(name, b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xd9', content_type='image/jpeg')
+
     def test_fasthome_id_is_generated_and_unique(self):
         first = self.make_user('one@example.com', '+243900000001')
         second = self.make_user('two@example.com', '+243900000002')
@@ -28,16 +32,23 @@ class UserSecurityTests(TestCase):
 
     def test_facial_verification_cannot_be_final_without_document(self):
         user = self.make_user('cert-face@example.com', '+243900000007')
-        verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=self.make_document(), status='PENDING', facial_status='VERIFIED')
+        verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=self.make_document(), status='PENDING', facial_status='VERIFIED', facial_photo=self.make_facial_photo())
         with self.assertRaises(ValidationError):
             verification.full_clean()
 
-    def test_user_is_certified_only_after_both_checks(self):
-        user = self.make_user('cert2@example.com', '+243900000004')
+    def test_final_certification_requires_facial_photo(self):
+        user = self.make_user('cert-photo-required@example.com', '+243900000011')
         verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=self.make_document(), status='VERIFIED', facial_status='VERIFIED')
+        with self.assertRaises(ValidationError):
+            verification.full_clean()
+
+    def test_user_is_certified_only_after_both_checks_and_selfie(self):
+        user = self.make_user('cert2@example.com', '+243900000004')
+        verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=self.make_document(), status='VERIFIED', facial_status='VERIFIED', facial_photo=self.make_facial_photo())
         verification.save()
         user.refresh_from_db()
         self.assertTrue(user.is_certified)
+        self.assertTrue(user.profile_photo)
 
     def test_user_manager_rejects_empty_email(self):
         with self.assertRaises(ValueError):
@@ -66,7 +77,7 @@ class UserSecurityTests(TestCase):
 
     def test_verified_kyc_cannot_be_replaced(self):
         user = self.make_user('verified@example.com', '+243900000009')
-        IdentityVerification.objects.create(user=user, document_type='PASSPORT', document_file=self.make_document(), status='VERIFIED', facial_status='VERIFIED')
+        IdentityVerification.objects.create(user=user, document_type='PASSPORT', document_file=self.make_document(), facial_photo=self.make_facial_photo(), status='VERIFIED', facial_status='VERIFIED')
         self.client.force_login(user)
         response = self.client.post(reverse('certification'), {'document_type': 'VOTER_CARD', 'document_file': self.make_document('replacement.pdf')})
         self.assertEqual(response.status_code, 302)
