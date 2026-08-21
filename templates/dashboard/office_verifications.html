@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Certifications — Fasthome{% endblock %}
+{% block content %}
+<main class="container">
+  <h1>🪪 Certifications</h1>
+  <p class="muted">La certification finale exige la validation du document et de la vérification faciale. Les documents restent privés.</p>
+  <div class="list">
+    {% for verification in verifications %}
+      <article class="list-item">
+        <h3>{{ verification.user.fasthome_id }}</h3>
+        <p>{{ verification.user.get_full_name }} · {{ verification.document_type }} · Document : {{ verification.get_status_display }} · Visage : {{ verification.get_facial_status_display }}</p>
+        {% if verification.rejection_reason %}<div class="alert">Motif : {{ verification.rejection_reason }}</div>{% endif %}
+        <form method="post" action="{% url 'office_verification_decision' verification.pk %}">
+          {% csrf_token %}
+          {% if verification.status != 'VERIFIED' %}<button class="btn btn-primary" name="action" value="verify_document">✓ Valider le document</button>{% endif %}
+          {% if verification.status == 'VERIFIED' and verification.facial_status != 'VERIFIED' %}<button class="btn btn-primary" name="action" value="verify_face">✓ Valider le visage</button>{% endif %}
+          <input name="reason" placeholder="Motif si refus" aria-label="Motif du refus">
+          <button class="btn btn-light" name="action" value="reject">Refuser</button>
+        </form>
+      </article>
+    {% empty %}<p class="muted">Aucun dossier de certification à traiter.</p>{% endfor %}
+  </div>
+</main>
+{% endblock %}
