@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Publications — Fasthome{% endblock %}
+{% block content %}
+<main class="container">
+  <h1>🏠 Publications à traiter</h1>
+  <p class="muted">Vérifiez les informations avant de rendre un logement visible. Le loyer reste masqué au public.</p>
+  <div class="list">
+    {% for publication in publications %}
+      <article class="list-item">
+        <h3>{{ publication.publication_id }} · {{ publication.property.property_id }}</h3>
+        <p><strong>{{ publication.property.property_type }}</strong> · {{ publication.property.province }} · {{ publication.property.city_or_territory }} · {{ publication.property.neighborhood }}</p>
+        <p>Propriétaire : {{ publication.property.owner.fasthome_id }} · Statut : {{ publication.get_status_display }}</p>
+        <p>Chambres : {{ publication.property.bedroom_count }} · Salons : {{ publication.property.living_room_count }} · Occupants max : {{ publication.property.max_occupants }}</p>
+        {% if publication.correction_message %}<div class="alert">Corrections : {{ publication.correction_message }}</div>{% endif %}
+        <form method="post" action="{% url 'office_publication_decision' publication.publication_id %}">
+          {% csrf_token %}
+          <button class="btn btn-primary" name="action" value="approve">✓ Publier</button>
+          <input name="reason" placeholder="Motif si correction nécessaire" aria-label="Motif de correction">
+          <button class="btn btn-light" name="action" value="correction">Demander une correction</button>
+        </form>
+      </article>
+    {% empty %}
+      <p class="muted">Aucune publication à traiter.</p>
+    {% endfor %}
+  </div>
+</main>
+{% endblock %}
