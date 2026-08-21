@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Administration — Utilisateurs{% endblock %}
+{% block content %}
+<main class="container">
+  <h1>👥 Administration des utilisateurs</h1>
+  <p class="muted">Vue réservée aux administrateurs. Les agents travaillent depuis l’espace opérationnel sans accès à cette gestion.</p>
+  <div class="actions" style="justify-content:flex-start;margin:18px 0">
+    <a class="btn btn-light" href="{% url 'office_dashboard' %}">← Bureau</a>
+    <a class="btn btn-primary" href="{% url 'admin:index' %}">Administration Django</a>
+  </div>
+  <div class="list">
+    {% for user in users %}
+      <article class="list-item">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <h3>{{ user.get_full_name|default:user.email }}</h3>
+            <p class="muted">{{ user.fasthome_id }} · {{ user.email }} · {{ user.phone }}</p>
+          </div>
+          <div>
+            {% if user.is_superuser %}<span class="badge">ADMIN</span>{% elif user.is_staff %}<span class="badge">AGENT</span>{% else %}<span class="badge">UTILISATEUR</span>{% endif %}
+          </div>
+        </div>
+        <p>Certification : <strong>{% if user.is_certified %}✓ Certifié{% else %}En attente{% endif %}</strong> · Inscription : {{ user.created_at|date:'d/m/Y H:i' }}</p>
+      </article>
+    {% empty %}
+      <p class="muted">Aucun utilisateur.</p>
+    {% endfor %}
+  </div>
+</main>
+{% endblock %}
