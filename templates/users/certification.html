@@ -8,16 +8,22 @@
 
     {% if verification %}
       <p class="badge">Document : {{ verification.get_status_display }} · Visage : {{ verification.get_facial_status_display }}</p>
-      {% if verification.status == 'PENDING' or verification.status == 'IN_REVIEW' %}
-        <div class="notice notice-info"><strong>Dossier déjà transmis</strong><p>Votre document et votre photo faciale sont en cours de traitement. Un second envoi est bloqué pendant la vérification.</p></div>
-      {% elif verification.status == 'VERIFIED' %}
+      {% if fully_certified %}
         <div class="notice notice-success"><strong>Identité vérifiée ✓</strong><p>Votre photo faciale validée est utilisée comme photo de profil. Aucun nouvel envoi n'est nécessaire.</p></div>
+      {% elif facial_retry %}
+        <div class="notice notice-warning">
+          <strong>Nouvelle vérification faciale nécessaire</strong>
+          <p>Votre pièce d’identité reste validée, mais la vérification faciale a été refusée. Vous n’avez pas besoin de renvoyer votre pièce d’identité : envoyez simplement une nouvelle photo faciale nette.</p>
+          {% if verification.rejection_reason %}<p><strong>Motif :</strong> {{ verification.rejection_reason }}</p>{% endif %}
+        </div>
+      {% elif verification.status == 'PENDING' or verification.status == 'IN_REVIEW' %}
+        <div class="notice notice-info"><strong>Dossier déjà transmis</strong><p>Votre document et votre photo faciale sont en cours de traitement. Un second envoi est bloqué pendant la vérification.</p></div>
       {% elif verification.status == 'REJECTED' or verification.status == 'RETRY' %}
         <div class="notice notice-warning"><strong>Dossier à refaire</strong><p>Vous pouvez envoyer une nouvelle pièce et une nouvelle photo faciale.</p>{% if verification.rejection_reason %}<p><strong>Motif :</strong> {{ verification.rejection_reason }}</p>{% endif %}</div>
       {% endif %}
     {% endif %}
 
-    {% if not verification or verification.status == 'REJECTED' or verification.status == 'RETRY' %}
+    {% if not fully_certified and (not verification or verification.status == 'REJECTED' or verification.status == 'RETRY' or facial_retry) %}
       <form id="identity-form" method="post" enctype="multipart/form-data">
         {% csrf_token %}
         {% for field in form %}
@@ -34,7 +40,7 @@
           <div class="upload-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="upload-progress-bar"></span></div>
           <p id="upload-detail" class="muted">Les images sont redimensionnées et compressées avant l'envoi pour éviter le gel de la page.</p>
         </div>
-        <button id="upload-button" class="btn btn-primary" type="submit">Envoyer pour vérification</button>
+        <button id="upload-button" class="btn btn-primary" type="submit">{% if facial_retry %}Renvoyer la photo faciale{% else %}Envoyer pour vérification{% endif %}</button>
       </form>
     {% endif %}
   </div>
@@ -42,7 +48,7 @@
 <style>
 .upload-status{margin:16px 0;padding:14px;border:1px solid #dbe3eb;border-radius:12px;background:#f8fafc}.upload-status-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px}.upload-progress{height:9px;border-radius:999px;background:#e4e9ef;overflow:hidden}.upload-progress span{display:block;width:0;height:100%;border-radius:999px;background:#163a5f;transition:width .15s ease}.upload-status p{margin:8px 0 0;font-size:.9rem}#upload-button:disabled{opacity:.65;cursor:wait}.notice{margin:18px 0;padding:14px 16px;border-radius:12px;border:1px solid #dbe3eb}.notice p{margin:6px 0 0}.notice-info{background:#f8fafc}.notice-success{background:#f0fdf4}.notice-warning{background:#fffbeb}.field small{display:block;margin-top:4px}
 </style>
-{% if not verification or verification.status == 'REJECTED' or verification.status == 'RETRY' %}
+{% if not fully_certified and (not verification or verification.status == 'REJECTED' or verification.status == 'RETRY' or facial_retry) %}
 <script>
 (() => {
   const form=document.getElementById('identity-form'), button=document.getElementById('upload-button'), status=document.getElementById('upload-status');
