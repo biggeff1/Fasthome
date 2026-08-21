@@ -1,6 +1,27 @@
 from django.urls import path
 from . import views
-urlpatterns=[
-path('',views.activity,name='activity'),path('favorites/',views.favorites,name='favorites'),path('favorites/<str:property_id>/toggle/',views.toggle_favorite,name='toggle_favorite'),path('notifications/',views.notifications,name='notifications'),path('leases/<str:lease_id>/',views.lease_detail,name='lease_detail'),
-path('office/',views.office_dashboard,name='office_dashboard'),path('office/visits/',views.office_visits,name='office_visits'),path('office/visits/<str:visit_id>/approve/',views.office_approve_visit,name='office_approve_visit'),path('office/visits/<str:visit_id>/complete/',views.office_complete_visit,name='office_complete_visit'),
-path('office/cases/',views.office_cases,name='office_cases'),path('office/cases/<str:case_id>/accept/',views.office_accept_case,name='office_accept_case'),path('office/contracts/',views.office_contracts,name='office_contracts'),path('office/contracts/<str:contract_id>/upload/',views.office_contract_upload,name='office_contract_upload'),path('office/contracts/<str:contract_id>/validate/',views.office_contract_validate,name='office_contract_validate'),path('office/pv/',views.office_reports,name='office_reports'),path('office/pv/<str:report_id>/validate/',views.office_report_validate,name='office_report_validate'),path('office/leases/<str:lease_id>/officialize/',views.office_officialize_lease,name='office_officialize_lease'),path('office/payments/receipt/',views.office_receipt,name='office_receipt'),path('office/payments/payout/',views.office_payout,name='office_payout')]
+from . import publication_views
+
+urlpatterns = [
+    path('', views.activity, name='activity'),
+    path('favorites/', views.favorites, name='favorites'),
+    path('favorites/<str:property_id>/toggle/', views.toggle_favorite, name='toggle_favorite'),
+    path('notifications/', views.notifications, name='notifications'),
+    path('leases/<str:lease_id>/', views.lease_detail, name='lease_detail'),
+    path('office/', views.office_dashboard, name='office_dashboard'),
+    path('office/publications/', publication_views.office_publications, name='office_publications'),
+    path('office/publications/<str:publication_id>/decision/', publication_views.office_publication_decision, name='office_publication_decision'),
+    path('office/visits/', views.office_visits, name='office_visits'),
+    path('office/visits/<str:visit_id>/approve/', views.office_approve_visit, name='office_approve_visit'),
+    path('office/visits/<str:visit_id>/complete/', views.office_complete_visit, name='office_complete_visit'),
+    path('office/cases/', views.office_cases, name='office_cases'),
+    path('office/cases/<str:case_id>/accept/', views.office_accept_case, name='office_accept_case'),
+    path('office/contracts/', views.office_contracts, name='office_contracts'),
+    path('office/contracts/<str:contract_id>/upload/', views.office_contract_upload, name='office_contract_upload'),
+    path('office/contracts/<str:contract_id>/validate/', views.office_contract_validate, name='office_contract_validate'),
+    path('office/pv/', views.office_reports, name='office_reports'),
+    path('office/pv/<str:report_id>/validate/', views.office_report_validate, name='office_report_validate'),
+    path('office/leases/<str:lease_id>/officialize/', views.office_officialize_lease, name='office_officialize_lease'),
+    path('office/payments/receipt/', views.office_receipt, name='office_receipt'),
+    path('office/payments/payout/', views.office_payout, name='office_payout'),
+]
