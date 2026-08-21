@@ -1,5 +1,4 @@
 from datetime import date
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -13,6 +12,9 @@ from properties.models import Property
 from .models import VisitRequest
 
 
+MAX_ACTIVE_VISITS_PER_TENANT = 2
+
+
 def _staff_required(request):
     return request.user.is_active and request.user.is_staff
 
@@ -24,6 +26,15 @@ def request_visit(request, property_id):
         messages.error(request, 'Un compte certifié est nécessaire pour demander une visite.')
         return redirect('property_detail', property_id=property_id)
     prop = get_object_or_404(Property, property_id=property_id, status='AVAILABLE')
+    if prop.owner_id == request.user.pk:
+        messages.error(request, 'Vous ne pouvez pas demander une visite de votre propre logement.')
+        return redirect('property_detail', property_id=property_id)
+    active_count = VisitRequest.objects.filter(
+        requester=request.user, status__in=['REQUESTED', 'CONFIRMED']
+    ).count()
+    if active_count >= MAX_ACTIVE_VISITS_PER_TENANT:
+        messages.error(request, 'Vous pouvez avoir au maximum deux demandes de visite actives à la fois.')
+        return redirect('activity')
     requested_date = request.POST.get('requested_date', '').strip()
     try:
         parsed_date = date.fromisoformat(requested_date)
