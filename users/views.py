@@ -3,6 +3,7 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import redirect, render
+
 from .forms import EmailLoginForm, IdentityVerificationForm, RegistrationForm
 from .models import IdentityVerification, User
 
@@ -62,8 +63,9 @@ def certification(request):
         return redirect('certification')
 
     form = IdentityVerificationForm(request.POST or None, request.FILES or None, instance=verification)
-    # If the document was already verified and only the face was rejected,
-    # keep that document and require only a new selfie.
+
+    # If only the facial check was rejected/needs retry, the identity document
+    # remains valid and only a fresh selfie is required.
     if facial_retry:
         form.fields['document_type'].required = False
         form.fields['document_file'].required = False
@@ -72,8 +74,9 @@ def certification(request):
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
             locked = IdentityVerification.objects.select_for_update().filter(user=request.user).first()
+            locked_facial_retry = bool(locked and locked.facial_status in {'REJECTED', 'RETRY'})
+
             if locked:
-                locked_facial_retry = locked.facial_status in {'REJECTED', 'RETRY'}
                 locked_fully_certified = locked.status == 'VERIFIED' and locked.facial_status == 'VERIFIED'
                 if locked_fully_certified:
                     messages.info(request, 'Votre identité est déjà certifiée.')
@@ -81,19 +84,20 @@ def certification(request):
                 if locked.status in {'PENDING', 'IN_REVIEW'} and not locked_facial_retry:
                     messages.info(request, 'Votre dossier est déjà en cours de traitement.')
                     return redirect('certification')
-            else:
-                locked_facial_retry = False
 
             obj = form.save(commit=False)
             obj.user = request.user
+
             if locked and locked_facial_retry and locked.status == 'VERIFIED':
-                if not obj.document_file:
-                    obj.document_file = locked.document_file
-                if not obj.document_type:
-                    obj.document_type = locked.document_type
+                # The document was already approved. Keep it and restart only
+                # the facial verification with the newly uploaded selfie.
+                obj.document_file = locked.document_file
+                obj.document_type = locked.document_type
                 obj.status = 'VERIFIED'
             else:
+                # A rejected/failed complete KYC starts a new document review.
                 obj.status = 'PENDING'
+
             obj.facial_status = 'PENDING'
             obj.verified_at = None
             obj.rejection_reason = ''
@@ -101,4 +105,14 @@ def certification(request):
 
         messages.success(request, 'Votre nouvelle photo faciale a été transmise à Fasthome.')
         return redirect('certification')
-    return render(request, 'users/certification.html', {'form': form, 'verification': verification, 'facial_retry': facial_retry, 'fully_certified': fully_certified})
+
+    return render(
+        request,
+        'users/certification.html',
+        {
+            'form': form,
+            'verification': verification,
+            'facial_retry': facial_retry,
+            'fully_certified': fully_certified,
+        },
+    )
