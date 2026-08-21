@@ -28,6 +28,8 @@ def office_verification_decision(request, verification_id):
         verification = get_object_or_404(IdentityVerification.objects.select_for_update().select_related('user'), pk=verification_id)
         if action == 'verify_document':
             verification.status = 'VERIFIED'
+            if verification.facial_status == 'RETRY':
+                verification.facial_status = 'PENDING'
             verification.verified_at = timezone.now() if verification.facial_status == 'VERIFIED' else None
         elif action == 'verify_face':
             if verification.status != 'VERIFIED':
@@ -39,7 +41,7 @@ def office_verification_decision(request, verification_id):
             if not reason:
                 messages.error(request, 'Indiquez le motif du refus.')
                 return redirect('office_verifications')
-            verification.status = 'REJECTED'
+            verification.status = 'RETRY'
             verification.facial_status = 'RETRY'
             verification.rejection_reason = reason
             verification.verified_at = None
