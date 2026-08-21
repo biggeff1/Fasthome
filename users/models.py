@@ -89,32 +89,52 @@ class IdentityVerification(models.Model):
 
     def clean(self):
         super().clean()
-        # Intermediate document approval is valid without a facial photo.
-        # A final facial approval/certification requires the selfie.
+        # `status=VERIFIED` means the identity document has passed its check.
+        # Final account certification is only reached when the face check is
+        # also VERIFIED and a selfie exists.
         if self.facial_status == 'VERIFIED' and not self.facial_photo:
             raise ValidationError({'facial_photo': 'Une photo faciale est obligatoire pour valider le visage.'})
-        if self.status == 'VERIFIED' and (self.facial_status != 'VERIFIED' or not self.facial_photo):
-            raise ValidationError({'status': 'La certification finale exige la validation du document et de la photo faciale.'})
+        if self.facial_status == 'VERIFIED' and self.status != 'VERIFIED':
+            raise ValidationError({'facial_status': 'Le document d’identité doit être validé avant le visage.'})
 
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
-        certified = self.status == 'VERIFIED' and self.facial_status == 'VERIFIED' and bool(self.facial_photo)
-        user = type(self.user).objects.filter(pk=self.user_id).first()
-        if user:
-            update_fields = []
-            if user.is_certified != certified:
-                user.is_certified = certified
-                update_fields.append('is_certified')
-            if certified and self.facial_photo:
-                from django.core.files.base import ContentFile
-                self.facial_photo.open('rb')
-                user.profile_photo.save(os.path.basename(self.facial_photo.name), ContentFile(self.facial_photo.read()), save=False)
+
+        # Never derive the manager from request.user/SimpleLazyObject. Use the
+        # actual model manager so this also works in forms, tests and admin.
+        certified = (
+            self.status == 'VERIFIED'
+            and self.facial_status == 'VERIFIED'
+            and bool(self.facial_photo)
+        )
+        user = User.objects.filter(pk=self.user_id).first()
+        if not user:
+            return
+
+        update_fields = []
+        if user.is_certified != certified:
+            user.is_certified = certified
+            update_fields.append('is_certified')
+
+        # The selfie becomes the profile photo only after the complete KYC
+        # chain has succeeded. It is never exposed as a public KYC file.
+        if certified and self.facial_photo:
+            from django.core.files.base import ContentFile
+            self.facial_photo.open('rb')
+            try:
+                user.profile_photo.save(
+                    os.path.basename(self.facial_photo.name),
+                    ContentFile(self.facial_photo.read()),
+                    save=False,
+                )
+            finally:
                 self.facial_photo.close()
-                update_fields.append('profile_photo')
-            if update_fields:
-                update_fields.append('updated_at')
-                user.save(update_fields=update_fields)
+            update_fields.append('profile_photo')
+
+        if update_fields:
+            update_fields.append('updated_at')
+            user.save(update_fields=update_fields)
 
     def __str__(self):
         return f'{self.user.fasthome_id} - {self.status}'
