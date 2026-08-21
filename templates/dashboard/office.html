@@ -1,61 +1,58 @@
 {% extends 'base.html' %}
-{% block title %}Espace Fasthome — {{ request.user.is_superuser|yesno:'Administration,Agent' }}{% endblock %}
+{% block title %}Fasthome — {% if is_admin %}Administration{% else %}Espace Agent{% endif %}{% endblock %}
 {% block content %}
+<style>
+.office-shell{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;align-items:start}.office-side{position:sticky;top:82px;background:#102a43;color:#fff;border-radius:20px;padding:18px;box-shadow:0 16px 40px rgba(16,42,67,.14)}.office-brand{font-size:1.15rem;font-weight:800;padding:10px 12px 18px}.office-role{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;opacity:.7;margin:0 12px 12px}.office-nav{display:grid;gap:5px}.office-nav a{color:#dbe8f5;text-decoration:none;padding:11px 12px;border-radius:10px;font-weight:600}.office-nav a:hover,.office-nav a.active{background:#214a70;color:#fff}.office-main{min-width:0}.office-top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:22px}.office-kicker{font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;font-weight:800;color:#60758a}.office-title{font-size:clamp(1.8rem,3vw,2.6rem);margin:.15rem 0}.office-subtitle{color:#647483;margin:0}.office-user{background:#fff;border:1px solid #e5eaf0;border-radius:14px;padding:10px 14px;text-align:right}.office-user strong{display:block}.office-user small{color:#718091}.stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px}.stat{background:#fff;border:1px solid #e5eaf0;border-radius:16px;padding:18px;box-shadow:0 8px 25px rgba(20,35,50,.04)}.stat-label{font-size:.82rem;color:#687888}.stat-value{font-size:1.9rem;font-weight:800;margin-top:7px}.stat-link{display:inline-block;margin-top:10px;font-size:.82rem;color:#163a5f;text-decoration:none;font-weight:700}.section-card{background:#fff;border:1px solid #e5eaf0;border-radius:18px;padding:20px;margin-bottom:18px}.section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}.section-head h2{font-size:1.05rem;margin:0}.section-head a{font-size:.84rem;color:#163a5f;font-weight:700;text-decoration:none}.work-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.work-card{display:flex;align-items:center;gap:12px;padding:15px;border:1px solid #e7ebf0;border-radius:14px;text-decoration:none;color:#172330;transition:.15s}.work-card:hover{border-color:#9fb4c8;transform:translateY(-1px)}.work-icon{width:42px;height:42px;border-radius:12px;background:#eef4f8;display:grid;place-items:center;font-size:1.2rem}.work-card strong{display:block}.work-card span{display:block;font-size:.8rem;color:#74818e;margin-top:3px}.quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.quick{padding:12px 14px;border-radius:10px;background:#f4f7fa;color:#18344d;text-decoration:none;font-weight:700;font-size:.9rem}.finance{display:grid;grid-template-columns:1fr 1fr;gap:14px}.finance-card{padding:18px;border-radius:15px;background:#f7f9fb}.finance-card strong{font-size:1.5rem;display:block;margin-top:6px}.admin-strip{display:flex;justify-content:space-between;align-items:center;gap:15px;background:#eef5fa;border:1px solid #d7e5ef;border-radius:15px;padding:16px}.admin-strip p{margin:3px 0 0;color:#637486;font-size:.85rem}@media(max-width:1050px){.stat-grid{grid-template-columns:repeat(2,1fr)}.work-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:820px){.office-shell{grid-template-columns:1fr}.office-side{position:static}.office-nav{grid-template-columns:repeat(2,1fr)}.office-user{display:none}}@media(max-width:560px){.stat-grid,.work-grid,.quick-grid,.finance{grid-template-columns:1fr}.office-nav{grid-template-columns:1fr}.office-top{flex-direction:column}}
+</style>
 <main class="container">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap">
-    <div>
-      <h1>🏢 Espace {{ request.user.is_superuser|yesno:'Administration,Agent' }}</h1>
-      <p class="muted">{{ request.user.get_full_name }} · {{ request.user.fasthome_id }}</p>
-    </div>
-    {% if is_admin %}<span class="badge">ADMINISTRATEUR</span>{% else %}<span class="badge">AGENT OPÉRATIONNEL</span>{% endif %}
-  </div>
+<div class="office-shell">
+  <aside class="office-side">
+    <div class="office-brand">FASTHOME<br><span style="font-size:.72rem;opacity:.65;font-weight:500">Centre de contrôle</span></div>
+    <div class="office-role">{% if is_admin %}Administration{% else %}Opérations{% endif %}</div>
+    <nav class="office-nav">
+      <a class="active" href="{% url 'office_dashboard' %}">▦ Tableau de bord</a>
+      <a href="{% url 'office_publications' %}">⌂ Publications</a>
+      <a href="{% url 'office_verifications' %}">◉ Certifications</a>
+      <a href="{% url 'office_visits' %}">◷ Visites</a>
+      <a href="{% url 'office_cases' %}">▣ Dossiers</a>
+      <a href="{% url 'office_contracts' %}">▤ Contrats</a>
+      <a href="{% url 'office_reports' %}">✓ États des lieux</a>
+      <a href="{% url 'office_lifecycle_requests' %}">↻ Cycle locations</a>
+      <a href="{% url 'office_receipt' %}">€ Paiements</a>
+      <a href="{% url 'office_payout' %}">↗ Versements</a>
+      {% if is_admin %}<a href="{% url 'office_users' %}">♙ Utilisateurs & agents</a><a href="{% url 'admin:index' %}">⚙ Administration technique</a>{% endif %}
+    </nav>
+  </aside>
 
-  <section class="section">
-    <h2>À traiter maintenant</h2>
-    <div class="grid">
-      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_publications' %}"><h3>🏠 Publications</h3><strong>{{ pending_publications }}</strong><p class="muted">À vérifier et publier</p></a>
-      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_verifications' %}"><h3>🪪 Certifications</h3><strong>{{ pending_verifications }}</strong><p class="muted">Dossiers KYC</p></a>
-      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_visits' %}"><h3>📅 Visites</h3><strong>{{ pending_visits }}</strong><p class="muted">Demandes en attente</p></a>
-      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_cases' %}"><h3>📂 Dossiers</h3><strong>{{ cases }}</strong><p class="muted">Dossiers à traiter</p></a>
-      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_contracts' %}"><h3>📄 Contrats</h3><strong>{{ pending_contracts }}</strong><p class="muted">Contrats à compléter</p></a>
-      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_reports' %}"><h3>📋 PV</h3><strong>{{ pending_reports }}</strong><p class="muted">États des lieux</p></a>
-      <a class="list-item" style="text-decoration:none;color:inherit" href="{% url 'office_lifecycle_requests' %}"><h3>🔄 Cycle location</h3><strong>{{ lifecycle_requests }}</strong><p class="muted">Renouvellements / sorties</p></a>
-    </div>
-  </section>
+  <section class="office-main">
+    <header class="office-top">
+      <div><div class="office-kicker">{% if is_admin %}Back-office{% else %}Opérations{% endif %}</div><h1 class="office-title">Bonjour, {{ request.user.first_name|default:'équipe Fasthome' }}.</h1><p class="office-subtitle">Voici ce qui demande votre attention aujourd’hui.</p></div>
+      <div class="office-user"><strong>{{ request.user.get_full_name }}</strong><small>{{ request.user.fasthome_id }} · {% if is_admin %}Administrateur{% else %}Agent{% endif %}</small></div>
+    </header>
 
-  <section class="section">
-    <h2>Actions opérationnelles</h2>
-    <div class="actions" style="justify-content:flex-start">
-      <a class="btn btn-primary" href="{% url 'office_publications' %}">Publications</a>
-      <a class="btn btn-primary" href="{% url 'office_verifications' %}">Certifications</a>
-      <a class="btn btn-light" href="{% url 'office_visits' %}">Visites</a>
-      <a class="btn btn-light" href="{% url 'office_cases' %}">Dossiers</a>
-      <a class="btn btn-light" href="{% url 'office_contracts' %}">Contrats</a>
-      <a class="btn btn-light" href="{% url 'office_reports' %}">PV</a>
-      <a class="btn btn-light" href="{% url 'office_lifecycle_requests' %}">Cycle des locations</a>
-      <a class="btn btn-light" href="{% url 'office_receipt' %}">Loyer reçu</a>
-      <a class="btn btn-light" href="{% url 'office_payout' %}">Versement bailleur</a>
+    <div class="stat-grid">
+      <div class="stat"><div class="stat-label">Publications à traiter</div><div class="stat-value">{{ pending_publications }}</div><a class="stat-link" href="{% url 'office_publications' %}">Ouvrir →</a></div>
+      <div class="stat"><div class="stat-label">Certifications en attente</div><div class="stat-value">{{ pending_verifications }}</div><a class="stat-link" href="{% url 'office_verifications' %}">Ouvrir →</a></div>
+      <div class="stat"><div class="stat-label">Visites demandées</div><div class="stat-value">{{ pending_visits }}</div><a class="stat-link" href="{% url 'office_visits' %}">Ouvrir →</a></div>
+      <div class="stat"><div class="stat-label">Dossiers ouverts</div><div class="stat-value">{{ cases }}</div><a class="stat-link" href="{% url 'office_cases' %}">Ouvrir →</a></div>
     </div>
-  </section>
 
-  <section class="section">
-    <h2>Administration</h2>
-    <div class="actions" style="justify-content:flex-start">
-      {% if is_admin %}
-        <a class="btn btn-primary" href="{% url 'office_users' %}">👥 Utilisateurs & agents</a>
-        <a class="btn btn-light" href="{% url 'admin:index' %}">⚙ Administration Django</a>
-      {% else %}
-        <span class="muted">Les fonctions de gestion des utilisateurs sont réservées à l’administrateur.</span>
-      {% endif %}
-    </div>
-  </section>
+    <section class="section-card"><div class="section-head"><h2>Centre de traitement</h2><span class="muted">Flux opérationnels</span></div><div class="work-grid">
+      <a class="work-card" href="{% url 'office_publications' %}"><div class="work-icon">🏠</div><div><strong>Publications</strong><span>{{ pending_publications }} à vérifier</span></div></a>
+      <a class="work-card" href="{% url 'office_verifications' %}"><div class="work-icon">🪪</div><div><strong>Identités</strong><span>{{ pending_verifications }} dossiers</span></div></a>
+      <a class="work-card" href="{% url 'office_visits' %}"><div class="work-icon">📅</div><div><strong>Visites</strong><span>{{ pending_visits }} demandes</span></div></a>
+      <a class="work-card" href="{% url 'office_cases' %}"><div class="work-icon">📂</div><div><strong>Dossiers de location</strong><span>{{ cases }} ouverts</span></div></a>
+      <a class="work-card" href="{% url 'office_contracts' %}"><div class="work-icon">📄</div><div><strong>Contrats</strong><span>{{ pending_contracts }} à compléter</span></div></a>
+      <a class="work-card" href="{% url 'office_reports' %}"><div class="work-icon">📋</div><div><strong>États des lieux</strong><span>{{ pending_reports }} brouillons</span></div></a>
+      <a class="work-card" href="{% url 'office_lifecycle_requests' %}"><div class="work-icon">🔄</div><div><strong>Cycle des locations</strong><span>{{ lifecycle_requests }} demandes</span></div></a>
+    </div></section>
 
-  <section class="section">
-    <h2>Suivi financier</h2>
-    <div class="grid">
-      <div class="list-item"><h3>💰 Paiements reçus</h3><strong>{{ payments }}</strong></div>
-      <div class="list-item"><h3>💸 Versements bailleurs</h3><strong>{{ payouts }}</strong></div>
-    </div>
+    <section class="section-card"><div class="section-head"><h2>Accès rapides</h2></div><div class="quick-grid"><a class="quick" href="{% url 'office_receipt' %}">+ Enregistrer un loyer</a><a class="quick" href="{% url 'office_payout' %}">+ Enregistrer un versement</a><a class="quick" href="{% url 'office_contracts' %}">Voir les contrats</a></div></section>
+
+    <section class="section-card"><div class="section-head"><h2>Suivi financier</h2><span class="muted">Volumes enregistrés</span></div><div class="finance"><div class="finance-card">💰 Paiements reçus<strong>{{ payments }}</strong><span class="muted">opérations enregistrées</span></div><div class="finance-card">💸 Versements bailleurs<strong>{{ payouts }}</strong><span class="muted">opérations enregistrées</span></div></div></section>
+
+    {% if is_admin %}<section class="admin-strip"><div><strong>Contrôle administrateur</strong><p>Gestion des utilisateurs, agents et configuration technique.</p></div><div class="actions"><a class="btn btn-primary" href="{% url 'office_users' %}">Utilisateurs</a><a class="btn btn-light" href="{% url 'admin:index' %}">Administration Django</a></div></section>{% endif %}
   </section>
+</div>
 </main>
 {% endblock %}
