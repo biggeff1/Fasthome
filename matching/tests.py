@@ -3,15 +3,20 @@ from decimal import Decimal
 from django.test import TestCase
 
 from properties.models import Property, PropertyType
+from users.models import User
 from .models import SearchRequest
 from .views import score_property
 
 
 class MatchingCriteriaTests(TestCase):
     def setUp(self):
+        self.owner = User.objects.create_user(
+            email='matching-owner@example.com', password='A-secure-password-123',
+            phone='+243900000301', last_name='Matching', first_name='Owner',
+        )
         property_type = PropertyType.objects.create(name='Appartement matching')
         self.property = Property.objects.create(
-            owner_id=None,
+            owner=self.owner,
             property_type=property_type,
             furnished=True,
             province='Haut-Katanga',
