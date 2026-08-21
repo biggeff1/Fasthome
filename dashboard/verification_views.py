@@ -25,18 +25,27 @@ def office_verification_decision(request, verification_id):
     action = request.POST.get('action')
     reason = request.POST.get('reason', '').strip()
     with transaction.atomic():
-        verification = get_object_or_404(IdentityVerification.objects.select_for_update().select_related('user'), pk=verification_id)
+        verification = get_object_or_404(
+            IdentityVerification.objects.select_for_update().select_related('user'),
+            pk=verification_id,
+        )
+
         if action == 'verify_document':
             verification.status = 'VERIFIED'
             if verification.facial_status == 'RETRY':
                 verification.facial_status = 'PENDING'
             verification.verified_at = timezone.now() if verification.facial_status == 'VERIFIED' else None
+
         elif action == 'verify_face':
             if verification.status != 'VERIFIED':
                 messages.error(request, 'Le document d’identité doit être validé avant la vérification faciale finale.')
                 return redirect('office_verifications')
+            if not verification.facial_photo:
+                messages.error(request, 'Aucune photo faciale n’est enregistrée. Le visage ne peut pas être validé.')
+                return redirect('office_verifications')
             verification.facial_status = 'VERIFIED'
             verification.verified_at = timezone.now()
+
         elif action == 'reject':
             if not reason:
                 messages.error(request, 'Indiquez le motif du refus.')
@@ -45,15 +54,21 @@ def office_verification_decision(request, verification_id):
             verification.facial_status = 'RETRY'
             verification.rejection_reason = reason
             verification.verified_at = None
+
         else:
             messages.error(request, 'Action de certification invalide.')
             return redirect('office_verifications')
+
         verification.save()
         Notification.objects.create(
             recipient=verification.user,
             level='SUCCESS' if verification.user.is_certified else 'ACTION',
             title='Mise à jour de votre certification',
-            message=('Votre identité est maintenant certifiée.' if verification.user.is_certified else 'Votre dossier de certification a été mis à jour. Consultez votre espace pour connaître la prochaine étape.'),
+            message=(
+                'Votre identité est maintenant certifiée.'
+                if verification.user.is_certified
+                else 'Votre dossier de certification a été mis à jour. Consultez votre espace pour connaître la prochaine étape.'
+            ),
             object_type='IdentityVerification',
             object_id=str(verification.pk),
         )
