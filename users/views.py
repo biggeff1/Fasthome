@@ -52,29 +52,58 @@ def profile(request):
 def certification(request):
     verification = getattr(request.user, 'identity_verification', None)
 
-    if request.method == 'POST' and verification and verification.status in {'PENDING', 'IN_REVIEW', 'VERIFIED'}:
-        if verification.status == 'VERIFIED':
-            messages.info(request, 'Votre identité est déjà certifiée. Aucun nouveau document n’est nécessaire.')
-        else:
+    # A document that is already verified does NOT block the user when the
+    # facial check failed/requires retry. In that case the user only needs to
+    # provide a new selfie; the verified identity document is preserved.
+    facial_retry = verification and verification.facial_status in {'REJECTED', 'RETRY'}
+    fully_certified = verification and verification.status == 'VERIFIED' and verification.facial_status == 'VERIFIED'
+
+    if request.method == 'POST' and verification and not facial_retry:
+        if fully_certified:
+            messages.info(request, 'Votre identité est déjà certifiée. Aucun nouvel envoi n’est nécessaire.')
+        elif verification.status in {'PENDING', 'IN_REVIEW'}:
             messages.info(request, 'Votre dossier est déjà en cours de traitement. Vous ne pouvez pas envoyer un second dossier pour le moment.')
         return redirect('certification')
 
-    form = IdentityVerificationForm(request.POST or None, request.FILES or None, instance=verification)
+    # When only the facial verification must be redone, keep the validated
+    # identity document and ask for a fresh selfie instead of forcing a full
+    # KYC restart.
+    form_instance = verification if facial_retry else verification
+    form = IdentityVerificationForm(request.POST or None, request.FILES or None, instance=form_instance)
+    if facial_retry and request.method != 'POST':
+        form.fields['document_type'].required = False
+        form.fields['document_file'].required = False
+
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
             locked = IdentityVerification.objects.select_for_update().filter(user=request.user).first()
-            if locked and locked.status in {'PENDING', 'IN_REVIEW', 'VERIFIED'}:
-                messages.info(request, 'Votre dossier ne peut pas être remplacé pendant son traitement.')
-                return redirect('certification')
+            if locked:
+                locked_facial_retry = locked.facial_status in {'REJECTED', 'RETRY'}
+                locked_fully_certified = locked.status == 'VERIFIED' and locked.facial_status == 'VERIFIED'
+                if locked_fully_certified:
+                    messages.info(request, 'Votre identité est déjà certifiée.')
+                    return redirect('certification')
+                if locked.status in {'PENDING', 'IN_REVIEW'} and not locked_facial_retry:
+                    messages.info(request, 'Votre dossier est déjà en cours de traitement.')
+                    return redirect('certification')
 
             obj = form.save(commit=False)
             obj.user = request.user
-            obj.status = 'PENDING'
+            # A retry after a facial rejection preserves a valid document but
+            # always resets the facial decision and account certification.
+            if locked and locked.facial_status in {'REJECTED', 'RETRY'} and locked.status == 'VERIFIED':
+                if not obj.document_file:
+                    obj.document_file = locked.document_file
+                if not obj.document_type:
+                    obj.document_type = locked.document_type
+                obj.status = 'VERIFIED'
+            else:
+                obj.status = 'PENDING'
             obj.facial_status = 'PENDING'
             obj.verified_at = None
             obj.rejection_reason = ''
             obj.save()
 
-        messages.success(request, 'Votre document et votre photo faciale ont été transmis à Fasthome.')
+        messages.success(request, 'Votre nouvelle photo faciale a été transmise à Fasthome.')
         return redirect('certification')
-    return render(request, 'users/certification.html', {'form': form, 'verification': verification})
+    return render(request, 'users/certification.html', {'form': form, 'verification': verification, 'facial_retry': facial_retry, 'fully_certified': fully_certified})
