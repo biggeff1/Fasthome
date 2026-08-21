@@ -15,11 +15,16 @@ from contracts.models import Contract
 from inspections.models import InspectionReport
 from payments.models import PaymentReceipt, LandlordPayout, RentInstallment
 from notifications.models import Notification
+from users.models import IdentityVerification, User
 from .office_forms import ReceiptForm, PayoutForm
 
 
 def staff_required(view):
     return user_passes_test(lambda u: u.is_authenticated and (u.is_staff or u.is_superuser))(view)
+
+
+def admin_required(view):
+    return user_passes_test(lambda u: u.is_authenticated and u.is_superuser)(view)
 
 
 def _next_month(value):
@@ -72,7 +77,13 @@ def lease_detail(request, lease_id):
 
 @staff_required
 def office_dashboard(request):
-    return render(request, 'dashboard/office.html', {'pending_publications': Property.objects.filter(publication__status__in=['SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED']).count(), 'pending_verifications': __import__('users.models', fromlist=['IdentityVerification']).IdentityVerification.objects.filter(status__in=['PENDING', 'IN_REVIEW', 'RETRY']).count(), 'pending_visits': VisitRequest.objects.filter(status='REQUESTED').count(), 'cases': RentalCase.objects.filter(status__in=['OPEN', 'UNDER_REVIEW']).count(), 'pending_contracts': Contract.objects.filter(status__in=['PENDING', 'UPLOADED']).count(), 'pending_reports': InspectionReport.objects.filter(status='DRAFT').count(), 'lifecycle_requests': RenewalRequest.objects.filter(status='REQUESTED').count() + LeaseExit.objects.filter(status='REQUESTED').count(), 'payments': PaymentReceipt.objects.count(), 'payouts': LandlordPayout.objects.count()})
+    return render(request, 'dashboard/office.html', {'pending_publications': Property.objects.filter(publication__status__in=['SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED']).count(), 'pending_verifications': IdentityVerification.objects.filter(status__in=['PENDING', 'IN_REVIEW', 'RETRY']).count(), 'pending_visits': VisitRequest.objects.filter(status='REQUESTED').count(), 'cases': RentalCase.objects.filter(status__in=['OPEN', 'UNDER_REVIEW']).count(), 'pending_contracts': Contract.objects.filter(status__in=['PENDING', 'UPLOADED']).count(), 'pending_reports': InspectionReport.objects.filter(status='DRAFT').count(), 'lifecycle_requests': RenewalRequest.objects.filter(status='REQUESTED').count() + LeaseExit.objects.filter(status='REQUESTED').count(), 'payments': PaymentReceipt.objects.count(), 'payouts': LandlordPayout.objects.count(), 'is_admin': request.user.is_superuser})
+
+
+@admin_required
+def office_users(request):
+    users = User.objects.order_by('-created_at')[:250]
+    return render(request, 'dashboard/office_users.html', {'users': users})
 
 
 @staff_required
@@ -188,7 +199,7 @@ def office_receipt(request):
         with transaction.atomic():
             installment = RentInstallment.objects.select_for_update().get(pk=form.cleaned_data['installment'].pk); received = sum((p.amount for p in installment.payments.all()), Decimal('0'))
             receipt = form.save(commit=False); receipt.installment = installment; receipt.received_by = request.user; receipt.save()
-            total = received + receipt.amount; installment.status = 'PAID' if total >= installment.amount_due else 'PARTIAL'; installment.save(update_fields=['status']);
+            total = received + receipt.amount; installment.status = 'PAID' if total >= installment.amount_due else 'PARTIAL'; installment.save(update_fields=['status'])
             if installment.status == 'PAID': _ensure_next_installment(installment.lease, installment)
         return redirect('office_dashboard')
     return render(request, 'dashboard/office_receipt.html', {'form': form})
