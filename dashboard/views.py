@@ -1,3 +1,5 @@
+import calendar
+from datetime import date
 from decimal import Decimal
 
 from django.contrib import messages
@@ -19,6 +21,25 @@ from .office_forms import ReceiptForm, PayoutForm
 
 def staff_required(view):
     return user_passes_test(lambda u: u.is_authenticated and (u.is_staff or u.is_superuser))(view)
+
+
+def _next_month(value):
+    year = value.year + (1 if value.month == 12 else 0)
+    month = 1 if value.month == 12 else value.month + 1
+    return value.replace(year=year, month=month, day=min(value.day, calendar.monthrange(year, month)[1]))
+
+
+def _ensure_next_installment(lease, from_installment=None):
+    if from_installment is not None:
+        due_date = _next_month(from_installment.due_date)
+    else:
+        due_date = lease.start_date or timezone.localdate()
+    installment, _ = RentInstallment.objects.get_or_create(
+        lease=lease,
+        due_date=due_date,
+        defaults={'amount_due': lease.monthly_rent, 'status': 'UPCOMING'},
+    )
+    return installment
 
 
 @login_required
@@ -225,9 +246,10 @@ def office_officialize_lease(request, lease_id):
         if publication:
             publication.status = 'RENTED'
             publication.save(update_fields=['status', 'updated_at'])
+        _ensure_next_installment(lease)
         Notification.objects.create(recipient=lease.tenant, level='SUCCESS', title='Location officielle', message=f'Votre location {lease.lease_id} est maintenant officielle.', object_type='Lease', object_id=lease.lease_id)
         Notification.objects.create(recipient=lease.landlord, level='SUCCESS', title='Logement officiellement loué', message=f'Votre logement {lease.property.property_id} est maintenant officiellement loué.', object_type='Lease', object_id=lease.lease_id)
-        messages.success(request, 'Location officialisée et logement retiré du Matching.')
+        messages.success(request, 'Location officialisée, premier loyer programmé et logement retiré du Matching.')
     return redirect('office_dashboard')
 
 
@@ -248,6 +270,8 @@ def office_receipt(request):
                 total = received + obj.amount
                 installment.status = 'PAID' if total == installment.amount_due else 'PARTIAL'
                 installment.save(update_fields=['status'])
+                if total == installment.amount_due:
+                    _ensure_next_installment(obj.lease, installment)
                 Notification.objects.create(recipient=obj.lease.tenant, level='SUCCESS', title='Paiement enregistré', message=f'{obj.amount} FC ont été enregistrés par Fasthome.', object_type='PaymentReceipt', object_id=obj.payment_id)
                 messages.success(request, f'Paiement {obj.payment_id} enregistré.')
                 return redirect('office_dashboard')
