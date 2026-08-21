@@ -63,5 +63,19 @@ class EmailLoginForm(forms.Form):
 class IdentityVerificationForm(forms.ModelForm):
     class Meta:
         model = IdentityVerification
-        fields = ['document_type', 'document_file']
-        widgets = {'document_file': forms.ClearableFileInput(attrs={'accept': '.pdf,.jpg,.jpeg,.png'})}
+        fields = ['document_type', 'document_file', 'facial_photo']
+        widgets = {
+            'document_file': forms.ClearableFileInput(attrs={'accept': '.pdf,.jpg,.jpeg,.png'}),
+            'facial_photo': forms.ClearableFileInput(attrs={'accept': 'image/jpeg,image/png,image/webp', 'capture': 'user'}),
+        }
+        labels = {
+            'document_type': 'Type de pièce d’identité',
+            'document_file': 'Photo ou scan de la pièce d’identité',
+            'facial_photo': 'Photo faciale (selfie)',
+        }
+
+    def clean_facial_photo(self):
+        photo = self.cleaned_data.get('facial_photo')
+        if photo and photo.content_type not in {'image/jpeg', 'image/png', 'image/webp'}:
+            raise forms.ValidationError('La photo faciale doit être une image JPEG, PNG ou WebP.')
+        return photo
