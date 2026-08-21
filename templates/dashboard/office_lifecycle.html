@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Renouvellements et sorties — Fasthome{% endblock %}
+{% block content %}
+<main class="container">
+<h1>🔄 Cycle des locations</h1>
+<h2>Renouvellements</h2>
+<div class="list">{% for item in renewals %}<article class="list-item"><h3>{{ item.request_id }} · {{ item.lease.lease_id }}</h3><p>Locataire : {{ item.lease.tenant.fasthome_id }} · Logement : {{ item.lease.property.property_id }}</p><p>Nouvelle fin : {{ item.requested_end_date }} · Loyer proposé : {{ item.proposed_monthly_rent|default:'inchangé' }}</p><form method="post" action="{% url 'decide_renewal' item.request_id %}">{% csrf_token %}<button class="btn btn-primary" name="action" value="approve">Accepter</button><button class="btn btn-light" name="action" value="refuse">Refuser</button></form></article>{% empty %}<p class="muted">Aucune demande.</p>{% endfor %}</div>
+<h2>Sorties</h2>
+<div class="list">{% for item in exits %}<article class="list-item"><h3>{{ item.exit_id }} · {{ item.lease.lease_id }}</h3><p>Locataire : {{ item.lease.tenant.fasthome_id }} · Date : {{ item.requested_date }}</p><p>{{ item.reason }}</p><form method="post" action="{% url 'decide_exit' item.exit_id %}">{% csrf_token %}<button class="btn btn-primary" name="action" value="approve">Accepter</button><button class="btn btn-light" name="action" value="refuse">Refuser</button></form></article>{% empty %}<p class="muted">Aucune demande.</p>{% endfor %}</div>
+</main>
+{% endblock %}
