@@ -1,5 +1,4 @@
 import calendar
-from datetime import date
 from decimal import Decimal
 
 from django.contrib import messages
@@ -30,10 +29,7 @@ def _next_month(value):
 
 
 def _ensure_next_installment(lease, from_installment=None):
-    if from_installment is not None:
-        due_date = _next_month(from_installment.due_date)
-    else:
-        due_date = lease.start_date or timezone.localdate()
+    due_date = _next_month(from_installment.due_date) if from_installment is not None else (lease.start_date or timezone.localdate())
     installment, _ = RentInstallment.objects.get_or_create(
         lease=lease,
         due_date=due_date,
@@ -69,6 +65,7 @@ def notifications(request):
 def activity(request):
     return render(request, 'dashboard/activity.html', {
         'visits': request.user.visit_requests.select_related('property', 'property__property_type').order_by('-created_at')[:20],
+        'landlord_visit_requests': VisitRequest.objects.filter(property__owner=request.user, status='REQUESTED').select_related('property').order_by('-created_at')[:20],
         'cases': request.user.rental_cases_as_tenant.select_related('property').order_by('-created_at')[:20],
         'leases': request.user.leases_as_tenant.select_related('property').order_by('-created_at')[:20],
         'properties': request.user.properties.select_related('property_type', 'publication').order_by('-created_at')[:20],
