@@ -1,3 +1,4 @@
+import os
 import uuid
 
 from django.contrib.auth.base_user import BaseUserManager
@@ -10,6 +11,11 @@ from core.validators import validate_identity_document, validate_image_upload
 
 def make_code(prefix: str) -> str:
     return f'{prefix}-{uuid.uuid4().hex[:10].upper()}'
+
+
+def facial_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower() or '.jpg'
+    return f'private/identity/facial/{instance.user_id}/{uuid.uuid4().hex}{ext}'
 
 
 class UserManager(BaseUserManager):
@@ -74,6 +80,7 @@ class IdentityVerification(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='identity_verification')
     document_type = models.CharField(max_length=30, choices=DOCUMENT_TYPES)
     document_file = models.FileField(upload_to='private/identity/', validators=[validate_identity_document])
+    facial_photo = models.ImageField(upload_to=facial_upload_path, null=True, blank=True, validators=[validate_image_upload])
     facial_status = models.CharField(max_length=20, choices=STATUS, default='PENDING')
     status = models.CharField(max_length=20, choices=STATUS, default='PENDING')
     submitted_at = models.DateTimeField(auto_now_add=True)
@@ -84,13 +91,28 @@ class IdentityVerification(models.Model):
         super().clean()
         if self.facial_status == 'VERIFIED' and self.status != 'VERIFIED':
             raise ValidationError({'status': 'La vérification faciale ne peut être finale avant la validation du document.'})
+        if self.status == 'VERIFIED' and not self.facial_photo:
+            raise ValidationError({'facial_photo': 'Une photo faciale est obligatoire avant la certification finale.'})
 
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
-        certified = self.status == 'VERIFIED' and self.facial_status == 'VERIFIED'
-        if self.user.is_certified != certified:
-            type(self.user).objects.filter(pk=self.user_id).update(is_certified=certified)
+        certified = self.status == 'VERIFIED' and self.facial_status == 'VERIFIED' and bool(self.facial_photo)
+        user = type(self.user).objects.filter(pk=self.user_id).first()
+        if user:
+            update_fields = []
+            if user.is_certified != certified:
+                user.is_certified = certified
+                update_fields.append('is_certified')
+            if certified and self.facial_photo:
+                from django.core.files.base import ContentFile
+                self.facial_photo.open('rb')
+                user.profile_photo.save(os.path.basename(self.facial_photo.name), ContentFile(self.facial_photo.read()), save=False)
+                self.facial_photo.close()
+                update_fields.append('profile_photo')
+            if update_fields:
+                update_fields.append('updated_at')
+                user.save(update_fields=update_fields)
 
     def __str__(self):
         return f'{self.user.fasthome_id} - {self.status}'
