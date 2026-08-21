@@ -82,8 +82,6 @@ class IdentityVerification(models.Model):
 
     def clean(self):
         super().clean()
-        if self.status == 'VERIFIED' and self.facial_status != 'VERIFIED':
-            raise ValidationError({'facial_status': 'La certification ne peut être validée tant que la vérification faciale n’est pas validée.'})
         if self.facial_status == 'VERIFIED' and self.status != 'VERIFIED':
             raise ValidationError({'status': 'La vérification faciale ne peut être finale avant la validation du document.'})
 
