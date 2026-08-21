@@ -1,8 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
+from django.db import transaction
+from django.shortcuts import redirect, render
 from .forms import EmailLoginForm, IdentityVerificationForm, RegistrationForm
 from .models import IdentityVerification, User
 
@@ -43,14 +43,35 @@ def profile(request):
 @login_required
 def certification(request):
     verification = getattr(request.user, 'identity_verification', None)
+
+    # A pending/in-review/verified dossier must never be overwritten by a
+    # second POST. A new document is allowed only after rejection/retry.
+    if request.method == 'POST' and verification and verification.status in {'PENDING', 'IN_REVIEW', 'VERIFIED'}:
+        if verification.status == 'VERIFIED':
+            messages.info(request, 'Votre identité est déjà certifiée. Aucun nouveau document n’est nécessaire.')
+        else:
+            messages.info(request, 'Votre dossier est déjà en cours de traitement. Vous ne pouvez pas envoyer un second document pour le moment.')
+        return redirect('certification')
+
     form = IdentityVerificationForm(request.POST or None, request.FILES or None, instance=verification)
     if request.method == 'POST' and form.is_valid():
-        obj = form.save(commit=False)
-        obj.user = request.user
-        obj.status = 'PENDING'
-        obj.facial_status = 'PENDING'
-        obj.verified_at = None
-        obj.save()
+        with transaction.atomic():
+            locked = IdentityVerification.objects.select_for_update().filter(user=request.user).first()
+            if locked and locked.status in {'PENDING', 'IN_REVIEW', 'VERIFIED'}:
+                if locked.status == 'VERIFIED':
+                    messages.info(request, 'Votre identité est déjà certifiée. Aucun nouveau document n’est nécessaire.')
+                else:
+                    messages.info(request, 'Votre dossier est déjà en cours de traitement. Vous ne pouvez pas envoyer un second document pour le moment.')
+                return redirect('certification')
+
+            obj = form.save(commit=False)
+            obj.user = request.user
+            obj.status = 'PENDING'
+            obj.facial_status = 'PENDING'
+            obj.verified_at = None
+            obj.rejection_reason = ''
+            obj.save()
+
         messages.success(request, 'Votre dossier d’identité a été transmis à Fasthome.')
         return redirect('certification')
     return render(request, 'users/certification.html', {'form': form, 'verification': verification})
