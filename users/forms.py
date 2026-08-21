@@ -3,9 +3,40 @@ from django.contrib.auth import authenticate
 from .models import User, IdentityVerification
 
 
+PROFESSION_CHOICES = [
+    ('', 'Sélectionnez votre profession'),
+    ('AGRICULTEUR', 'Agriculteur / Agricultrice'),
+    ('ARTISAN', 'Artisan / Artisane'),
+    ('AVOCAT', 'Avocat / Avocate'),
+    ('BANQUIER', 'Banquier / Banquière'),
+    ('COMPTABLE', 'Comptable'),
+    ('COMMERÇANT', 'Commerçant / Commerçante'),
+    ('COMMUNICATION', 'Communication / Médias'),
+    ('ENSEIGNANT', 'Enseignant / Enseignante'),
+    ('ENTREPRENEUR', 'Entrepreneur / Entrepreneuse'),
+    ('ETUDIANT', 'Étudiant / Étudiante'),
+    ('FONCTIONNAIRE', 'Fonctionnaire'),
+    ('INGENIEUR', 'Ingénieur / Ingénieure'),
+    ('JURISTE', 'Juriste'),
+    ('MEDECIN', 'Médecin'),
+    ('MILITAIRE', 'Militaire'),
+    ('OUVRIER', 'Ouvrier / Ouvrière'),
+    ('PHARMACIEN', 'Pharmacien / Pharmacienne'),
+    ('PROFESSION_LIBERALE', 'Profession libérale'),
+    ('SANTE', 'Professionnel de santé'),
+    ('TECHNICIEN', 'Technicien / Technicienne'),
+    ('TRANSPORTEUR', 'Transport / Logistique'),
+    ('VENDEUR', 'Vendeur / Vendeuse'),
+    ('SANS_EMPLOI', 'Sans emploi'),
+    ('RETRAITE', 'Retraité / Retraitée'),
+    ('AUTRE', 'Autre'),
+]
+
+
 class RegistrationForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput, min_length=10)
     password_confirmation = forms.CharField(widget=forms.PasswordInput, min_length=10)
+    profession = forms.ChoiceField(choices=PROFESSION_CHOICES, required=False)
 
     class Meta:
         model = User
@@ -84,7 +115,4 @@ class IdentityVerificationForm(forms.ModelForm):
         photo = self.cleaned_data.get('facial_photo')
         if photo and photo.content_type not in {'image/jpeg', 'image/png', 'image/webp'}:
             raise forms.ValidationError('La photo faciale doit être une image JPEG, PNG ou WebP.')
-        # The first submission may contain the identity document alone. The selfie
-        # is mandatory before facial verification/final certification, not before
-        # creating the pending KYC case. This preserves resumable KYC submissions.
         return photo
