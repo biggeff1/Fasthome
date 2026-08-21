@@ -12,6 +12,7 @@ urlpatterns = [
     path('leases/<str:lease_id>/renew/', lease_lifecycle_views.request_renewal, name='request_renewal'),
     path('leases/<str:lease_id>/exit/', lease_lifecycle_views.request_exit, name='request_exit'),
     path('office/', views.office_dashboard, name='office_dashboard'),
+    path('office/users/', views.office_users, name='office_users'),
     path('office/publications/', publication_views.office_publications, name='office_publications'),
     path('office/publications/<str:publication_id>/decision/', publication_views.office_publication_decision, name='office_publication_decision'),
     path('office/verifications/', verification_views.office_verifications, name='office_verifications'),
