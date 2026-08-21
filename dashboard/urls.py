@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from . import publication_views
+from . import publication_views, verification_views
 
 urlpatterns = [
     path('', views.activity, name='activity'),
@@ -11,6 +11,8 @@ urlpatterns = [
     path('office/', views.office_dashboard, name='office_dashboard'),
     path('office/publications/', publication_views.office_publications, name='office_publications'),
     path('office/publications/<str:publication_id>/decision/', publication_views.office_publication_decision, name='office_publication_decision'),
+    path('office/verifications/', verification_views.office_verifications, name='office_verifications'),
+    path('office/verifications/<int:verification_id>/decision/', verification_views.office_verification_decision, name='office_verification_decision'),
     path('office/visits/', views.office_visits, name='office_visits'),
     path('office/visits/<str:visit_id>/approve/', views.office_approve_visit, name='office_approve_visit'),
     path('office/visits/<str:visit_id>/complete/', views.office_complete_visit, name='office_complete_visit'),
