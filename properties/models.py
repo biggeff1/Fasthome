@@ -70,6 +70,18 @@ class Property(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(electricity_days_per_week__isnull=True) | models.Q(electricity_days_per_week__lte=7),
+                name='property_electricity_days_max_7',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(water_days_per_week__isnull=True) | models.Q(water_days_per_week__lte=7),
+                name='property_water_days_max_7',
+            ),
+        ]
+
     def clean(self):
         super().clean()
         errors = {}
