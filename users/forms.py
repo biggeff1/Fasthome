@@ -84,6 +84,7 @@ class IdentityVerificationForm(forms.ModelForm):
         photo = self.cleaned_data.get('facial_photo')
         if photo and photo.content_type not in {'image/jpeg', 'image/png', 'image/webp'}:
             raise forms.ValidationError('La photo faciale doit être une image JPEG, PNG ou WebP.')
-        if not photo and (not self.instance.pk or self.instance.status in {'RETRY', 'REJECTED'}):
-            raise forms.ValidationError('La photo faciale est obligatoire pour la certification.')
+        # The first submission may contain the identity document alone. The selfie
+        # is mandatory before facial verification/final certification, not before
+        # creating the pending KYC case. This preserves resumable KYC submissions.
         return photo
