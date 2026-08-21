@@ -4,23 +4,10 @@
 <main class="container">
   <h1>🏢 Espace Fasthome</h1>
   <div class="grid">
-    <div class="list-item"><h3>Publications à traiter</h3><strong>{{ pending_publications }}</strong></div>
-    <div class="list-item"><h3>Visites</h3><strong>{{ pending_visits }}</strong></div>
-    <div class="list-item"><h3>Dossiers</h3><strong>{{ cases }}</strong></div>
-    <div class="list-item"><h3>Contrats</h3><strong>{{ pending_contracts }}</strong></div>
-    <div class="list-item"><h3>PV</h3><strong>{{ pending_reports }}</strong></div>
-    <div class="list-item"><h3>Paiements reçus</h3><strong>{{ payments }}</strong></div>
-    <div class="list-item"><h3>Versements bailleurs</h3><strong>{{ payouts }}</strong></div>
+    <div class="list-item"><h3>Publications à traiter</h3><strong>{{ pending_publications }}</strong></div><div class="list-item"><h3>Certifications</h3><strong>{{ pending_verifications }}</strong></div><div class="list-item"><h3>Visites</h3><strong>{{ pending_visits }}</strong></div><div class="list-item"><h3>Dossiers</h3><strong>{{ cases }}</strong></div><div class="list-item"><h3>Contrats</h3><strong>{{ pending_contracts }}</strong></div><div class="list-item"><h3>PV</h3><strong>{{ pending_reports }}</strong></div><div class="list-item"><h3>Cycle locations</h3><strong>{{ lifecycle_requests }}</strong></div><div class="list-item"><h3>Paiements reçus</h3><strong>{{ payments }}</strong></div><div class="list-item"><h3>Versements bailleurs</h3><strong>{{ payouts }}</strong></div>
   </div>
   <section class="section"><div class="actions">
-    <a class="btn btn-primary" href="{% url 'office_publications' %}">🏠 Publications</a>
-    <a class="btn btn-primary" href="{% url 'office_verifications' %}">🪪 Certifications</a>
-    <a class="btn btn-light" href="{% url 'office_visits' %}">📅 Visites</a>
-    <a class="btn btn-light" href="{% url 'office_cases' %}">📂 Dossiers</a>
-    <a class="btn btn-light" href="{% url 'office_contracts' %}">📄 Contrats</a>
-    <a class="btn btn-light" href="{% url 'office_reports' %}">📋 PV</a>
-    <a class="btn btn-light" href="{% url 'office_receipt' %}">💰 Loyer reçu</a>
-    <a class="btn btn-light" href="{% url 'office_payout' %}">💸 Versement bailleur</a>
+    <a class="btn btn-primary" href="{% url 'office_publications' %}">🏠 Publications</a><a class="btn btn-primary" href="{% url 'office_verifications' %}">🪪 Certifications</a><a class="btn btn-light" href="{% url 'office_visits' %}">📅 Visites</a><a class="btn btn-light" href="{% url 'office_cases' %}">📂 Dossiers</a><a class="btn btn-light" href="{% url 'office_contracts' %}">📄 Contrats</a><a class="btn btn-light" href="{% url 'office_reports' %}">📋 PV</a><a class="btn btn-light" href="{% url 'office_lifecycle_requests' %}">🔄 Renouvellements / sorties</a><a class="btn btn-light" href="{% url 'office_receipt' %}">💰 Loyer reçu</a><a class="btn btn-light" href="{% url 'office_payout' %}">💸 Versement bailleur</a>
   </div></section>
 </main>
 {% endblock %}
