@@ -74,8 +74,16 @@ class IdentityVerificationForm(forms.ModelForm):
             'facial_photo': 'Photo faciale (selfie)',
         }
 
+    def clean_document_file(self):
+        document = self.cleaned_data.get('document_file')
+        if document and document.content_type not in {'application/pdf', 'image/jpeg', 'image/png'}:
+            raise forms.ValidationError('La pièce doit être un PDF, JPEG ou PNG.')
+        return document
+
     def clean_facial_photo(self):
         photo = self.cleaned_data.get('facial_photo')
         if photo and photo.content_type not in {'image/jpeg', 'image/png', 'image/webp'}:
             raise forms.ValidationError('La photo faciale doit être une image JPEG, PNG ou WebP.')
+        if not photo and (not self.instance.pk or self.instance.status in {'RETRY', 'REJECTED'}):
+            raise forms.ValidationError('La photo faciale est obligatoire pour la certification.')
         return photo
