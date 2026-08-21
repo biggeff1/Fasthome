@@ -103,6 +103,15 @@ if DEBUG:
     SECURE_HSTS_PRELOAD = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
+    # Codespaces serves forwarded HTTPS requests from *.app.github.dev.
+    # Keep this development-only so production origins must be explicitly configured.
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+        'https://localhost:8000',
+        'https://127.0.0.1:8000',
+        'https://*.app.github.dev',
+    ]
 else:
     SECURE_SSL_REDIRECT = os.getenv('DJANGO_SECURE_SSL_REDIRECT', '1') == '1'
     SECURE_HSTS_SECONDS = int(os.getenv('DJANGO_HSTS_SECONDS', '31536000'))
