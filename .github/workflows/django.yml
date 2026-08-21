@@ -35,4 +35,5 @@ jobs:
       - run: python manage.py check --deploy
       - run: python manage.py migrate --run-syncdb --noinput
       - run: python manage.py seed_property_types
-      - run: python manage.py test --noinput
+      # Keep CI output explicit so the full Django test result is easy to verify.
+      - run: python manage.py test --noinput --verbosity 2
