@@ -1,6 +1,13 @@
+import os
+import uuid
+
 from django.db import migrations, models
 import core.validators
-from users.models import facial_upload_path
+
+
+def facial_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower() or '.jpg'
+    return f'private/identity/facial/{instance.user_id}/{uuid.uuid4().hex}{ext}'
 
 
 class Migration(migrations.Migration):
