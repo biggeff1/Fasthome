@@ -51,12 +51,8 @@ def profile(request):
 @login_required
 def certification(request):
     verification = getattr(request.user, 'identity_verification', None)
-
-    # A document that is already verified does NOT block the user when the
-    # facial check failed/requires retry. In that case the user only needs to
-    # provide a new selfie; the verified identity document is preserved.
-    facial_retry = verification and verification.facial_status in {'REJECTED', 'RETRY'}
-    fully_certified = verification and verification.status == 'VERIFIED' and verification.facial_status == 'VERIFIED'
+    facial_retry = bool(verification and verification.facial_status in {'REJECTED', 'RETRY'})
+    fully_certified = bool(verification and verification.status == 'VERIFIED' and verification.facial_status == 'VERIFIED')
 
     if request.method == 'POST' and verification and not facial_retry:
         if fully_certified:
@@ -65,14 +61,13 @@ def certification(request):
             messages.info(request, 'Votre dossier est déjà en cours de traitement. Vous ne pouvez pas envoyer un second dossier pour le moment.')
         return redirect('certification')
 
-    # When only the facial verification must be redone, keep the validated
-    # identity document and ask for a fresh selfie instead of forcing a full
-    # KYC restart.
-    form_instance = verification if facial_retry else verification
-    form = IdentityVerificationForm(request.POST or None, request.FILES or None, instance=form_instance)
-    if facial_retry and request.method != 'POST':
+    form = IdentityVerificationForm(request.POST or None, request.FILES or None, instance=verification)
+    # If the document was already verified and only the face was rejected,
+    # keep that document and require only a new selfie.
+    if facial_retry:
         form.fields['document_type'].required = False
         form.fields['document_file'].required = False
+        form.fields['facial_photo'].required = True
 
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
@@ -86,12 +81,12 @@ def certification(request):
                 if locked.status in {'PENDING', 'IN_REVIEW'} and not locked_facial_retry:
                     messages.info(request, 'Votre dossier est déjà en cours de traitement.')
                     return redirect('certification')
+            else:
+                locked_facial_retry = False
 
             obj = form.save(commit=False)
             obj.user = request.user
-            # A retry after a facial rejection preserves a valid document but
-            # always resets the facial decision and account certification.
-            if locked and locked.facial_status in {'REJECTED', 'RETRY'} and locked.status == 'VERIFIED':
+            if locked and locked_facial_retry and locked.status == 'VERIFIED':
                 if not obj.document_file:
                     obj.document_file = locked.document_file
                 if not obj.document_type:
