@@ -1,5 +1,7 @@
+/* Fasthome — upload photo non bloquant pour les publications. */
 (() => {
-  const MAX_PHOTOS = 50;
+  const MAX_PHOTOS_TOTAL = 40;
+  const MAX_PHOTOS_PER_ZONE = 5;
   const MAX_DIMENSION = 1920;
   const QUALITY = 0.82;
 
@@ -9,14 +11,12 @@
 
   function normalizeInputs(form) {
     photoInputs(form).forEach((input) => {
-      input.removeAttribute('multiple');
+      input.multiple = true;
       input.accept = 'image/jpeg,image/png,image/webp';
     });
   }
 
-  function sleep() {
-    return new Promise((resolve) => setTimeout(resolve, 0));
-  }
+  const sleep = () => new Promise((resolve) => setTimeout(resolve, 0));
 
   function compress(file) {
     return new Promise((resolve, reject) => {
@@ -31,15 +31,18 @@
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d', { alpha: false });
+          if (!ctx) throw new Error('Canvas indisponible.');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(image, 0, 0, width, height);
           canvas.toBlob((blob) => {
             URL.revokeObjectURL(url);
-            if (!blob) {
-              reject(new Error('Impossible d’optimiser une image.'));
-              return;
-            }
+            if (!blob) return reject(new Error('Impossible d’optimiser une image.'));
             const stem = file.name.replace(/\.[^.]+$/, '') || 'photo';
-            resolve(new File([blob], `${stem}.webp`, { type: 'image/webp', lastModified: Date.now() }));
+            // Si WebP n'est pas plus léger, on conserve l'original.
+            resolve(blob.size < file.size
+              ? new File([blob], `${stem}.webp`, { type: 'image/webp', lastModified: Date.now() })
+              : file);
           }, 'image/webp', QUALITY);
         } catch (error) {
           URL.revokeObjectURL(url);
@@ -66,39 +69,48 @@
     return status;
   }
 
+  function selectedFiles(inputs) {
+    return inputs.flatMap((input) => [...(input.files || [])]);
+  }
+
   async function submitWithOptimizedPhotos(form, submitter) {
     if (form.dataset.photoUploading === '1') return;
     form.dataset.photoUploading = '1';
 
     const status = ensureStatus(form);
     const inputs = photoInputs(form);
-    const selected = inputs.filter((input) => input.files && input.files.length);
+    const filesByInput = inputs.map((input) => ({ input, files: [...(input.files || [])] }));
+    const total = filesByInput.reduce((sum, item) => sum + item.files.length, 0);
 
-    if (selected.length > MAX_PHOTOS) {
-      throw new Error(`Maximum ${MAX_PHOTOS} photos par publication.`);
+    if (total > MAX_PHOTOS_TOTAL) {
+      throw new Error(`Maximum ${MAX_PHOTOS_TOTAL} photos par logement.`);
     }
 
-    const statusText = (text) => {
-      status.hidden = false;
-      status.textContent = text;
-    };
+    for (const item of filesByInput) {
+      if (item.files.length > MAX_PHOTOS_PER_ZONE) {
+        throw new Error(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour chaque zone du logement.`);
+      }
+    }
 
-    statusText(selected.length ? `Préparation de ${selected.length} photo${selected.length > 1 ? 's' : ''}…` : 'Enregistrement…');
+    status.hidden = false;
+    status.textContent = total ? `Préparation de ${total} photo${total > 1 ? 's' : ''}…` : 'Enregistrement…';
 
     const formData = new FormData(form, submitter || undefined);
     inputs.forEach((input) => formData.delete(input.name));
 
-    for (let i = 0; i < selected.length; i += 1) {
-      const input = selected[i];
-      const file = input.files[0];
-      statusText(`Optimisation des photos : ${i + 1}/${selected.length}`);
-      const optimized = await compress(file);
-      formData.append(input.name, optimized, optimized.name);
-      // Yield to the browser so the page remains responsive with many images.
-      await sleep();
+    let done = 0;
+    for (const item of filesByInput) {
+      for (const file of item.files) {
+        done += 1;
+        status.textContent = `Optimisation des photos : ${done}/${total}`;
+        const optimized = await compress(file);
+        formData.append(item.input.name, optimized, optimized.name);
+        // Rend la main au navigateur entre chaque image pour éviter de bloquer le téléphone.
+        await sleep();
+      }
     }
 
-    statusText('Envoi des photos optimisées…');
+    status.textContent = total ? 'Envoi des photos optimisées…' : 'Enregistrement…';
     const response = await fetch(form.action || window.location.href, {
       method: 'POST',
       body: formData,
@@ -126,9 +138,8 @@
     form.addEventListener('submit', async (event) => {
       if (form.dataset.photoUploading === '1') return;
       event.preventDefault();
-      const submitter = event.submitter;
       try {
-        await submitWithOptimizedPhotos(form, submitter);
+        await submitWithOptimizedPhotos(form, event.submitter);
       } catch (error) {
         const status = ensureStatus(form);
         status.hidden = false;
