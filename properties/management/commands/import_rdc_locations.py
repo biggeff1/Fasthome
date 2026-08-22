@@ -1,17 +1,16 @@
+import hashlib
 import re
 import tempfile
 from pathlib import Path
 from urllib.request import Request, urlopen
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
-from properties.location_models import LocationNode
+from properties.location_models import LocationNode, PropertyLocation
 
 
-SOURCE_URL = (
-    "https://www.awa-afrika.com/veillejuridique/"
-    "TableauSynoptiqueDesEntitesTerritoriales.pdf"
-)
+SOURCE_URL = "https://www.awa-afrika.com/veillejuridique/TableauSynoptiqueDesEntitesTerritoriales.pdf"
 EXPECTED = {
     "PROVINCE": 26,
     "TERRITORY": 145,
@@ -21,7 +20,7 @@ EXPECTED = {
     "CHIEFDOM": 262,
 }
 
-PROVINCE_ALIASES = {
+PROVINCES = {
     "BAS UELE": "Bas-Uele",
     "EQUATEUR": "Équateur",
     "HAUT KATANGA": "Haut-Katanga",
@@ -50,51 +49,125 @@ PROVINCE_ALIASES = {
     "TSHUAPA": "Tshuapa",
 }
 
+HEADER = ("TERRITOIRE", "VILLE", "COMMUNE", "SECTEUR", "CHEFFERIE")
+SKIP_WORDS = {
+    "SECRETARIAT", "GENERAL", "DE", "LA", "DECENTRALISATION", "LE", "SECRETAIRE",
+    "OBSERVATION", "FAIT", "KINSHASA", "NB", "TOTAL", "ETD", "PROVINCE",
+}
+
 
 def clean(value):
-    if value is None:
-        return ""
-    value = str(value).replace("\u00ad", "")
+    value = str(value or "").replace("\u00ad", "")
+    value = value.replace("\x00", " ")
     value = re.sub(r"\s+", " ", value).strip(" -\n\r\t")
     return value
 
 
-def split_cell(value):
-    value = str(value or "").replace("\r", "\n")
-    return [clean(x) for x in value.split("\n") if clean(x)]
+def norm(value):
+    value = clean(value).upper()
+    value = value.replace("É", "E").replace("È", "E").replace("Ê", "E")
+    value = value.replace("À", "A").replace("Â", "A").replace("Î", "I").replace("Ô", "O")
+    value = re.sub(r"[^A-Z0-9]+", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def slug_code(kind, parent_code, name):
+    digest = hashlib.sha1(f"{kind}|{parent_code}|{norm(name)}".encode()).hexdigest()[:12].upper()
+    return f"RDC-{kind[:3]}-{digest}"
 
 
 def province_name(value):
-    key = re.sub(r"[^A-ZÀ-Ÿ ]", "", clean(value).upper())
-    key = re.sub(r"\s+", " ", key).strip()
-    return PROVINCE_ALIASES.get(key)
+    key = norm(value)
+    return PROVINCES.get(key)
 
 
-def normalize_table_row(row):
-    cells = list(row or [])
-    while len(cells) < 6:
-        cells.append("")
-    return [split_cell(cells[i]) for i in range(6)]
+def split_cell(value):
+    return [clean(x) for x in str(value or "").replace("\r", "\n").split("\n") if clean(x)]
+
+
+def valid_entity(name):
+    name = clean(name)
+    upper = norm(name)
+    if len(name) < 2 or upper.isdigit():
+        return False
+    if upper in {"TERRITOIRE", "VILLE", "COMMUNE", "SECTEUR", "CHEFFERIE", "OBSERVATION"}:
+        return False
+    if upper.startswith("TOTAL") or upper.startswith("NB "):
+        return False
+    if "SECRETARIAT" in upper or "MOKAMBIA" in upper or "FAIT A" in upper:
+        return False
+    return True
 
 
 class Command(BaseCommand):
-    help = "Importe le référentiel administratif RDC depuis le tableau de la Décentralisation."
+    help = "Importe la nomenclature RDC du Secrétariat Général de la Décentralisation, avec validation stricte et réconciliation sûre."
 
     def add_arguments(self, parser):
         parser.add_argument("--url", default=SOURCE_URL)
         parser.add_argument("--strict", action="store_true")
         parser.add_argument("--dry-run", action="store_true")
+        parser.add_argument("--reconcile", action="store_true", help="Réutilise/migre les PropertyLocation existants vers les nœuds canoniques.")
+        parser.add_argument("--deactivate-stale", action="store_true", help="Désactive les anciens nœuds non utilisés après import validé.")
 
+    @transaction.atomic
     def handle(self, *args, **options):
         try:
             import pdfplumber
         except ImportError as exc:
-            raise CommandError(
-                "pdfplumber est requis. Exécutez: pip install -r requirements.txt"
-            ) from exc
+            raise CommandError("pdfplumber est requis. Exécutez: pip install -r requirements.txt") from exc
 
         pdf_path = self._download(options["url"])
-        stats = {key: 0 for key in EXPECTED}
+        records = self._parse_pdf(pdf_path, pdfplumber)
+        stats = self._stats(records)
+        self.stdout.write("Référentiel extrait de la source officielle :")
+        for kind in EXPECTED:
+            self.stdout.write(f"  {kind}: {stats.get(kind, 0)}")
+
+        if options["strict"]:
+            mismatches = [
+                f"{kind}={stats.get(kind, 0)} (attendu {expected})"
+                for kind, expected in EXPECTED.items()
+                if stats.get(kind, 0) != expected
+            ]
+            if mismatches:
+                raise CommandError("Extraction incomplète : " + ", ".join(mismatches))
+
+        if options["dry_run"]:
+            self.stdout.write(self.style.SUCCESS("Dry-run validé : aucune modification de base."))
+            return
+
+        canonical = self._write_tree(records)
+        if options["reconcile"]:
+            self._reconcile_property_locations(canonical)
+        if options["deactivate_stale"]:
+            self._deactivate_stale(canonical)
+
+        db_stats = {
+            kind: LocationNode.objects.filter(kind=kind, active=True).count()
+            for kind in EXPECTED
+        }
+        for kind in EXPECTED:
+            self.stdout.write(f"  DB {kind}: {db_stats[kind]}")
+
+        if options["strict"] and any(db_stats[k] < EXPECTED[k] for k in EXPECTED):
+            raise CommandError("La base ne contient pas encore tous les nœuds du référentiel officiel.")
+
+        self.stdout.write(self.style.SUCCESS("Référentiel RDC importé et validé."))
+
+    def _download(self, url):
+        request = Request(url, headers={"User-Agent": "Fasthome-RDC-Location-Importer/2.0"})
+        try:
+            with urlopen(request, timeout=90) as response:
+                data = response.read()
+        except Exception as exc:
+            raise CommandError(f"Impossible de télécharger le référentiel officiel: {exc}") from exc
+        handle = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+        handle.write(data)
+        handle.close()
+        return Path(handle.name)
+
+    def _parse_pdf(self, pdf_path, pdfplumber):
+        records = []
         current_province = None
         current_territory = None
         current_city = None
@@ -109,160 +182,175 @@ class Command(BaseCommand):
                     current_territory = None
                     current_city = None
 
-                for table in page.extract_tables() or []:
-                    for row in table:
-                        columns = normalize_table_row(row)
-                        if not any(columns):
+                tables = page.extract_tables({
+                    "vertical_strategy": "text",
+                    "horizontal_strategy": "text",
+                    "text_x_tolerance": 3,
+                    "text_y_tolerance": 3,
+                    "min_words_vertical": 2,
+                    "min_words_horizontal": 1,
+                })
+                for table in tables:
+                    for raw_row in table:
+                        cells = list(raw_row or [])
+                        while len(cells) < 6:
+                            cells.append("")
+                        if self._header_or_total(cells):
                             continue
-                        if self._is_header_or_total(columns):
+                        territory_cells, city_cells, commune_cells, sector_cells, chief_cells = [split_cell(cells[i]) for i in range(5)]
+                        if not current_province:
                             continue
 
-                        territories, cities, communes, sectors, chefferies, _ = columns
-                        province = current_province
-                        if not province:
-                            continue
-
-                        for name in territories:
-                            if self._valid_entity(name):
-                                current_territory = self._ensure(
-                                    province, "TERRITORY", name, order, options["dry_run"]
-                                )
+                        for name in territory_cells:
+                            if valid_entity(name):
+                                current_territory = {"kind": "TERRITORY", "name": name, "parent": current_province, "order": order}
+                                records.append(current_territory)
                                 order += 1
-                                stats["TERRITORY"] += 1
                                 current_city = None
 
-                        for name in cities:
-                            if self._valid_entity(name):
-                                current_city = self._ensure(
-                                    province, "CITY", name, order, options["dry_run"]
-                                )
+                        for name in city_cells:
+                            if valid_entity(name):
+                                current_city = {"kind": "CITY", "name": name, "parent": current_province, "order": order}
+                                records.append(current_city)
                                 order += 1
-                                stats["CITY"] += 1
 
-                        if province.name == "Kinshasa" and current_territory and not current_city:
-                            current_city = self._ensure(
-                                province,
-                                "CITY",
-                                "Kinshasa",
-                                order,
-                                options["dry_run"],
-                            )
+                        if current_province == "Kinshasa" and not current_city and not current_territory:
+                            current_city = {"kind": "CITY", "name": "Kinshasa", "parent": current_province, "order": order}
+                            records.append(current_city)
                             order += 1
 
-                        for name in communes:
-                            if not self._valid_entity(name):
+                        for name in commune_cells:
+                            if not valid_entity(name):
                                 continue
                             if current_city:
-                                self._ensure(
-                                    current_city, "COMMUNE", name, order, options["dry_run"]
-                                )
-                                stats["COMMUNE"] += 1
+                                records.append({"kind": "COMMUNE", "name": name, "parent": current_city, "order": order})
                             elif current_territory:
-                                self._ensure(
-                                    current_territory,
-                                    "RURAL_COMMUNE",
-                                    name,
-                                    order,
-                                    options["dry_run"],
-                                )
-                                stats["COMMUNE"] += 1
+                                records.append({"kind": "RURAL_COMMUNE", "name": name, "parent": current_territory, "order": order})
                             order += 1
 
                         if current_territory:
-                            for name in sectors:
-                                if self._valid_entity(name):
-                                    self._ensure(
-                                        current_territory,
-                                        "SECTOR",
-                                        name,
-                                        order,
-                                        options["dry_run"],
-                                    )
-                                    stats["SECTOR"] += 1
+                            for name in sector_cells:
+                                if valid_entity(name):
+                                    records.append({"kind": "SECTOR", "name": name, "parent": current_territory, "order": order})
                                     order += 1
-                            for name in chefferies:
-                                if self._valid_entity(name):
-                                    self._ensure(
-                                        current_territory,
-                                        "CHIEFDOM",
-                                        name,
-                                        order,
-                                        options["dry_run"],
-                                    )
-                                    stats["CHIEFDOM"] += 1
+                            for name in chief_cells:
+                                if valid_entity(name):
+                                    records.append({"kind": "CHIEFDOM", "name": name, "parent": current_territory, "order": order})
                                     order += 1
 
-        if not options["dry_run"]:
-            stats["PROVINCE"] = LocationNode.objects.filter(
-                parent__isnull=True, kind="PROVINCE", active=True
-            ).count()
-            stats["TERRITORY"] = LocationNode.objects.filter(kind="TERRITORY", active=True).count()
-            stats["CITY"] = LocationNode.objects.filter(kind="CITY", active=True).count()
-            stats["COMMUNE"] = LocationNode.objects.filter(
-                kind__in=["COMMUNE", "RURAL_COMMUNE"], active=True
-            ).count()
-            stats["SECTOR"] = LocationNode.objects.filter(kind="SECTOR", active=True).count()
-            stats["CHIEFDOM"] = LocationNode.objects.filter(kind="CHIEFDOM", active=True).count()
+        return self._deduplicate(records)
 
-        for key in EXPECTED:
-            self.stdout.write(f"{key}: {stats[key]}")
+    @staticmethod
+    def _deduplicate(records):
+        result = []
+        seen = set()
+        for record in records:
+            key = (record["kind"], norm(record["parent"] if isinstance(record["parent"], str) else record["parent"]["name"]), norm(record["name"]))
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(record)
+        return result
 
-        if options["strict"]:
-            mismatches = [
-                f"{key}={stats[key]} (attendu {expected})"
-                for key, expected in EXPECTED.items()
-                if stats[key] != expected
-            ]
-            if mismatches:
-                raise CommandError(
-                    "Référentiel incomplet ou ambigu : " + ", ".join(mismatches)
-                )
+    @staticmethod
+    def _stats(records):
+        stats = {kind: 0 for kind in EXPECTED}
+        stats["PROVINCE"] = 26
+        for record in records:
+            if record["kind"] in stats:
+                stats[record["kind"]] += 1
+        return stats
 
-        self.stdout.write(self.style.SUCCESS("Import du référentiel RDC terminé."))
+    def _write_tree(self, records):
+        provinces = {}
+        nodes = {}
+        for index, record in enumerate(records):
+            parent = record["parent"]
+            if record["kind"] == "PROVINCE":
+                continue
+            if isinstance(parent, dict):
+                parent_key = (parent["kind"], norm(parent["name"]))
+                parent_node = nodes.get(parent_key)
+            else:
+                parent_node = provinces.get(norm(parent))
+            if parent_node is None:
+                raise CommandError(f"Parent introuvable pour {record['kind']} {record['name']}: {parent}")
+            code = slug_code(record["kind"], parent_node.code or str(parent_node.pk), record["name"])
+            node, _ = LocationNode.objects.update_or_create(
+                parent=parent_node,
+                kind=record["kind"],
+                name=record["name"],
+                defaults={"code": code, "active": True, "order": record["order"]},
+            )
+            nodes[(record["kind"], norm(record["name"]))] = node
 
-    def _download(self, url):
-        request = Request(url, headers={"User-Agent": "Fasthome-RDC-Location-Importer/1.0"})
-        try:
-            response = urlopen(request, timeout=60)
-            data = response.read()
-        except Exception as exc:
-            raise CommandError(f"Impossible de télécharger le référentiel: {exc}") from exc
-        handle = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-        handle.write(data)
-        handle.close()
-        return Path(handle.name)
+        for index, name in enumerate(PROVINCES.values(), start=1):
+            node, _ = LocationNode.objects.update_or_create(
+                parent=None,
+                kind="PROVINCE",
+                name=name,
+                defaults={"code": f"RDC-PROV-{index:02d}", "active": True, "order": index},
+            )
+            provinces[norm(name)] = node
+            nodes[("PROVINCE", norm(name))] = node
 
-    def _province_from_heading(self, text):
-        match = re.search(r"PROVINCE(?:\s+DE)?\s*:?\s*([^\n]+)", text, re.I)
+        # Re-run children now that provinces are guaranteed to exist.
+        for record in records:
+            if record["kind"] == "PROVINCE":
+                continue
+            parent = record["parent"]
+            if isinstance(parent, dict):
+                parent_node = nodes.get((parent["kind"], norm(parent["name"])))
+            else:
+                parent_node = provinces.get(norm(parent))
+            if parent_node is None:
+                raise CommandError(f"Parent introuvable: {parent}")
+            node, _ = LocationNode.objects.update_or_create(
+                parent=parent_node,
+                kind=record["kind"],
+                name=record["name"],
+                defaults={
+                    "code": slug_code(record["kind"], parent_node.code or str(parent_node.pk), record["name"]),
+                    "active": True,
+                    "order": record["order"],
+                },
+            )
+            nodes[(record["kind"], norm(record["name"]))] = node
+        return nodes
+
+    @staticmethod
+    def _reconcile_property_locations(canonical):
+        for location in PropertyLocation.objects.select_related("province", "city_or_territory", "subdivision"):
+            province = canonical.get(("PROVINCE", norm(location.province.name)))
+            if not province:
+                continue
+            level2 = canonical.get((location.city_or_territory.kind, norm(location.city_or_territory.name)))
+            if level2 and level2.parent_id == province.id:
+                location.province_id = province.id
+                location.city_or_territory_id = level2.id
+            if location.subdivision:
+                subdivision = canonical.get((location.subdivision.kind, norm(location.subdivision.name)))
+                if subdivision and subdivision.parent_id == level2.id:
+                    location.subdivision_id = subdivision.id
+            location.save(update_fields=["province", "city_or_territory", "subdivision"])
+
+    @staticmethod
+    def _deactivate_stale(canonical):
+        canonical_ids = {node.id for node in canonical.values()}
+        protected_ids = set(PropertyLocation.objects.values_list("province_id", flat=True))
+        protected_ids.update(PropertyLocation.objects.values_list("city_or_territory_id", flat=True))
+        protected_ids.update(PropertyLocation.objects.exclude(subdivision_id__isnull=True).values_list("subdivision_id", flat=True))
+        LocationNode.objects.exclude(id__in=canonical_ids).exclude(id__in=protected_ids).update(active=False)
+
+    @staticmethod
+    def _province_from_heading(text):
+        match = re.search(r"PROVINCE(?:\s+DE|\s+DU|\s*:)?\s*:?\s*([^\n]+)", text, re.I)
         if not match:
             return None
-        value = re.sub(r"\s+DES ENTITÉS.*$", "", match.group(1), flags=re.I)
+        value = re.sub(r"\s+DES ENTIT[ÉE]S.*$", "", match.group(1), flags=re.I)
         return province_name(value)
 
     @staticmethod
-    def _valid_entity(name):
-        upper = name.upper()
-        if len(name) < 2:
-            return False
-        if upper in {"TERRITOIRE", "VILLE", "COMMUNE", "SECTEUR", "CHEFFERIE", "OBSERVATION"}:
-            return False
-        if upper.startswith("TOTAL") or upper.startswith("NB"):
-            return False
-        return not re.fullmatch(r"\d+", name)
-
-    @staticmethod
-    def _is_header_or_total(columns):
-        text = " ".join(" ".join(c) for c in columns).upper()
-        return "TOTAL ETD" in text or "TERRITOIRE VILLE COMMUNE" in text
-
-    @staticmethod
-    def _ensure(parent, kind, name, order, dry_run):
-        if dry_run:
-            return type("DryNode", (), {"name": name, "kind": kind, "parent": parent})()
-        node, _ = LocationNode.objects.get_or_create(
-            parent=parent,
-            kind=kind,
-            name=name,
-            defaults={"order": order, "active": True},
-        )
-        return node
+    def _header_or_total(cells):
+        text = norm(" ".join(str(c or "") for c in cells))
+        return "TERRITOIRE VILLE COMMUNE" in text or text.startswith("TOTAL ETD") or text.startswith("NB ")
