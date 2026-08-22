@@ -39,7 +39,6 @@ class RDCLocationImporterTests(SimpleTestCase):
         self.assertTrue(_is_header_or_total([
             ["TOTAL ETD"], [], [], [], [], []
         ]))
-        self.assertFalse(_valid_entity("KAMINA")) is False
         self.assertTrue(_valid_entity("KAMINA"))
         self.assertFalse(_valid_entity("TOTAL"))
         self.assertFalse(_valid_entity("123"))
