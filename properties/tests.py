@@ -1,5 +1,5 @@
 from django.core.exceptions import ValidationError
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory
 
@@ -8,9 +8,13 @@ from .photo_optimization import save_photos as optimized_save_photos
 
 
 class PropertyDynamicPhotoUploadTests(TestCase):
+    # Valid 1x1 RGBA PNG generated with Pillow. The previous fixture had a
+    # corrupted IDAT checksum and failed once the upload path started decoding
+    # every image for optimization.
     PNG_1X1 = (
         b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
-        b'\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDAT\x08\xd7c\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82'
+        b'\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff\xff\x7f\x00\t\xfb\x03\xfd*\x86\xe3\x8a'
+        b'\x00\x00\x00\x00IEND\xaeB`\x82'
     )
 
     @classmethod
