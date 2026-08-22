@@ -21,7 +21,17 @@ class PaymentInvariantTests(TestCase):
             email='tenant@example.com', password='A-secure-password-123',
             phone='+243900000102', last_name='Tenant', first_name='Test',
         )
-        property_type = PropertyType.objects.create(name='Appartement')
+
+        # Property types are seeded by migration 0005. Reuse the canonical
+        # record instead of inserting a duplicate unique name in every test.
+        property_type, _created = PropertyType.objects.get_or_create(
+            name='Appartement',
+            defaults={'active': True, 'order': 2},
+        )
+        if not property_type.active:
+            property_type.active = True
+            property_type.save(update_fields=['active'])
+
         self.property = Property.objects.create(
             owner=self.landlord,
             property_type=property_type,
