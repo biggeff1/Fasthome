@@ -2,9 +2,9 @@
 (() => {
   const MAX_PHOTOS_TOTAL = 40;
   const MAX_PHOTOS_PER_ZONE = 5;
-  const MAX_DIMENSION = 1600;
-  const QUALITY = 0.74;
-  const MAX_IMAGE_BYTES = 1_000_000;
+  const MAX_DIMENSION = 1280;
+  const QUALITY = 0.72;
+  const MAX_IMAGE_BYTES = 800_000;
   const CONCURRENCY = 2;
 
   function photoInputs(form) {
@@ -22,39 +22,69 @@
 
   function canvasBlob(canvas, quality) {
     return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error('Impossible d’optimiser une image.'));
-      }, 'image/webp', quality);
+      const done = (blob) => blob
+        ? resolve(blob)
+        : reject(new Error('Impossible d’optimiser une image.'));
+      if (typeof canvas.convertToBlob === 'function') {
+        canvas.convertToBlob({ type: 'image/webp', quality }).then(done).catch(reject);
+      } else {
+        canvas.toBlob(done, 'image/webp', quality);
+      }
     });
   }
 
-  async function compress(file) {
-    // Une petite image déjà légère ne mérite pas d’être retraitée.
-    if (file.size <= MAX_IMAGE_BYTES && file.type === 'image/webp') return file;
+  async function loadImage(file) {
+    if (typeof createImageBitmap === 'function') {
+      try {
+        return await createImageBitmap(file, { imageOrientation: 'from-image' });
+      } catch (_) {
+        // Fallback for browsers that expose createImageBitmap but do not
+        // support the requested image options.
+      }
+    }
 
     const url = URL.createObjectURL(file);
     try {
-      const image = await new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
         img.onerror = () => reject(new Error(`Image illisible : ${file.name}`));
         img.src = url;
       });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function compress(file) {
+    // Une petite image WebP déjà légère ne mérite pas d’être retraitée.
+    if (file.size <= MAX_IMAGE_BYTES && file.type === 'image/webp') return file;
+
+    const image = await loadImage(file);
+    try {
+      const sourceWidth = image.naturalWidth || image.width;
+      const sourceHeight = image.naturalHeight || image.height;
+      if (!sourceWidth || !sourceHeight) {
+        throw new Error(`Image illisible : ${file.name}`);
+      }
 
       let scale = Math.min(
         1,
-        MAX_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight),
+        MAX_DIMENSION / Math.max(sourceWidth, sourceHeight),
       );
       let quality = QUALITY;
       let blob = null;
 
-      // On vise ~1 Mo maximum par photo pour que plusieurs photos
-      // restent envoyables sur mobile sans dépasser les limites HTTP.
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const width = Math.max(1, Math.round(image.naturalWidth * scale));
-        const height = Math.max(1, Math.round(image.naturalHeight * scale));
-        const canvas = document.createElement('canvas');
+      // Cible basse pour qu’une publication de nombreuses photos reste
+      // raisonnable sur mobile et sur les connexions lentes.
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const width = Math.max(1, Math.round(sourceWidth * scale));
+        const height = Math.max(1, Math.round(sourceHeight * scale));
+
+        const canvas = typeof OffscreenCanvas === 'function'
+          ? new OffscreenCanvas(width, height)
+          : document.createElement('canvas');
+
         canvas.width = width;
         canvas.height = height;
 
@@ -67,11 +97,9 @@
         blob = await canvasBlob(canvas, quality);
         if (blob.size <= MAX_IMAGE_BYTES) break;
 
-        // Réduit progressivement la résolution et la qualité uniquement
-        // pour les photos encore trop lourdes.
         const sizeRatio = Math.sqrt(MAX_IMAGE_BYTES / blob.size);
-        scale *= Math.max(0.68, Math.min(0.88, sizeRatio * 0.92));
-        quality = Math.max(0.55, quality - 0.05);
+        scale *= Math.max(0.62, Math.min(0.86, sizeRatio * 0.90));
+        quality = Math.max(0.50, quality - 0.05);
         await sleep();
       }
 
@@ -84,12 +112,11 @@
         { type: 'image/webp', lastModified: Date.now() },
       );
 
-      // Si l’original est déjà plus petit et sous la limite, il est inutile
-      // de le convertir.
+      // Ne jamais remplacer un original plus léger par une version plus lourde.
       if (file.size <= MAX_IMAGE_BYTES && file.size <= optimized.size) return file;
       return optimized;
     } finally {
-      URL.revokeObjectURL(url);
+      if (typeof image.close === 'function') image.close();
     }
   }
 
@@ -106,6 +133,47 @@
     return status;
   }
 
+  function uploadFormData(form, formData, status, total) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', form.action || window.location.href, true);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (!event.lengthComputable) {
+          status.textContent = `Envoi de ${total} photo${total > 1 ? 's' : ''}…`;
+          return;
+        }
+        const percent = Math.round((event.loaded / event.total) * 100);
+        status.textContent =
+          `Envoi des photos : ${percent}% (${Math.ceil(event.loaded / 1_000_000)} / ${Math.ceil(event.total / 1_000_000)} Mo)`;
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 400) {
+          resolve(xhr.responseURL || window.location.href);
+          return;
+        }
+
+        const text = xhr.responseText || '';
+        document.open();
+        document.write(text);
+        document.close();
+        resolve(null);
+      });
+
+      xhr.addEventListener('error', () => reject(new Error(
+        'Échec de l’envoi des photos. Vérifiez votre connexion puis réessayez.'
+      )));
+      xhr.addEventListener('abort', () => reject(new Error(
+        'Envoi des photos interrompu.'
+      )));
+
+      xhr.send(formData);
+    });
+  }
+
   async function submitWithOptimizedPhotos(form, submitter) {
     if (form.dataset.photoUploading === '1') return;
     form.dataset.photoUploading = '1';
@@ -118,77 +186,71 @@
     }));
     const total = filesByInput.reduce((sum, item) => sum + item.files.length, 0);
 
-    if (total > MAX_PHOTOS_TOTAL) {
-      throw new Error(`Maximum ${MAX_PHOTOS_TOTAL} photos par logement.`);
-    }
+    try {
+      if (total > MAX_PHOTOS_TOTAL) {
+        throw new Error(`Maximum ${MAX_PHOTOS_TOTAL} photos par logement.`);
+      }
 
-    for (const item of filesByInput) {
-      if (item.files.length > MAX_PHOTOS_PER_ZONE) {
-        throw new Error(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour chaque zone du logement.`);
+      for (const item of filesByInput) {
+        if (item.files.length > MAX_PHOTOS_PER_ZONE) {
+          throw new Error(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour chaque zone du logement.`);
+        }
+      }
+
+      status.hidden = false;
+      status.textContent = total
+        ? `Préparation de ${total} photo${total > 1 ? 's' : ''}…`
+        : 'Enregistrement…';
+
+      const formData = new FormData(form, submitter || undefined);
+      inputs.forEach((input) => formData.delete(input.name));
+
+      const optimizedByInput = new Map();
+      let completed = 0;
+      const allFiles = filesByInput.flatMap((item) =>
+        item.files.map((file) => ({ input: item.input, file }))
+      );
+
+      // Deux conversions simultanées : bon compromis entre vitesse et mémoire
+      // sur les téléphones Android modestes.
+      for (let start = 0; start < allFiles.length; start += CONCURRENCY) {
+        const batch = allFiles.slice(start, start + CONCURRENCY);
+        const results = await Promise.all(batch.map(async ({ input, file }) => {
+          const optimized = await compress(file);
+          completed += 1;
+          status.textContent =
+            `Optimisation des photos : ${completed}/${total}`;
+          await sleep();
+          return { input, optimized };
+        }));
+
+        results.forEach(({ input, optimized }) => {
+          if (!optimizedByInput.has(input.name)) {
+            optimizedByInput.set(input.name, []);
+          }
+          optimizedByInput.get(input.name).push(optimized);
+        });
+      }
+
+      let optimizedTotal = 0;
+      optimizedByInput.forEach((files, name) => {
+        files.forEach((file) => {
+          formData.append(name, file, file.name);
+          optimizedTotal += file.size;
+        });
+      });
+
+      status.textContent = total
+        ? `Envoi de ${total} photo${total > 1 ? 's' : ''} (${Math.ceil(optimizedTotal / 1_000_000)} Mo)…`
+        : 'Enregistrement…';
+
+      const responseUrl = await uploadFormData(form, formData, status, total);
+      if (responseUrl) window.location.assign(responseUrl);
+    } finally {
+      if (form.dataset.photoUploading === '1') {
+        form.dataset.photoUploading = '0';
       }
     }
-
-    status.hidden = false;
-    status.textContent = total
-      ? `Préparation de ${total} photo${total > 1 ? 's' : ''}…`
-      : 'Enregistrement…';
-
-    const formData = new FormData(form, submitter || undefined);
-    inputs.forEach((input) => formData.delete(input.name));
-
-    const optimizedByInput = new Map();
-    let completed = 0;
-    const allFiles = filesByInput.flatMap((item) =>
-      item.files.map((file) => ({ input: item.input, file }))
-    );
-
-    // Deux conversions simultanées : nettement plus rapide, tout en évitant
-    // de saturer la mémoire des téléphones modestes.
-    for (let start = 0; start < allFiles.length; start += CONCURRENCY) {
-      const batch = allFiles.slice(start, start + CONCURRENCY);
-      const results = await Promise.all(batch.map(async ({ input, file }) => {
-        const optimized = await compress(file);
-        completed += 1;
-        status.textContent = `Optimisation des photos : ${completed}/${total}`;
-        await sleep();
-        return { input, optimized };
-      }));
-
-      results.forEach(({ input, optimized }) => {
-        if (!optimizedByInput.has(input.name)) optimizedByInput.set(input.name, []);
-        optimizedByInput.get(input.name).push(optimized);
-      });
-    }
-
-    let optimizedTotal = 0;
-    optimizedByInput.forEach((files, name) => {
-      files.forEach((file) => {
-        formData.append(name, file, file.name);
-        optimizedTotal += file.size;
-      });
-    });
-
-    status.textContent = total
-      ? `Envoi de ${total} photo${total > 1 ? 's' : ''} (${Math.ceil(optimizedTotal / 1_000_000)} Mo)…`
-      : 'Enregistrement…';
-
-    const response = await fetch(form.action || window.location.href, {
-      method: 'POST',
-      body: formData,
-      credentials: 'same-origin',
-      redirect: 'follow',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      document.open();
-      document.write(text);
-      document.close();
-      return;
-    }
-
-    window.location.assign(response.url || window.location.href);
   }
 
   function install(form) {
@@ -204,13 +266,16 @@
       } catch (error) {
         const status = ensureStatus(form);
         status.hidden = false;
-        status.textContent = error?.message || 'Impossible de préparer les photos.';
+        status.textContent =
+          error?.message || 'Impossible de préparer les photos.';
         form.dataset.photoUploading = '0';
       }
     });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(install);
+    document
+      .querySelectorAll('form[enctype="multipart/form-data"]')
+      .forEach(install);
   });
 })();
