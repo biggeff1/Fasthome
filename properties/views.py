@@ -147,30 +147,39 @@ def _validate_publication_ready(publication):
 
 def _save_photos(prop, request, post):
     slots = _photo_slots(post)
-    uploaded = request.FILES.getlist('photos')
-    if not uploaded:
+    if not slots:
         return
-    if len(uploaded) > PHOTO_MAX_TOTAL:
+
+    uploads_by_slot = []
+    total_new = 0
+    for slot_key, label, category, room_number in slots:
+        files = request.FILES.getlist(f'photos_{slot_key}')
+        if len(files) > PHOTO_MAX_PER_ROOM:
+            raise ValidationError(f'{label} : maximum {PHOTO_MAX_PER_ROOM} photos.')
+        if files:
+            uploads_by_slot.append((slot_key, label, category, room_number, files))
+            total_new += len(files)
+
+    if total_new == 0:
+        return
+
+    existing_total = prop.photos.count()
+    if existing_total + total_new > PHOTO_MAX_TOTAL:
         raise ValidationError(f'Maximum {PHOTO_MAX_TOTAL} photos par logement.')
-    existing = prop.photos.count()
-    if existing + len(uploaded) > PHOTO_MAX_TOTAL:
-        raise ValidationError(f'Maximum {PHOTO_MAX_TOTAL} photos par logement.')
-    slot_index = 0
-    for image in uploaded:
-        if slot_index >= len(slots):
-            raise ValidationError('Le nombre de photos dépasse les pièces déclarées.')
-        slot_key, _label, category, room_number = slots[slot_index]
+
+    for _slot_key, label, category, room_number, files in uploads_by_slot:
         existing_slot = prop.photos.filter(category=category, order=room_number).count()
-        if existing_slot >= PHOTO_MAX_PER_ROOM:
-            slot_index += 1
-            if slot_index >= len(slots):
-                raise ValidationError('Toutes les zones déclarées ont atteint leur maximum de photos.')
-            slot_key, _label, category, room_number = slots[slot_index]
-            existing_slot = prop.photos.filter(category=category, order=room_number).count()
-        PropertyPhoto.objects.create(property=prop, image=image, category=category, order=room_number, is_primary=(existing == 0 and slot_index == 0))
-        existing += 1
-        if existing_slot + 1 >= PHOTO_MAX_PER_ROOM:
-            slot_index += 1
+        if existing_slot + len(files) > PHOTO_MAX_PER_ROOM:
+            raise ValidationError(f'{label} : il reste seulement {PHOTO_MAX_PER_ROOM - existing_slot} emplacement(s) photo.')
+        for image in files:
+            PropertyPhoto.objects.create(
+                property=prop,
+                image=image,
+                category=category,
+                order=room_number,
+                is_primary=(existing_total == 0),
+            )
+            existing_total += 1
 
 
 @login_required
