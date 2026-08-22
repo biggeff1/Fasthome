@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 import unicodedata
@@ -15,11 +16,15 @@ EXPECTED_KEYS = ("PROVINCE", "CITY", "TERRITORY", "COMMUNE", "RURAL_COMMUNE", "S
 def generated_code(kind, province, parent, name):
     """Generate a stable local code when the reference JSON intentionally has names only."""
     def slug(value):
-        value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+        value = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii")
         value = re.sub(r"[^A-Za-z0-9]+", "-", value).strip("-").upper()
-        return value[:40] or "UNKNOWN"
+        return value[:18] or "UNKNOWN"
 
-    return "RDC-" + "-".join(slug(part) for part in (kind, province, parent, name))
+    raw = "RDC-" + "-".join(slug(part) for part in (kind, province, parent, name))
+    if len(raw) <= 40:
+        return raw
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:8].upper()
+    return raw[:31] + "-" + digest
 
 
 def norm(value):
@@ -31,8 +36,15 @@ def item_name(item):
     return item if isinstance(item, str) else str(item.get("name") or "").strip()
 
 
-def commune_name(item):
-    return item_name(item)
+def items_for(obj, *keys):
+    """Return the first explicitly supplied list among aliases used by the JSON reference."""
+    for key in keys:
+        value = obj.get(key)
+        if value is not None:
+            if not isinstance(value, list):
+                raise CommandError(f"La clé '{key}' doit être une liste.")
+            return value
+    return []
 
 
 class Command(BaseCommand):
@@ -58,13 +70,15 @@ class Command(BaseCommand):
 
         self.validate(payload)
 
-        if options["reconcile"] or options["dry_run"]:
-            canonical = self.build_tree(payload, persist=not options["dry_run"])
-            if options["dry_run"]:
-                self.stdout.write(self.style.SUCCESS("Dry-run validé: aucune modification de base."))
-                self.print_counts(canonical)
-                return
-            self.reconcile_property_locations(canonical)
+        if options["dry_run"]:
+            canonical = self.build_tree(payload, persist=False)
+            self.stdout.write(self.style.SUCCESS("Dry-run validé: aucune modification de base."))
+            self.print_counts(canonical)
+            return
+
+        if options["reconcile"]:
+            canonical = self.build_tree(payload, persist=True, preserve_existing=True)
+            self.reconcile_property_locations()
             if options["deactivate_stale"]:
                 self.deactivate_stale(canonical)
             self.stdout.write(self.style.SUCCESS("Référentiel importé et propriétés réconciliées."))
@@ -82,59 +96,97 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Référentiel canonique importé."))
         self.print_counts(canonical)
 
-    def build_tree(self, payload, persist=True):
+    def build_tree(self, payload, persist=True, preserve_existing=False):
         counts = {key: 0 for key in EXPECTED_KEYS}
-        canonical = {}
+        canonical = {"counts": counts}
 
-        if persist:
+        if persist and not preserve_existing:
             LocationNode.objects.all().delete()
 
         def create(kind, name, parent, province, order):
             if persist:
-                node = LocationNode.objects.create(
+                if preserve_existing:
+                    node, _ = LocationNode.objects.get_or_create(
+                        name=name,
+                        kind=kind,
+                        parent=parent,
+                        defaults={
+                            "code": generated_code(kind, province, parent.name if parent else "RDC", name),
+                            "order": order,
+                            "active": True,
+                        },
+                    )
+                    changed = []
+                    expected_code = generated_code(kind, province, parent.name if parent else "RDC", name)
+                    if node.code != expected_code:
+                        node.code = expected_code
+                        changed.append("code")
+                    if node.order != order:
+                        node.order = order
+                        changed.append("order")
+                    if not node.active:
+                        node.active = True
+                        changed.append("active")
+                    if changed:
+                        node.save(update_fields=changed)
+                else:
+                    node = LocationNode.objects.create(
+                        name=name,
+                        kind=kind,
+                        code=generated_code(kind, province, parent.name if parent else "RDC", name),
+                        parent=parent,
+                        order=order,
+                        active=True,
+                    )
+            else:
+                node = SimpleNode(
                     name=name,
                     kind=kind,
-                    code=generated_code(kind, province, parent.name if parent else "RDC", name),
                     parent=parent,
-                    order=order,
-                    active=True,
+                    code=generated_code(kind, province, parent.name if parent else "RDC", name),
                 )
-            else:
-                node = SimpleNode(name=name, kind=kind, parent=parent, code=generated_code(kind, province, parent.name if parent else "RDC", name))
-            canonical[(kind, norm(name), parent.id if parent and persist else id(parent) if parent else None)] = node
+            canonical[(kind, norm(name), parent.id if parent else None)] = node
             counts[kind] += 1
             return node
 
         for p_order, province in enumerate(payload["provinces"], 1):
-            p = create("PROVINCE", province["name"], None, province["name"], p_order)
+            p = create("PROVINCE", item_name(province), None, item_name(province), p_order)
 
-            for c_order, city in enumerate(province.get("cities", []), 1):
-                city_node = create("CITY", item_name(city), p, province["name"], c_order)
-                for s_order, commune in enumerate(city.get("communes", []), 1):
-                    create("COMMUNE", commune_name(commune), city_node, province["name"], s_order)
+            for c_order, city in enumerate(items_for(province, "cities", "villes"), 1):
+                city_name = item_name(city)
+                city_node = create("CITY", city_name, p, item_name(province), c_order)
+                for s_order, commune in enumerate(items_for(city, "communes"), 1):
+                    create("COMMUNE", item_name(commune), city_node, item_name(province), s_order)
 
-            for t_order, territory in enumerate(province.get("territories", []), 1):
-                t = create("TERRITORY", item_name(territory), p, province["name"], t_order)
-                rural_items = territory.get("rural_communes", territory.get("communes_rurales", []))
-                for s_order, item in enumerate(rural_items, 1):
-                    create("RURAL_COMMUNE", commune_name(item), t, province["name"], s_order)
-                for s_order, item in enumerate(territory.get("sectors", []), 1):
-                    create("SECTOR", item_name(item), t, province["name"], s_order)
-                for s_order, item in enumerate(territory.get("chiefdoms", territory.get("chefferies", [])), 1):
-                    create("CHIEFDOM", item_name(item), t, province["name"], s_order)
+            for t_order, territory in enumerate(items_for(province, "territories", "territoires"), 1):
+                territory_name = item_name(territory)
+                t = create("TERRITORY", territory_name, p, item_name(province), t_order)
 
-        return {**{"counts": counts}, **canonical}
+                for s_order, item in enumerate(
+                    items_for(territory, "rural_communes", "communes_rurales", "rural_communes"), 1
+                ):
+                    create("RURAL_COMMUNE", item_name(item), t, item_name(province), s_order)
+
+                for s_order, item in enumerate(items_for(territory, "sectors", "secteurs"), 1):
+                    create("SECTOR", item_name(item), t, item_name(province), s_order)
+
+                for s_order, item in enumerate(items_for(territory, "chiefdoms", "chefferies"), 1):
+                    create("CHIEFDOM", item_name(item), t, item_name(province), s_order)
+
+        return canonical
 
     @staticmethod
-    def reconcile_property_locations(canonical):
-        def find(kind, name, parent):
-            parent_id = parent.id
-            return LocationNode.objects.filter(kind=kind, name=name, parent_id=parent_id, active=True).first()
-
-        for location in PropertyLocation.objects.select_related("province", "city_or_territory", "subdivision"):
-            province = LocationNode.objects.filter(kind="PROVINCE", name__iexact=location.province.name, active=True).first()
+    def reconcile_property_locations():
+        for location in PropertyLocation.objects.select_related(
+            "province", "city_or_territory", "subdivision"
+        ):
+            province = LocationNode.objects.filter(
+                kind="PROVINCE", name__iexact=location.province.name, active=True
+            ).first()
             if not province:
-                raise CommandError(f"Province introuvable pour PropertyLocation {location.pk}: {location.province.name}")
+                raise CommandError(
+                    f"Province introuvable pour PropertyLocation {location.pk}: {location.province.name}"
+                )
 
             level2 = LocationNode.objects.filter(
                 kind=location.city_or_territory.kind,
@@ -144,11 +196,17 @@ class Command(BaseCommand):
             ).first()
             if not level2:
                 raise CommandError(
-                    f"Parent introuvable pour PropertyLocation {location.pk}: {location.city_or_territory.name}"
+                    f"Parent introuvable pour PropertyLocation {location.pk}: "
+                    f"{location.city_or_territory.name}"
                 )
 
-            location.province_id = province.id
-            location.city_or_territory_id = level2.id
+            updates = []
+            if location.province_id != province.id:
+                location.province_id = province.id
+                updates.append("province")
+            if location.city_or_territory_id != level2.id:
+                location.city_or_territory_id = level2.id
+                updates.append("city_or_territory")
 
             if location.subdivision_id:
                 subdivision = LocationNode.objects.filter(
@@ -157,13 +215,17 @@ class Command(BaseCommand):
                     parent=level2,
                     active=True,
                 ).first()
-                if subdivision:
-                    location.subdivision_id = subdivision.id
-                else:
+                if not subdivision:
                     raise CommandError(
-                        f"Subdivision introuvable pour PropertyLocation {location.pk}: {location.subdivision.name}"
+                        f"Subdivision introuvable pour PropertyLocation {location.pk}: "
+                        f"{location.subdivision.name}"
                     )
-            location.save(update_fields=["province", "city_or_territory", "subdivision"])
+                if location.subdivision_id != subdivision.id:
+                    location.subdivision_id = subdivision.id
+                    updates.append("subdivision")
+
+            if updates:
+                location.save(update_fields=updates)
 
     @staticmethod
     def deactivate_stale(canonical):
@@ -195,17 +257,17 @@ class Command(BaseCommand):
 
         for province in payload["provinces"]:
             require_name(province, "PROVINCE")
-            for city in province.get("cities", []):
+            for city in items_for(province, "cities", "villes"):
                 require_name(city, "CITY")
-                for commune in city.get("communes", []):
+                for commune in items_for(city, "communes"):
                     require_name(commune, "COMMUNE")
-            for territory in province.get("territories", []):
+            for territory in items_for(province, "territories", "territoires"):
                 require_name(territory, "TERRITORY")
-                for rural in territory.get("rural_communes", territory.get("communes_rurales", [])):
+                for rural in items_for(territory, "rural_communes", "communes_rurales"):
                     require_name(rural, "RURAL_COMMUNE")
-                for sector in territory.get("sectors", []):
+                for sector in items_for(territory, "sectors", "secteurs"):
                     require_name(sector, "SECTOR")
-                for chiefdom in territory.get("chiefdoms", territory.get("chefferies", [])):
+                for chiefdom in items_for(territory, "chiefdoms", "chefferies"):
                     require_name(chiefdom, "CHIEFDOM")
 
 
