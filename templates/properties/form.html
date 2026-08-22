@@ -45,7 +45,7 @@
 </div>
 <p class="muted">L'adresse exacte est enregistrée séparément : avenue/rue + numéro. Elle reste privée et n'est pas affichée publiquement.</p>
 <div class="field"><label>Lien Google Maps — privé</label><input id="maps_url" name="google_maps_url" value="{{ property.google_maps_url|default:'' }}" placeholder="Coller le lien Google Maps"></div>
-<div class="actions"><button class="btn btn-light" type="button" onclick="openMaps()">📍 Ouvrir Google Maps</button><button class="btn btn-light" type="button" onclick="copyMaps()">Copier le lien Maps</button></div>
+<div class="actions"><button class="btn btn-light" type="button" onclick="openMaps()">📍 Ouvrir Google Maps</button></div>
 
 <h2>🌳 Extérieur, équipements et sécurité</h2>
 <p class="muted">Cochez uniquement les caractéristiques présentes. L'eau et l'électricité sont gérées dans leur propre rubrique ci-dessus.</p>
@@ -89,6 +89,5 @@ function render(){let html='',f=furnished.value==='yes',n=id=>Math.max(0,parseIn
 ['bedroom_count','living_room_count','bathroom_count','toilet_count','furnished','has_kitchen'].forEach(id=>document.getElementById(id).addEventListener('change',render));render();
 function mapsQuery(){const avenue=document.querySelector('[name=avenue_street]').value.trim(),number=document.querySelector('[name=address_number]').value.trim(),neighborhood=document.querySelector('[name=neighborhood]').value.trim(),city=document.querySelector('[name=city_or_territory]').value.trim(),province=document.querySelector('[name=province]').value.trim();return [avenue,number,neighborhood,city,province].filter(Boolean).join(', ')}
 function openMaps(){let u=document.getElementById('maps_url').value.trim(),q=mapsQuery();window.open(u||('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q)),'_blank')}
-function copyMaps(){let u=document.getElementById('maps_url').value.trim(),q=mapsQuery();navigator.clipboard.writeText(u||('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q)))}
 </script>
 {% endblock %}
