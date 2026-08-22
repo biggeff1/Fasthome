@@ -5,15 +5,23 @@ from properties.location_models import LocationNode, PropertyLocation
 
 
 class Command(BaseCommand):
-    help = "Réinitialise uniquement le référentiel administratif et ses liaisons structurées."
+    help = "Supprime le référentiel administratif de test uniquement lorsque les liaisons structurées sont absentes."
 
     @transaction.atomic
     def handle(self, *args, **options):
         linked = PropertyLocation.objects.count()
         if linked:
-            raise RuntimeError(
-                f"Réinitialisation refusée: {linked} propriété(s) utilisent déjà PropertyLocation."
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Réinitialisation impossible: {linked} PropertyLocation existe(nt). "
+                    "Les données immobilières sont protégées."
+                )
             )
+            return
 
         deleted, _details = LocationNode.objects.all().delete()
-        self.stdout.write(self.style.WARNING(f"Référentiel administratif supprimé: {deleted} ligne(s)."))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Référentiel administratif supprimé: {deleted} ligne(s)."
+            )
+        )
