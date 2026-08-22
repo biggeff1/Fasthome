@@ -5,7 +5,6 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .location_models import LocationNode, PropertyLocation
 from .models import (
     Bathroom, Bedroom, CollaborationConsent, Kitchen, LivingRoom, Property,
     PropertyDeclaration, PropertyFeature, PropertyPhoto, PropertyPublication, PropertyType, Toilet,
@@ -125,7 +124,6 @@ def _save_consents(publication, post):
     consent.collaboration_accepted = post.get('collaboration_accepted') == 'on'
     consent.accepted_at = timezone.now() if all([consent.verification_accepted, consent.presentation_accepted, consent.visits_accepted, consent.management_accepted, consent.collaboration_accepted]) else None
     consent.save()
-    return declaration, consent
 
 
 def _context(**extra):
@@ -139,7 +137,7 @@ def _validate_publication_ready(publication):
         raise ValidationError('Toutes les conditions de collaboration avec Fasthome doivent être acceptées.')
     prop = publication.property
     if not all([prop.province, prop.city_or_territory, prop.neighborhood, prop.avenue_street, prop.address_number]):
-        raise ValidationError('La localisation et l’adresse exacte du logement sont incomplètes. Renseignez l’avenue/rue et le numéro.')
+        raise ValidationError('La localisation et l’adresse exacte du logement sont incomplètes. Renseignez les champs de localisation et l’adresse exacte.')
     if not prop.monthly_rent or prop.monthly_rent <= 0:
         raise ValidationError('Le loyer mensuel doit être renseigné et supérieur à zéro.')
     if not prop.max_occupants or prop.max_occupants < 1:
@@ -148,8 +146,6 @@ def _validate_publication_ready(publication):
 
 def _save_photos(prop, request, post):
     slots = _photo_slots(post)
-    if not slots:
-        return
     uploads_by_slot = []
     total_new = 0
     for slot_key, label, category, room_number in slots:
@@ -173,40 +169,6 @@ def _save_photos(prop, request, post):
             existing_total += 1
 
 
-def _location_from_post(post):
-    province_id = post.get('province_id')
-    level2_id = post.get('city_or_territory_id')
-    subdivision_id = post.get('administrative_subdivision_id') or None
-    if not province_id or not level2_id:
-        province_name = (post.get('province') or '').strip()
-        level2_name = (post.get('city_or_territory') or '').strip()
-        subdivision_name = (post.get('administrative_subdivision') or '').strip()
-        if not province_name or not level2_name:
-            raise ValidationError('Veuillez sélectionner une province et une ville/territoire dans les listes.')
-        province = get_object_or_404(LocationNode, name=province_name, kind='PROVINCE', active=True, parent__isnull=True)
-        level2 = get_object_or_404(LocationNode, name=level2_name, kind__in=['CITY', 'TERRITORY'], active=True, parent=province)
-        subdivision = None
-        if subdivision_name:
-            subdivision = get_object_or_404(LocationNode, name=subdivision_name, kind__in=['COMMUNE', 'RURAL_COMMUNE', 'SECTOR', 'CHIEFDOM'], active=True, parent=level2)
-        return province, level2, subdivision
-    province = get_object_or_404(LocationNode, pk=province_id, kind='PROVINCE', active=True, parent__isnull=True)
-    level2 = get_object_or_404(LocationNode, pk=level2_id, kind__in=['CITY', 'TERRITORY'], active=True, parent=province)
-    subdivision = None
-    if subdivision_id:
-        subdivision = get_object_or_404(LocationNode, pk=subdivision_id, kind__in=['COMMUNE', 'RURAL_COMMUNE', 'SECTOR', 'CHIEFDOM'], active=True, parent=level2)
-    return province, level2, subdivision
-
-
-def _apply_structured_location(prop, post):
-    province, level2, subdivision = _location_from_post(post)
-    neighborhood = post.get('neighborhood', '').strip()
-    prop.province = province.name
-    prop.city_or_territory = level2.name
-    prop.administrative_subdivision = subdivision.name if subdivision else ''
-    prop.neighborhood = neighborhood
-    PropertyLocation.objects.update_or_create(property=prop, defaults={'province': province, 'city_or_territory': level2, 'subdivision': subdivision, 'neighborhood': neighborhood})
-
-
 @login_required
 def property_create(request):
     if not request.user.is_certified:
@@ -217,8 +179,34 @@ def property_create(request):
         prop_type = get_object_or_404(PropertyType, pk=request.POST.get('property_type'))
         try:
             with transaction.atomic():
-                prop = Property.objects.create(owner=request.user, property_type=prop_type, furnished=request.POST.get('furnished') == 'yes', province='', city_or_territory='', administrative_subdivision='', neighborhood='', avenue_street=request.POST.get('avenue_street', '').strip(), address_number=request.POST.get('address_number', '').strip(), exact_address=_address_from_post(request.POST), google_maps_url=request.POST.get('google_maps_url', '').strip(), bedroom_count=_positive(request.POST.get('bedroom_count')), living_room_count=_positive(request.POST.get('living_room_count')), bathroom_count=_positive(request.POST.get('bathroom_count')), toilet_count=_positive(request.POST.get('toilet_count')), has_kitchen=request.POST.get('has_kitchen') == 'yes', floor=request.POST.get('floor', '').strip(), ceiling_type=request.POST.get('ceiling_type', '').strip(), floor_type=request.POST.get('floor_type', '').strip(), electricity_source=request.POST.get('electricity_source', '').strip(), electricity_days_per_week=_service_days(request.POST.get('electricity_days_per_week')), water_source=request.POST.get('water_source', '').strip(), water_days_per_week=_service_days(request.POST.get('water_days_per_week')), monthly_rent=request.POST.get('monthly_rent') or None, guarantee_amount=request.POST.get('guarantee_amount') or None, max_occupants=max(1, _positive(request.POST.get('max_occupants'), 1)))
-                _apply_structured_location(prop, request.POST)
+                prop = Property.objects.create(
+                    owner=request.user,
+                    property_type=prop_type,
+                    furnished=request.POST.get('furnished') == 'yes',
+                    province=request.POST.get('province', '').strip(),
+                    city_or_territory=request.POST.get('city_or_territory', '').strip(),
+                    administrative_subdivision=request.POST.get('administrative_subdivision', '').strip(),
+                    neighborhood=request.POST.get('neighborhood', '').strip(),
+                    avenue_street=request.POST.get('avenue_street', '').strip(),
+                    address_number=request.POST.get('address_number', '').strip(),
+                    exact_address=_address_from_post(request.POST),
+                    google_maps_url=request.POST.get('google_maps_url', '').strip(),
+                    bedroom_count=_positive(request.POST.get('bedroom_count')),
+                    living_room_count=_positive(request.POST.get('living_room_count')),
+                    bathroom_count=_positive(request.POST.get('bathroom_count')),
+                    toilet_count=_positive(request.POST.get('toilet_count')),
+                    has_kitchen=request.POST.get('has_kitchen') == 'yes',
+                    floor=request.POST.get('floor', '').strip(),
+                    ceiling_type=request.POST.get('ceiling_type', '').strip(),
+                    floor_type=request.POST.get('floor_type', '').strip(),
+                    electricity_source=request.POST.get('electricity_source', '').strip(),
+                    electricity_days_per_week=_service_days(request.POST.get('electricity_days_per_week')),
+                    water_source=request.POST.get('water_source', '').strip(),
+                    water_days_per_week=_service_days(request.POST.get('water_days_per_week')),
+                    monthly_rent=request.POST.get('monthly_rent') or None,
+                    guarantee_amount=request.POST.get('guarantee_amount') or None,
+                    max_occupants=max(1, _positive(request.POST.get('max_occupants'), 1)),
+                )
                 prop.save()
                 publication = PropertyPublication.objects.create(property=prop, status='DRAFT')
                 _save_dynamic_details(prop, request.POST)
@@ -250,7 +238,10 @@ def property_edit(request, property_id):
                 prop.electricity_days_per_week = _service_days(request.POST.get('electricity_days_per_week'))
                 prop.water_source = request.POST.get('water_source', '').strip()
                 prop.water_days_per_week = _service_days(request.POST.get('water_days_per_week'))
-                _apply_structured_location(prop, request.POST)
+                prop.province = request.POST.get('province', '').strip()
+                prop.city_or_territory = request.POST.get('city_or_territory', '').strip()
+                prop.administrative_subdivision = request.POST.get('administrative_subdivision', '').strip()
+                prop.neighborhood = request.POST.get('neighborhood', '').strip()
                 prop.avenue_street = request.POST.get('avenue_street', '').strip()
                 prop.address_number = request.POST.get('address_number', '').strip()
                 prop.exact_address = _address_from_post(request.POST)
