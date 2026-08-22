@@ -177,17 +177,23 @@ def _location_from_post(post):
     province_id = post.get('province_id')
     level2_id = post.get('city_or_territory_id')
     subdivision_id = post.get('administrative_subdivision_id') or None
+    if not province_id or not level2_id:
+        province_name = (post.get('province') or '').strip()
+        level2_name = (post.get('city_or_territory') or '').strip()
+        subdivision_name = (post.get('administrative_subdivision') or '').strip()
+        if not province_name or not level2_name:
+            raise ValidationError('Veuillez sélectionner une province et une ville/territoire dans les listes.')
+        province = get_object_or_404(LocationNode, name=province_name, kind='PROVINCE', active=True, parent__isnull=True)
+        level2 = get_object_or_404(LocationNode, name=level2_name, kind__in=['CITY', 'TERRITORY'], active=True, parent=province)
+        subdivision = None
+        if subdivision_name:
+            subdivision = get_object_or_404(LocationNode, name=subdivision_name, kind__in=['COMMUNE', 'RURAL_COMMUNE', 'SECTOR', 'CHIEFDOM'], active=True, parent=level2)
+        return province, level2, subdivision
     province = get_object_or_404(LocationNode, pk=province_id, kind='PROVINCE', active=True, parent__isnull=True)
     level2 = get_object_or_404(LocationNode, pk=level2_id, kind__in=['CITY', 'TERRITORY'], active=True, parent=province)
     subdivision = None
     if subdivision_id:
-        subdivision = get_object_or_404(
-            LocationNode,
-            pk=subdivision_id,
-            kind__in=['COMMUNE', 'RURAL_COMMUNE', 'SECTOR', 'CHIEFDOM'],
-            active=True,
-            parent=level2,
-        )
+        subdivision = get_object_or_404(LocationNode, pk=subdivision_id, kind__in=['COMMUNE', 'RURAL_COMMUNE', 'SECTOR', 'CHIEFDOM'], active=True, parent=level2)
     return province, level2, subdivision
 
 
@@ -198,15 +204,7 @@ def _apply_structured_location(prop, post):
     prop.city_or_territory = level2.name
     prop.administrative_subdivision = subdivision.name if subdivision else ''
     prop.neighborhood = neighborhood
-    PropertyLocation.objects.update_or_create(
-        property=prop,
-        defaults={
-            'province': province,
-            'city_or_territory': level2,
-            'subdivision': subdivision,
-            'neighborhood': neighborhood,
-        },
-    )
+    PropertyLocation.objects.update_or_create(property=prop, defaults={'province': province, 'city_or_territory': level2, 'subdivision': subdivision, 'neighborhood': neighborhood})
 
 
 @login_required
