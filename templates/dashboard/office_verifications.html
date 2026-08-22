@@ -9,6 +9,7 @@
       <article class="list-item">
         <h3>{{ verification.user.fasthome_id }} — {{ verification.user.get_full_name }}</h3>
         <p>{{ verification.get_document_type_display }} · Document : <strong>{{ verification.get_status_display }}</strong> · Visage : <strong>{{ verification.get_facial_status_display }}</strong></p>
+        <p><a class="btn btn-light" href="{% url 'office_verification_document' verification.pk %}">🔐 Ouvrir la pièce protégée</a></p>
         {% if verification.analysis %}
           <p><strong>Confiance :</strong> {{ verification.analysis.confidence_score }}% · <strong>OCR :</strong> {{ verification.analysis.ocr_engine }}</p>
           <p><strong>Nom :</strong> {{ verification.analysis.extracted_name|default:'Non extrait' }} · <strong>Correspondance :</strong> {{ verification.analysis.name_match_score|default:'—' }}%</p>
