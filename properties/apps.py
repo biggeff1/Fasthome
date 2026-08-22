@@ -7,3 +7,4 @@ class PropertiesConfig(AppConfig):
 
     def ready(self):
         from . import location_models  # noqa: F401
+        from . import location_signals  # noqa: F401
