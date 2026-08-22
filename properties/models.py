@@ -47,6 +47,8 @@ class Property(models.Model):
     city_or_territory = models.CharField(max_length=120)
     administrative_subdivision = models.CharField(max_length=160, blank=True)
     neighborhood = models.CharField(max_length=160, blank=True)
+    avenue_street = models.CharField(max_length=200, blank=True)
+    address_number = models.CharField(max_length=50, blank=True)
     exact_address = models.TextField(blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
