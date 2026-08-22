@@ -119,8 +119,8 @@ def _validate_publication_ready(publication):
     if not publication.collaboration_consent.accepted_at:
         raise ValidationError('Toutes les conditions de collaboration avec Fasthome doivent être acceptées.')
     prop = publication.property
-    if not all([prop.province, prop.city_or_territory, prop.neighborhood]):
-        raise ValidationError('La localisation du logement est incomplète.')
+    if not all([prop.province, prop.city_or_territory, prop.neighborhood, prop.avenue_street, prop.address_number]):
+        raise ValidationError('La localisation et l’adresse exacte du logement sont incomplètes. Renseignez l’avenue/rue et le numéro.')
     if not prop.monthly_rent or prop.monthly_rent <= 0:
         raise ValidationError('Le loyer mensuel doit être renseigné et supérieur à zéro.')
     if not prop.max_occupants or prop.max_occupants < 1:
