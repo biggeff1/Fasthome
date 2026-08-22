@@ -73,11 +73,11 @@ class Property(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                condition=models.Q(electricity_days_per_week__isnull=True) | models.Q(electricity_days_per_week__lte=7),
+                check=models.Q(electricity_days_per_week__isnull=True) | models.Q(electricity_days_per_week__lte=7),
                 name='property_electricity_days_max_7',
             ),
             models.CheckConstraint(
-                condition=models.Q(water_days_per_week__isnull=True) | models.Q(water_days_per_week__lte=7),
+                check=models.Q(water_days_per_week__isnull=True) | models.Q(water_days_per_week__lte=7),
                 name='property_water_days_max_7',
             ),
         ]
