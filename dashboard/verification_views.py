@@ -1,9 +1,10 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import user_passes_test
 from django.db import transaction
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from notifications.models import Notification
 from users.models import IdentityVerification, IdentityVerificationEvent
@@ -18,10 +19,34 @@ def office_verifications(request):
     verifications = (
         IdentityVerification.objects.select_related('user', 'analysis')
         .prefetch_related('events')
-        .filter(status__in=['PENDING', 'IN_REVIEW', 'RETRY'])
+        .filter(status__in=['PENDING', 'IN_REVIEW', 'RETRY', 'REJECTED'])
         .order_by('submitted_at')
     )
     return render(request, 'dashboard/office_verifications.html', {'verifications': verifications})
+
+
+@staff_required
+@require_GET
+def office_verification_document(request, verification_id):
+    verification = get_object_or_404(IdentityVerification.objects.select_related('user'), pk=verification_id)
+    try:
+        document = verification.document_file
+        if not document or not document.name:
+            raise Http404('Document introuvable.')
+        document.open('rb')
+    except (FileNotFoundError, ValueError):
+        raise Http404('Document introuvable.')
+    IdentityVerificationEvent.objects.create(
+        verification=verification,
+        actor=request.user,
+        event_type='DOCUMENT_ACCESSED',
+        from_status=verification.status,
+        to_status=verification.status,
+        from_facial_status=verification.facial_status,
+        to_facial_status=verification.facial_status,
+        reason='Consultation du document par un agent/admin.',
+    )
+    return FileResponse(document, as_attachment=True, filename=document.name.rsplit('/', 1)[-1])
 
 
 @staff_required
