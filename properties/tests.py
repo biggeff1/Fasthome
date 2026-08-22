@@ -1,9 +1,14 @@
+import base64
+
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
+from django.utils.datastructures import MultiValueDict
 
 from users.models import User
 
-from .models import Property, PropertyType
+from .models import Property, PropertyPhoto, PropertyType
+from .views import _save_photos
 
 
 class PropertyTypeSeedTests(TestCase):
@@ -78,3 +83,119 @@ class PropertyServiceConstraintTests(TestCase):
         property_obj.save()
         self.assertEqual(property_obj.electricity_source, 'GRID')
         self.assertEqual(property_obj.water_source, 'BOREHOLE')
+
+
+class PropertyDynamicPhotoUploadTests(TestCase):
+    PNG_1X1 = base64.b64decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+    )
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='photo-tests@example.com',
+            password='A-secure-password-123',
+            phone='+243900001002',
+            last_name='Photo',
+            first_name='Test',
+            is_certified=True,
+        )
+        self.property_type = PropertyType.objects.create(name='Maison photo test')
+        self.property = Property.objects.create(
+            owner=self.user,
+            property_type=self.property_type,
+            province='Haut-Katanga',
+            city_or_territory='Lubumbashi',
+            bedroom_count=2,
+            living_room_count=1,
+            bathroom_count=1,
+            toilet_count=1,
+            has_kitchen=True,
+        )
+
+    def upload(self, name):
+        return SimpleUploadedFile(name, self.PNG_1X1, content_type='image/png')
+
+    def request_with_files(self, files):
+        request = RequestFactory().post('/properties/create/', data={})
+        request.FILES = MultiValueDict(files)
+        return request
+
+    def test_photos_are_saved_to_the_declared_room(self):
+        request = self.request_with_files({
+            'photos_exterior': [self.upload('exterior.png')],
+            'photos_bedroom_1': [self.upload('bedroom-1-a.png'), self.upload('bedroom-1-b.png')],
+            'photos_bedroom_2': [self.upload('bedroom-2.png')],
+            'photos_living_room_1': [self.upload('living.png')],
+            'photos_kitchen': [self.upload('kitchen.png')],
+        })
+        post = {
+            'bedroom_count': '2',
+            'living_room_count': '1',
+            'bathroom_count': '1',
+            'toilet_count': '1',
+            'has_kitchen': 'yes',
+        }
+
+        _save_photos(self.property, request, post)
+
+        self.assertEqual(self.property.photos.count(), 6)
+        self.assertEqual(
+            self.property.photos.filter(category='BEDROOM', order=1).count(),
+            2,
+        )
+        self.assertEqual(
+            self.property.photos.filter(category='BEDROOM', order=2).count(),
+            1,
+        )
+        self.assertEqual(
+            self.property.photos.filter(category='LIVING_ROOM', order=1).count(),
+            1,
+        )
+        self.assertEqual(
+            self.property.photos.filter(category='KITCHEN', order=1).count(),
+            1,
+        )
+        self.assertEqual(
+            self.property.photos.filter(category='EXTERIOR', order=1).count(),
+            1,
+        )
+        self.assertTrue(self.property.photos.get(category='EXTERIOR', order=1).is_primary)
+
+    def test_each_declared_zone_is_limited_to_five_photos(self):
+        request = self.request_with_files({
+            'photos_bedroom_1': [self.upload(f'bedroom-{i}.png') for i in range(6)],
+        })
+        post = {
+            'bedroom_count': '1',
+            'living_room_count': '0',
+            'bathroom_count': '0',
+            'toilet_count': '0',
+            'has_kitchen': 'no',
+        }
+
+        with self.assertRaisesMessage(Exception, 'Chambre 1 : maximum 5 photos.'):
+            _save_photos(self.property, request, post)
+        self.assertEqual(PropertyPhoto.objects.filter(property=self.property).count(), 0)
+
+    def test_total_photo_limit_is_enforced(self):
+        for i in range(40):
+            PropertyPhoto.objects.create(
+                property=self.property,
+                image=self.upload(f'existing-{i}.png'),
+                category='BEDROOM',
+                order=1,
+            )
+
+        request = self.request_with_files({
+            'photos_exterior': [self.upload('extra.png')],
+        })
+        post = {
+            'bedroom_count': '1',
+            'living_room_count': '0',
+            'bathroom_count': '0',
+            'toilet_count': '0',
+            'has_kitchen': 'no',
+        }
+
+        with self.assertRaisesMessage(Exception, 'Maximum 40 photos par logement.'):
+            _save_photos(self.property, request, post)
