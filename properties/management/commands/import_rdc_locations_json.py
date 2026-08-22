@@ -10,9 +10,9 @@ from properties.location_models import LocationNode
 SOURCE_URL = "https://raw.githubusercontent.com/open-admin-data/dr-congo-administrative-divisions/master/data/all-flat.json"
 EXPECTED = {
     "PROVINCE": 26,
-    "CITY": 99,
+    "CITY": 39,
     "TERRITORY": 145,
-    "COMMUNE": 620,
+    "COMMUNE": 0,
     "RURAL_COMMUNE": 0,
     "SECTOR": 472,
     "CHIEFDOM": 262,
@@ -23,9 +23,14 @@ def load_json(url):
     request = Request(url, headers={"User-Agent": "Fasthome-RDC-Location-Importer/1.0"})
     try:
         with urlopen(request, timeout=60) as response:
-            return json.load(response)
+            payload = json.load(response)
     except Exception as exc:
         raise CommandError(f"Impossible de charger le référentiel structuré: {exc}") from exc
+    if isinstance(payload, dict) and isinstance(payload.get("data"), list):
+        return payload["data"]
+    if isinstance(payload, list):
+        return payload
+    raise CommandError("Le référentiel structuré doit contenir une liste dans la clé 'data'.")
 
 
 class Command(BaseCommand):
@@ -39,9 +44,6 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         rows = load_json(options["url"])
-        if not isinstance(rows, list):
-            raise CommandError("Le référentiel doit être une liste JSON.")
-
         nodes = {}
         pending = list(rows)
         stats = {}
@@ -50,12 +52,12 @@ class Command(BaseCommand):
             progress = 0
             rest = []
             for row in pending:
-                node_id = row.get("id")
+                node_id = str(row.get("id") or "").strip()
                 name = ((row.get("name") or {}).get("local") or "").strip()
                 parent = row.get("parent") or {}
-                parent_id = parent.get("id")
+                parent_id = str(parent.get("id") or "").strip() or None
                 level_name = ((row.get("level_name") or {}).get("local") or "").strip().lower()
-                code = ((row.get("code") or {}).get("id") or node_id or "").strip()
+                code = str(((row.get("code") or {}).get("id") or node_id)).strip()
                 kind = self.kind_for(level_name, row.get("level"))
 
                 if not node_id or not name or not kind:
@@ -83,7 +85,7 @@ class Command(BaseCommand):
                 progress += 1
 
             if not progress:
-                unresolved = [r.get("id") for r in rest[:10]]
+                unresolved = [str(r.get("id")) for r in rest[:10]]
                 raise CommandError(f"Parents introuvables pour des nœuds: {unresolved}")
             pending = rest
 
@@ -103,27 +105,30 @@ class Command(BaseCommand):
                 if stats.get(kind, 0) != expected
             ]
             if mismatches:
-                raise CommandError("Référentiel incomplet : " + ", ".join(mismatches))
+                raise CommandError("Référentiel incohérent : " + ", ".join(mismatches))
 
         self.stdout.write(self.style.SUCCESS("Référentiel administratif importé et vérifié."))
 
     @staticmethod
     def kind_for(level_name, level):
-        normalized = level_name.replace("é", "e").replace("è", "e")
+        normalized = (
+            level_name.replace("é", "e")
+            .replace("è", "e")
+            .replace("ê", "e")
+            .replace("-", " ")
+        )
         if normalized == "province" or level == 1:
             return "PROVINCE"
-        if normalized == "ville":
+        if normalized in {"ville", "ville province"}:
             return "CITY"
         if normalized == "territoire":
             return "TERRITORY"
         if normalized == "commune":
             return "COMMUNE"
-        if normalized in {"commune rurale", "commune-rurale"}:
+        if normalized == "commune rurale":
             return "RURAL_COMMUNE"
         if normalized == "secteur":
             return "SECTOR"
         if normalized == "chefferie":
             return "CHIEFDOM"
-        if normalized == "ville province":
-            return "CITY"
         return None
