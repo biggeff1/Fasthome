@@ -5,7 +5,8 @@ from django.db import transaction
 from django.shortcuts import redirect, render
 
 from .forms import EmailLoginForm, IdentityVerificationForm, RegistrationForm
-from .models import IdentityVerification, User
+from .kyc_services import process_identity_verification
+from .models import IdentityVerification, IdentityVerificationEvent, User
 
 
 def register(request):
@@ -52,26 +53,10 @@ def profile(request):
 @login_required
 def certification(request):
     verification = getattr(request.user, 'identity_verification', None)
-
-    # A rejected KYC is always restartable. A facial-only rejection is also
-    # restartable, but keeps the already-approved identity document.
-    rejected_kyc = bool(verification and verification.status == 'REJECTED')
-    facial_retry = bool(
-        verification and (
-            verification.facial_status in {'REJECTED', 'RETRY'}
-            or rejected_kyc
-        )
-    )
-    facial_only_retry = bool(
-        verification
-        and verification.status == 'VERIFIED'
-        and verification.facial_status in {'REJECTED', 'RETRY'}
-    )
-    fully_certified = bool(
-        verification
-        and verification.status == 'VERIFIED'
-        and verification.facial_status == 'VERIFIED'
-    )
+    rejected_kyc = bool(verification and verification.status in {'REJECTED', 'RETRY'})
+    facial_retry = bool(verification and (verification.facial_status in {'REJECTED', 'RETRY'} or rejected_kyc))
+    facial_only_retry = bool(verification and verification.status == 'VERIFIED' and verification.facial_status in {'REJECTED', 'RETRY'})
+    fully_certified = bool(verification and verification.status == 'VERIFIED' and verification.facial_status == 'VERIFIED')
 
     if request.method == 'POST' and verification and not facial_retry:
         if fully_certified:
@@ -81,15 +66,11 @@ def certification(request):
         return redirect('certification')
 
     form = IdentityVerificationForm(request.POST or None, request.FILES or None, instance=verification)
-
     if facial_only_retry:
-        # The identity document has already been approved. Only the selfie
-        # needs to be submitted again.
         form.fields['document_type'].required = False
         form.fields['document_file'].required = False
         form.fields['facial_photo'].required = True
     elif rejected_kyc:
-        # A complete KYC rejection restarts the whole dossier.
         form.fields['document_type'].required = True
         form.fields['document_file'].required = True
         form.fields['facial_photo'].required = False
@@ -97,12 +78,7 @@ def certification(request):
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
             locked = IdentityVerification.objects.select_for_update().filter(user=request.user).first()
-            locked_rejected = bool(locked and locked.status == 'REJECTED')
-            locked_facial_retry = bool(
-                locked and locked.status == 'VERIFIED'
-                and locked.facial_status in {'REJECTED', 'RETRY'}
-            )
-
+            locked_facial_retry = bool(locked and locked.status == 'VERIFIED' and locked.facial_status in {'REJECTED', 'RETRY'})
             if locked:
                 locked_fully_certified = locked.status == 'VERIFIED' and locked.facial_status == 'VERIFIED'
                 if locked_fully_certified:
@@ -114,35 +90,52 @@ def certification(request):
 
             obj = form.save(commit=False)
             obj.user = request.user
-
             if locked_facial_retry:
-                # Document already approved: retain it and restart facial review.
                 obj.document_file = locked.document_file
                 obj.document_type = locked.document_type
                 obj.status = 'VERIFIED'
                 success_message = 'Votre nouvelle photo faciale a été transmise à Fasthome.'
             else:
-                # A rejected dossier, whether rejected at document or complete
-                # KYC level, starts again from a clean pending state.
                 obj.status = 'PENDING'
-                success_message = 'Votre nouvelle demande de certification a été transmise à Fasthome.'
-
+                success_message = 'Votre demande de certification a été transmise. Les contrôles automatiques démarrent maintenant.'
             obj.facial_status = 'PENDING'
             obj.verified_at = None
             obj.rejection_reason = ''
             obj.save()
+            IdentityVerificationEvent.objects.create(
+                verification=obj,
+                actor=request.user,
+                event_type='SUBMITTED',
+                from_status=locked.status if locked else '',
+                to_status=obj.status,
+                from_facial_status=locked.facial_status if locked else '',
+                to_facial_status=obj.facial_status,
+                reason='Dossier transmis par l’utilisateur.',
+            )
+            try:
+                analysis = process_identity_verification(obj)
+            except Exception as exc:
+                # Fail-safe degraded mode: never certify when the pipeline crashes.
+                obj.status = 'IN_REVIEW'
+                obj.facial_status = 'IN_REVIEW'
+                obj.rejection_reason = f'Contrôles automatiques temporairement indisponibles ({exc.__class__.__name__}). Vérification humaine requise.'
+                obj.save()
+                messages.warning(request, 'Les contrôles automatiques sont temporairement indisponibles. Votre dossier a été envoyé à un agent.')
+            else:
+                if analysis.decision == 'AUTO_VERIFIED':
+                    success_message = 'Identité vérifiée automatiquement. Votre compte Fasthome est maintenant certifié.'
+                elif analysis.decision == 'REJECTED':
+                    success_message = 'La vérification automatique n’a pas été concluante. Consultez le motif et soumettez une nouvelle pièce si nécessaire.'
+                else:
+                    success_message = 'Votre dossier nécessite une vérification par un agent Fasthome.'
 
         messages.success(request, success_message)
         return redirect('certification')
 
-    return render(
-        request,
-        'users/certification.html',
-        {
-            'form': form,
-            'verification': verification,
-            'facial_retry': facial_retry,
-            'facial_only_retry': facial_only_retry,
-            'fully_certified': fully_certified,
-        },
-    )
+    return render(request, 'users/certification.html', {
+        'form': form,
+        'verification': verification,
+        'facial_retry': facial_retry,
+        'facial_only_retry': facial_only_retry,
+        'fully_certified': fully_certified,
+    })
