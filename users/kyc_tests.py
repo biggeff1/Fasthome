@@ -11,7 +11,7 @@ from .models import IdentityVerification, IdentityVerificationEvent, User
 
 def image_file(name='document.jpg', size=(1200, 900)):
     buffer = io.BytesIO()
-    Image.new('RGB', size, 'white').save(buffer, format='JPEG')
+    Image.effect_noise(size, 70).convert('RGB').save(buffer, format='JPEG')
     return SimpleUploadedFile(name, buffer.getvalue(), content_type='image/jpeg')
 
 
