@@ -4,7 +4,6 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
 from django.test import RequestFactory, TestCase
-from django.utils.datastructures import MultiValueDict
 
 from users.models import User
 
@@ -117,12 +116,12 @@ class PropertyDynamicPhotoUploadTests(TestCase):
         return SimpleUploadedFile(name, self.PNG_1X1, content_type='image/png')
 
     def request_with_files(self, files):
-        # RequestFactory parses multipart/form-data into request.FILES itself.
-        # Assigning request.FILES afterwards is invalid because WSGIRequest.FILES
-        # is a read-only parsed-property in supported Django versions.
+        # Pass a plain dict containing lists of UploadedFile objects. Django's
+        # multipart encoder preserves every value in each list, so request.FILES
+        # exposes them through getlist(), exactly like a real <input multiple>.
         return RequestFactory().post(
             '/properties/create/',
-            data=MultiValueDict(files),
+            data=files,
         )
 
     def test_photos_are_saved_to_the_declared_room(self):
