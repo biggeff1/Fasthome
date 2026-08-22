@@ -1,13 +1,13 @@
 import io
 import re
 import unicodedata
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 from django.db import transaction
 from django.utils import timezone
 
-from .models import IdentityVerification, IdentityVerificationAnalysis, IdentityVerificationEvent
+from .models import IdentityVerificationAnalysis, IdentityVerificationEvent
 
 
 AUTO_VERIFY_THRESHOLD = 85
@@ -48,23 +48,18 @@ def image_quality(image_bytes):
 
 def extract_ocr(document_bytes, filename):
     suffix = Path(filename).suffix.lower()
-    text = ''
-    engine = 'unavailable'
     try:
         if suffix == '.pdf':
             import pdfplumber
             with pdfplumber.open(io.BytesIO(document_bytes)) as pdf:
                 text = '\n'.join((page.extract_text() or '') for page in pdf.pages)
-            engine = 'pdfplumber'
-        else:
-            import pytesseract
-            from PIL import Image
-            text = pytesseract.image_to_string(Image.open(io.BytesIO(document_bytes)), lang='fra+eng')
-            engine = 'tesseract'
+            return text.strip(), 'pdfplumber'
+        import pytesseract
+        from PIL import Image
+        text = pytesseract.image_to_string(Image.open(io.BytesIO(document_bytes)), lang='fra+eng')
+        return text.strip(), 'tesseract'
     except Exception:
-        # Degraded mode: the dossier remains reviewable by an agent.
         return '', 'unavailable'
-    return text.strip(), engine
 
 
 def extract_identity_data(text):
@@ -77,8 +72,10 @@ def extract_identity_data(text):
         except ValueError:
             continue
     name = ''
-    for pattern in (r'(?:NOM|SURNAME|LAST NAME)\s*[:\-]?\s*([A-Z][A-Z \-]{2,})',
-                    r'(?:PRENOM|PRENOMS|GIVEN NAMES|FIRST NAME)\s*[:\-]?\s*([A-Z][A-Z \-]{2,})'):
+    for pattern in (
+        r'(?:NOM|SURNAME|LAST NAME)\s*[:\-]?\s*([A-Z][A-Z \-]{2,})',
+        r'(?:PRENOM|PRENOMS|GIVEN NAMES|FIRST NAME)\s*[:\-]?\s*([A-Z][A-Z \-]{2,})',
+    ):
         found = re.search(pattern, normalized)
         if found:
             name = found.group(1).strip()
@@ -97,18 +94,10 @@ def name_match_score(extracted, user):
         return None
     expected_tokens = set(expected.split())
     candidate_tokens = set(candidate.split())
-    if not expected_tokens:
-        return None
-    return round(100 * len(expected_tokens & candidate_tokens) / len(expected_tokens))
+    return round(100 * len(expected_tokens & candidate_tokens) / len(expected_tokens)) if expected_tokens else None
 
 
 def face_correspondence(document_bytes, selfie_bytes, filename):
-    """Optional heuristic. If OpenCV is unavailable, force manual review.
-
-    This is deliberately conservative: it never auto-verifies a face when the
-    computer-vision dependency is missing or a face cannot be detected in both
-    images.
-    """
     if Path(filename).suffix.lower() == '.pdf':
         return None, 'Correspondance faciale automatique indisponible pour ce PDF.'
     try:
@@ -128,8 +117,7 @@ def face_correspondence(document_bytes, selfie_bytes, filename):
         dcrop = cv2.resize(doc[dy:dy+dh, dx:dx+dw], (128, 128))
         scrop = cv2.resize(selfie[sy:sy+sh, sx:sx+sw], (128, 128))
         correlation = float(np.corrcoef(dcrop.flatten(), scrop.flatten())[0, 1])
-        score = max(0, min(100, round((correlation + 1) * 50)))
-        return score, 'Comparaison faciale heuristique OpenCV.'
+        return max(0, min(100, round((correlation + 1) * 50))), 'Comparaison faciale heuristique OpenCV.'
     except Exception:
         return None, 'OpenCV non disponible: contrôle facial manuel requis.'
 
@@ -154,11 +142,6 @@ def fraud_signals(document_bytes, filename, quality_score):
 
 
 def process_identity_verification(verification):
-    """Run the KYC pipeline and return the resulting analysis.
-
-    Missing OCR/OpenCV dependencies never block submission; they route the
-    dossier to IN_REVIEW instead of pretending the checks passed.
-    """
     user = verification.user
     document_bytes = _read_bytes(verification.document_file)
     quality_score, quality_explanation = image_quality(document_bytes) if not verification.document_file.name.lower().endswith('.pdf') else (None, 'Contrôle qualité image non applicable au PDF.')
@@ -171,8 +154,7 @@ def process_identity_verification(verification):
     face_score = None
     face_explanation = 'Selfie non fourni.'
     if verification.facial_photo:
-        face_bytes = _read_bytes(verification.facial_photo)
-        face_score, face_explanation = face_correspondence(document_bytes, face_bytes, verification.document_file.name)
+        face_score, face_explanation = face_correspondence(document_bytes, _read_bytes(verification.facial_photo), verification.document_file.name)
 
     checks = []
     if quality_score is not None:
@@ -205,18 +187,15 @@ def process_identity_verification(verification):
     if ocr_engine == 'unavailable':
         reasons.append('OCR indisponible: passage en vérification manuelle.')
 
-    if all(checks) and confidence >= AUTO_VERIFY_THRESHOLD:
-        decision = 'AUTO_VERIFIED'
-        status = 'VERIFIED'
-        facial_status = 'VERIFIED'
-    elif confidence >= MANUAL_REVIEW_THRESHOLD:
-        decision = 'MANUAL_REVIEW'
-        status = 'IN_REVIEW'
-        facial_status = 'IN_REVIEW'
+    # Safe degraded mode: missing OCR or face matching must never become an
+    # automatic rejection or approval. An agent gets the dossier instead.
+    dependencies_missing = ocr_engine == 'unavailable' or face_score is None
+    if all(checks) and confidence >= AUTO_VERIFY_THRESHOLD and not dependencies_missing:
+        decision, status, facial_status = 'AUTO_VERIFIED', 'VERIFIED', 'VERIFIED'
+    elif confidence >= MANUAL_REVIEW_THRESHOLD or dependencies_missing:
+        decision, status, facial_status = 'MANUAL_REVIEW', 'IN_REVIEW', 'IN_REVIEW'
     else:
-        decision = 'REJECTED'
-        status = 'RETRY'
-        facial_status = 'RETRY'
+        decision, status, facial_status = 'REJECTED', 'RETRY', 'RETRY'
 
     with transaction.atomic():
         analysis, _ = IdentityVerificationAnalysis.objects.select_for_update().get_or_create(verification=verification)
