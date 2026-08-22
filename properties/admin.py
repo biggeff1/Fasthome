@@ -1,5 +1,18 @@
 from django.contrib import admin
-from .models import (Bathroom, Bedroom, CollaborationConsent, Favorite, Kitchen, LivingRoom, Property, PropertyDeclaration, PropertyFeature, PropertyPhoto, PropertyPublication, PropertyType, Toilet)
+from .models import (
+    Bathroom,
+    Bedroom,
+    Favorite,
+    Kitchen,
+    LivingRoom,
+    Property,
+    PropertyDeclaration,
+    PropertyFeature,
+    PropertyPhoto,
+    PropertyPublication,
+    PropertyType,
+    Toilet,
+)
 
 admin.site.register(PropertyType)
 admin.site.register(Property)
@@ -12,5 +25,4 @@ admin.site.register(Toilet)
 admin.site.register(PropertyPhoto)
 admin.site.register(PropertyPublication)
 admin.site.register(PropertyDeclaration)
-admin.site.register(CollaborationConsent)
 admin.site.register(Favorite)
