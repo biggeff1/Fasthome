@@ -49,24 +49,17 @@ PROVINCES = {
     "TSHUAPA": "Tshuapa",
 }
 
-HEADER = ("TERRITOIRE", "VILLE", "COMMUNE", "SECTEUR", "CHEFFERIE")
-SKIP_WORDS = {
-    "SECRETARIAT", "GENERAL", "DE", "LA", "DECENTRALISATION", "LE", "SECRETAIRE",
-    "OBSERVATION", "FAIT", "KINSHASA", "NB", "TOTAL", "ETD", "PROVINCE",
-}
-
 
 def clean(value):
-    value = str(value or "").replace("\u00ad", "")
-    value = value.replace("\x00", " ")
-    value = re.sub(r"\s+", " ", value).strip(" -\n\r\t")
-    return value
+    value = str(value or "").replace("\u00ad", "").replace("\x00", " ")
+    return re.sub(r"\s+", " ", value).strip(" -\n\r\t")
 
 
 def norm(value):
     value = clean(value).upper()
-    value = value.replace("É", "E").replace("È", "E").replace("Ê", "E")
-    value = value.replace("À", "A").replace("Â", "A").replace("Î", "I").replace("Ô", "O")
+    replacements = {"É": "E", "È": "E", "Ê": "E", "À": "A", "Â": "A", "Î": "I", "Ô": "O"}
+    for source, target in replacements.items():
+        value = value.replace(source, target)
     value = re.sub(r"[^A-Z0-9]+", " ", value)
     return re.sub(r"\s+", " ", value).strip()
 
@@ -77,8 +70,7 @@ def slug_code(kind, parent_code, name):
 
 
 def province_name(value):
-    key = norm(value)
-    return PROVINCES.get(key)
+    return PROVINCES.get(norm(value))
 
 
 def split_cell(value):
@@ -106,8 +98,8 @@ class Command(BaseCommand):
         parser.add_argument("--url", default=SOURCE_URL)
         parser.add_argument("--strict", action="store_true")
         parser.add_argument("--dry-run", action="store_true")
-        parser.add_argument("--reconcile", action="store_true", help="Réutilise/migre les PropertyLocation existants vers les nœuds canoniques.")
-        parser.add_argument("--deactivate-stale", action="store_true", help="Désactive les anciens nœuds non utilisés après import validé.")
+        parser.add_argument("--reconcile", action="store_true")
+        parser.add_argument("--deactivate-stale", action="store_true")
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -142,16 +134,11 @@ class Command(BaseCommand):
         if options["deactivate_stale"]:
             self._deactivate_stale(canonical)
 
-        db_stats = {
-            kind: LocationNode.objects.filter(kind=kind, active=True).count()
-            for kind in EXPECTED
-        }
+        db_stats = {kind: LocationNode.objects.filter(kind=kind, active=True).count() for kind in EXPECTED}
         for kind in EXPECTED:
             self.stdout.write(f"  DB {kind}: {db_stats[kind]}")
-
         if options["strict"] and any(db_stats[k] < EXPECTED[k] for k in EXPECTED):
             raise CommandError("La base ne contient pas encore tous les nœuds du référentiel officiel.")
-
         self.stdout.write(self.style.SUCCESS("Référentiel RDC importé et validé."))
 
     def _download(self, url):
@@ -172,16 +159,13 @@ class Command(BaseCommand):
         current_territory = None
         current_city = None
         order = 0
-
         with pdfplumber.open(pdf_path) as pdf:
             for page in pdf.pages:
-                text = page.extract_text() or ""
-                detected = self._province_from_heading(text)
+                detected = self._province_from_heading(page.extract_text() or "")
                 if detected:
                     current_province = detected
                     current_territory = None
                     current_city = None
-
                 tables = page.extract_tables({
                     "vertical_strategy": "text",
                     "horizontal_strategy": "text",
@@ -195,39 +179,32 @@ class Command(BaseCommand):
                         cells = list(raw_row or [])
                         while len(cells) < 6:
                             cells.append("")
-                        if self._header_or_total(cells):
+                        if self._header_or_total(cells) or not current_province:
                             continue
                         territory_cells, city_cells, commune_cells, sector_cells, chief_cells = [split_cell(cells[i]) for i in range(5)]
-                        if not current_province:
-                            continue
-
                         for name in territory_cells:
                             if valid_entity(name):
                                 current_territory = {"kind": "TERRITORY", "name": name, "parent": current_province, "order": order}
                                 records.append(current_territory)
                                 order += 1
                                 current_city = None
-
                         for name in city_cells:
                             if valid_entity(name):
                                 current_city = {"kind": "CITY", "name": name, "parent": current_province, "order": order}
                                 records.append(current_city)
                                 order += 1
-
                         if current_province == "Kinshasa" and not current_city and not current_territory:
                             current_city = {"kind": "CITY", "name": "Kinshasa", "parent": current_province, "order": order}
                             records.append(current_city)
                             order += 1
-
                         for name in commune_cells:
                             if not valid_entity(name):
                                 continue
-                            if current_city:
-                                records.append({"kind": "COMMUNE", "name": name, "parent": current_city, "order": order})
-                            elif current_territory:
-                                records.append({"kind": "RURAL_COMMUNE", "name": name, "parent": current_territory, "order": order})
-                            order += 1
-
+                            parent = current_city or current_territory
+                            if parent:
+                                kind = "COMMUNE" if current_city else "RURAL_COMMUNE"
+                                records.append({"kind": kind, "name": name, "parent": parent, "order": order})
+                                order += 1
                         if current_territory:
                             for name in sector_cells:
                                 if valid_entity(name):
@@ -237,7 +214,6 @@ class Command(BaseCommand):
                                 if valid_entity(name):
                                     records.append({"kind": "CHIEFDOM", "name": name, "parent": current_territory, "order": order})
                                     order += 1
-
         return self._deduplicate(records)
 
     @staticmethod
@@ -245,11 +221,12 @@ class Command(BaseCommand):
         result = []
         seen = set()
         for record in records:
-            key = (record["kind"], norm(record["parent"] if isinstance(record["parent"], str) else record["parent"]["name"]), norm(record["name"]))
-            if key in seen:
-                continue
-            seen.add(key)
-            result.append(record)
+            parent = record["parent"]
+            parent_key = parent if isinstance(parent, str) else f"{parent['kind']}:{norm(parent['name'])}"
+            key = (record["kind"], parent_key, norm(record["name"]))
+            if key not in seen:
+                seen.add(key)
+                result.append(record)
         return result
 
     @staticmethod
@@ -257,33 +234,11 @@ class Command(BaseCommand):
         stats = {kind: 0 for kind in EXPECTED}
         stats["PROVINCE"] = 26
         for record in records:
-            if record["kind"] in stats:
-                stats[record["kind"]] += 1
+            stats[record["kind"]] += 1
         return stats
 
     def _write_tree(self, records):
-        provinces = {}
         nodes = {}
-        for index, record in enumerate(records):
-            parent = record["parent"]
-            if record["kind"] == "PROVINCE":
-                continue
-            if isinstance(parent, dict):
-                parent_key = (parent["kind"], norm(parent["name"]))
-                parent_node = nodes.get(parent_key)
-            else:
-                parent_node = provinces.get(norm(parent))
-            if parent_node is None:
-                raise CommandError(f"Parent introuvable pour {record['kind']} {record['name']}: {parent}")
-            code = slug_code(record["kind"], parent_node.code or str(parent_node.pk), record["name"])
-            node, _ = LocationNode.objects.update_or_create(
-                parent=parent_node,
-                kind=record["kind"],
-                name=record["name"],
-                defaults={"code": code, "active": True, "order": record["order"]},
-            )
-            nodes[(record["kind"], norm(record["name"]))] = node
-
         for index, name in enumerate(PROVINCES.values(), start=1):
             node, _ = LocationNode.objects.update_or_create(
                 parent=None,
@@ -291,31 +246,37 @@ class Command(BaseCommand):
                 name=name,
                 defaults={"code": f"RDC-PROV-{index:02d}", "active": True, "order": index},
             )
-            provinces[norm(name)] = node
             nodes[("PROVINCE", norm(name))] = node
 
-        # Re-run children now that provinces are guaranteed to exist.
-        for record in records:
-            if record["kind"] == "PROVINCE":
-                continue
-            parent = record["parent"]
-            if isinstance(parent, dict):
-                parent_node = nodes.get((parent["kind"], norm(parent["name"])))
-            else:
-                parent_node = provinces.get(norm(parent))
-            if parent_node is None:
-                raise CommandError(f"Parent introuvable: {parent}")
-            node, _ = LocationNode.objects.update_or_create(
-                parent=parent_node,
-                kind=record["kind"],
-                name=record["name"],
-                defaults={
-                    "code": slug_code(record["kind"], parent_node.code or str(parent_node.pk), record["name"]),
-                    "active": True,
-                    "order": record["order"],
-                },
-            )
-            nodes[(record["kind"], norm(record["name"]))] = node
+        pending = list(records)
+        while pending:
+            progress = 0
+            rest = []
+            for record in pending:
+                parent = record["parent"]
+                if isinstance(parent, str):
+                    parent_node = nodes.get(("PROVINCE", norm(parent)))
+                else:
+                    parent_node = nodes.get((parent["kind"], norm(parent["name"])))
+                if parent_node is None:
+                    rest.append(record)
+                    continue
+                node, _ = LocationNode.objects.update_or_create(
+                    parent=parent_node,
+                    kind=record["kind"],
+                    name=record["name"],
+                    defaults={
+                        "code": slug_code(record["kind"], parent_node.code or str(parent_node.pk), record["name"]),
+                        "active": True,
+                        "order": record["order"],
+                    },
+                )
+                nodes[(record["kind"], norm(record["name"]))] = node
+                progress += 1
+            if not progress:
+                sample = [f"{r['kind']}:{r['name']}" for r in rest[:10]]
+                raise CommandError(f"Parents introuvables: {', '.join(sample)}")
+            pending = rest
         return nodes
 
     @staticmethod
@@ -325,9 +286,10 @@ class Command(BaseCommand):
             if not province:
                 continue
             level2 = canonical.get((location.city_or_territory.kind, norm(location.city_or_territory.name)))
-            if level2 and level2.parent_id == province.id:
-                location.province_id = province.id
-                location.city_or_territory_id = level2.id
+            if not level2 or level2.parent_id != province.id:
+                continue
+            location.province_id = province.id
+            location.city_or_territory_id = level2.id
             if location.subdivision:
                 subdivision = canonical.get((location.subdivision.kind, norm(location.subdivision.name)))
                 if subdivision and subdivision.parent_id == level2.id:
