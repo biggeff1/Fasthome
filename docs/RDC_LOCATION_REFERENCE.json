@@ -1,164 +1,59 @@
 {
-  "version": "1.0",
+  "version": "2.0",
   "country": "CD",
   "name": "République démocratique du Congo",
-  "source": "Référentiel administratif RDC à valider",
+  "source": {
+    "primary": "Secrétariat Général de la Décentralisation — Tableau synoptique des ETD, version du 24 juillet 2025",
+    "secondary": "CAID — référentiel des 145 territoires",
+    "verified": "2026-08-22",
+    "notes": [
+      "Le tableau officiel donne 145 territoires, 99 villes, 620 communes, 472 secteurs et 262 chefferies.",
+      "Le même document contient une incohérence rédactionnelle entre le total détaillé de 99 villes et le commentaire qui indique 98; Fasthome retient le total du tableau détaillé (99).",
+      "Les 26 provinces comprennent Kinshasa avec statut de province.",
+      "Aucune entité administrative ne doit être inventée pour atteindre un compteur attendu."
+    ]
+  },
+  "expected_counts": {
+    "PROVINCE": 26,
+    "TERRITORY": 145,
+    "CITY": 99,
+    "COMMUNE": 620,
+    "RURAL_COMMUNE": 0,
+    "SECTOR": 472,
+    "CHIEFDOM": 262
+  },
+  "schema": {
+    "province": {"code": "string", "name": "string", "cities": "array", "territories": "array"},
+    "city": {"code": "string", "name": "string", "communes": "array"},
+    "territory": {"code": "string", "name": "string", "sectors": "array", "chiefdoms": "array", "rural_communes": "array"},
+    "child": {"code": "string", "name": "string"}
+  },
   "provinces": [
-    {
-      "code": "CD-01",
-      "name": "Bas-Uele",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-02",
-      "name": "Équateur",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-03",
-      "name": "Haut-Katanga",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-04",
-      "name": "Haut-Lomami",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-05",
-      "name": "Haut-Uele",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-06",
-      "name": "Ituri",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-07",
-      "name": "Kasaï",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-08",
-      "name": "Kasaï-Central",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-09",
-      "name": "Kasaï-Oriental",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-10",
-      "name": "Kinshasa",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-11",
-      "name": "Kongo Central",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-12",
-      "name": "Kwango",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-13",
-      "name": "Kwilu",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-14",
-      "name": "Lomami",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-15",
-      "name": "Lualaba",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-16",
-      "name": "Mai-Ndombe",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-17",
-      "name": "Maniema",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-18",
-      "name": "Mongala",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-19",
-      "name": "Nord-Kivu",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-20",
-      "name": "Nord-Ubangi",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-21",
-      "name": "Sankuru",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-22",
-      "name": "Sud-Kivu",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-23",
-      "name": "Sud-Ubangi",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-24",
-      "name": "Tanganyika",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-25",
-      "name": "Tshopo",
-      "cities": [],
-      "territories": []
-    },
-    {
-      "code": "CD-26",
-      "name": "Tshuapa",
-      "cities": [],
-      "territories": []
-    }
+    {"code":"CD-01","name":"Bas-Uele","cities":[],"territories":[]},
+    {"code":"CD-02","name":"Équateur","cities":[],"territories":[]},
+    {"code":"CD-03","name":"Haut-Katanga","cities":[],"territories":[]},
+    {"code":"CD-04","name":"Haut-Lomami","cities":[],"territories":[]},
+    {"code":"CD-05","name":"Haut-Uele","cities":[],"territories":[]},
+    {"code":"CD-06","name":"Ituri","cities":[],"territories":[]},
+    {"code":"CD-07","name":"Kasaï","cities":[],"territories":[]},
+    {"code":"CD-08","name":"Kasaï-Central","cities":[],"territories":[]},
+    {"code":"CD-09","name":"Kasaï-Oriental","cities":[],"territories":[]},
+    {"code":"CD-10","name":"Kinshasa","cities":[],"territories":[]},
+    {"code":"CD-11","name":"Kongo Central","cities":[],"territories":[]},
+    {"code":"CD-12","name":"Kwango","cities":[],"territories":[]},
+    {"code":"CD-13","name":"Kwilu","cities":[],"territories":[]},
+    {"code":"CD-14","name":"Lomami","cities":[],"territories":[]},
+    {"code":"CD-15","name":"Lualaba","cities":[],"territories":[]},
+    {"code":"CD-16","name":"Mai-Ndombe","cities":[],"territories":[]},
+    {"code":"CD-17","name":"Maniema","cities":[],"territories":[]},
+    {"code":"CD-18","name":"Mongala","cities":[],"territories":[]},
+    {"code":"CD-19","name":"Nord-Kivu","cities":[],"territories":[]},
+    {"code":"CD-20","name":"Nord-Ubangi","cities":[],"territories":[]},
+    {"code":"CD-21","name":"Sankuru","cities":[],"territories":[]},
+    {"code":"CD-22","name":"Sud-Kivu","cities":[],"territories":[]},
+    {"code":"CD-23","name":"Sud-Ubangi","cities":[],"territories":[]},
+    {"code":"CD-24","name":"Tanganyika","cities":[],"territories":[]},
+    {"code":"CD-25","name":"Tshopo","cities":[],"territories":[]},
+    {"code":"CD-26","name":"Tshuapa","cities":[],"territories":[]}
   ]
 }
