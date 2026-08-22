@@ -1,6 +1,7 @@
 import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator
 from django.db import models
 
 from core.validators import image_extension_validator, validate_image_upload
@@ -224,3 +225,79 @@ class Favorite(models.Model):
 
     def __str__(self):
         return f'{self.user} — {self.property}'
+
+
+class PropertyPublication(models.Model):
+    STATUS = [
+        ('DRAFT', 'Brouillon'),
+        ('SUBMITTED', 'Soumis'),
+        ('UNDER_REVIEW', 'En vérification'),
+        ('CORRECTION_REQUIRED', 'À corriger'),
+        ('PUBLISHED', 'Publié'),
+        ('SUSPENDED', 'Suspendu'),
+        ('RENTED', 'Loué'),
+    ]
+    publication_id = models.CharField(max_length=32, unique=True, editable=False)
+    status = models.CharField(max_length=25, choices=STATUS, default='DRAFT')
+    correction_message = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(blank=True, null=True)
+    approved_at = models.DateTimeField(blank=True, null=True)
+    published_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    property = models.OneToOneField(Property, on_delete=models.CASCADE, related_name='publication')
+
+    def save(self, *args, **kwargs):
+        if not self.publication_id:
+            self.publication_id = code('PUB')
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.publication_id} - {self.property}'
+
+
+class PropertyPhoto(models.Model):
+    CATEGORY = [
+        ('GENERAL', 'Générale'),
+        ('EXTERIOR', 'Extérieur'),
+        ('LIVING_ROOM', 'Salon'),
+        ('BEDROOM', 'Chambre'),
+        ('KITCHEN', 'Cuisine'),
+        ('BATHROOM', 'Salle de bain'),
+        ('TOILET', 'Toilette'),
+        ('PARKING', 'Parking'),
+        ('GARDEN', 'Jardin'),
+        ('OTHER', 'Autre'),
+    ]
+    image = models.ImageField(
+        upload_to='properties/photos/',
+        validators=[
+            FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp']),
+            validate_image_upload,
+        ],
+    )
+    category = models.CharField(max_length=20, choices=CATEGORY, default='GENERAL')
+    is_primary = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
+    property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='photos')
+
+    def __str__(self):
+        return f'{self.property.property_id} - {self.category} - {self.order}'
+
+
+class PropertyDeclaration(models.Model):
+    relationship_to_property = models.CharField(max_length=80)
+    right_to_offer_confirmed = models.BooleanField(default=False)
+    accuracy_confirmed = models.BooleanField(default=False)
+    photos_authentic_confirmed = models.BooleanField(default=False)
+    authorization_confirmed = models.BooleanField(default=False)
+    acknowledged_responsibility = models.BooleanField(default=False)
+    accepted_at = models.DateTimeField(blank=True, null=True)
+    publication = models.OneToOneField(
+        PropertyPublication,
+        on_delete=models.CASCADE,
+        related_name='declaration',
+    )
+
+    def __str__(self):
+        return f'Déclaration {self.publication.publication_id}'
