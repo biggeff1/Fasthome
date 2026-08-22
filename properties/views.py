@@ -14,8 +14,6 @@ from .models import (
 FEATURE_OPTIONS = [
     ('courtyard', 'Cour'), ('garden', 'Jardin'), ('terrace', 'Terrasse'),
     ('balcony', 'Balcon'), ('veranda', 'Véranda'), ('parking', 'Parking'), ('garage', 'Garage'),
-    ('water_network', 'Réseau d’eau'), ('borehole', 'Forage'), ('cistern', 'Citerne'), ('well', 'Puits'),
-    ('electric_network', 'Réseau électrique'), ('generator', 'Groupe électrogène'), ('solar', 'Solaire'),
     ('security_guard', 'Gardien'), ('fence', 'Clôture'), ('secure_door', 'Porte sécurisée'),
     ('cameras', 'Caméras'), ('alarm', 'Alarme'), ('secure_parking', 'Parking sécurisé'),
 ]
@@ -46,6 +44,14 @@ def _service_days(value):
     return value if 0 <= value <= 7 else None
 
 
+def _address_from_post(post):
+    avenue = post.get('avenue_street', '').strip()
+    number = post.get('address_number', '').strip()
+    if avenue and number:
+        return f'{avenue}, n° {number}'
+    return avenue or number
+
+
 def _save_dynamic_details(prop, post):
     prop.bedrooms.all().delete()
     for number in range(1, _positive(post.get('bedroom_count')) + 1):
@@ -69,10 +75,9 @@ def _save_dynamic_details(prop, post):
         Kitchen.objects.filter(property=prop).delete()
     prop.features.all().delete()
     exterior = {'courtyard', 'garden', 'terrace', 'balcony', 'veranda', 'parking', 'garage'}
-    infrastructure = {'water_network', 'borehole', 'cistern', 'well', 'electric_network', 'generator', 'solar'}
     for key, _label in FEATURE_OPTIONS:
         if post.get(key) == 'on':
-            category = 'EXTERIOR' if key in exterior else 'INFRASTRUCTURE' if key in infrastructure else 'SECURITY'
+            category = 'EXTERIOR' if key in exterior else 'SECURITY'
             PropertyFeature.objects.create(property=prop, key=key, category=category, value='true')
 
 
@@ -131,7 +136,9 @@ def property_create(request):
     if request.method == 'POST':
         prop_type = get_object_or_404(PropertyType, pk=request.POST.get('property_type'))
         with transaction.atomic():
-            prop = Property.objects.create(owner=request.user, property_type=prop_type, furnished=request.POST.get('furnished') == 'yes', province=request.POST.get('province', '').strip(), city_or_territory=request.POST.get('city_or_territory', '').strip(), administrative_subdivision=request.POST.get('administrative_subdivision', '').strip(), neighborhood=request.POST.get('neighborhood', '').strip(), exact_address=request.POST.get('exact_address', '').strip(), google_maps_url=request.POST.get('google_maps_url', '').strip(), latitude=request.POST.get('latitude') or None, longitude=request.POST.get('longitude') or None, bedroom_count=_positive(request.POST.get('bedroom_count')), living_room_count=_positive(request.POST.get('living_room_count')), bathroom_count=_positive(request.POST.get('bathroom_count')), toilet_count=_positive(request.POST.get('toilet_count')), has_kitchen=request.POST.get('has_kitchen') == 'yes', floor=request.POST.get('floor', '').strip(), ceiling_type=request.POST.get('ceiling_type', '').strip(), floor_type=request.POST.get('floor_type', '').strip(), electricity_source=request.POST.get('electricity_source', '').strip(), electricity_days_per_week=_service_days(request.POST.get('electricity_days_per_week')), water_source=request.POST.get('water_source', '').strip(), water_days_per_week=_service_days(request.POST.get('water_days_per_week')), monthly_rent=request.POST.get('monthly_rent') or None, guarantee_amount=request.POST.get('guarantee_amount') or None, max_occupants=max(1, _positive(request.POST.get('max_occupants'), 1)))
+            avenue = request.POST.get('avenue_street', '').strip()
+            address_number = request.POST.get('address_number', '').strip()
+            prop = Property.objects.create(owner=request.user, property_type=prop_type, furnished=request.POST.get('furnished') == 'yes', province=request.POST.get('province', '').strip(), city_or_territory=request.POST.get('city_or_territory', '').strip(), administrative_subdivision=request.POST.get('administrative_subdivision', '').strip(), neighborhood=request.POST.get('neighborhood', '').strip(), avenue_street=avenue, address_number=address_number, exact_address=_address_from_post(request.POST), google_maps_url=request.POST.get('google_maps_url', '').strip(), latitude=request.POST.get('latitude') or None, longitude=request.POST.get('longitude') or None, bedroom_count=_positive(request.POST.get('bedroom_count')), living_room_count=_positive(request.POST.get('living_room_count')), bathroom_count=_positive(request.POST.get('bathroom_count')), toilet_count=_positive(request.POST.get('toilet_count')), has_kitchen=request.POST.get('has_kitchen') == 'yes', floor=request.POST.get('floor', '').strip(), ceiling_type=request.POST.get('ceiling_type', '').strip(), floor_type=request.POST.get('floor_type', '').strip(), electricity_source=request.POST.get('electricity_source', '').strip(), electricity_days_per_week=_service_days(request.POST.get('electricity_days_per_week')), water_source=request.POST.get('water_source', '').strip(), water_days_per_week=_service_days(request.POST.get('water_days_per_week')), monthly_rent=request.POST.get('monthly_rent') or None, guarantee_amount=request.POST.get('guarantee_amount') or None, max_occupants=max(1, _positive(request.POST.get('max_occupants'), 1)))
             publication = PropertyPublication.objects.create(property=prop, status='DRAFT')
             _save_dynamic_details(prop, request.POST)
             _save_consents(publication, request.POST)
@@ -162,7 +169,9 @@ def property_edit(request, property_id):
             prop.city_or_territory = request.POST.get('city_or_territory', '').strip()
             prop.administrative_subdivision = request.POST.get('administrative_subdivision', '').strip()
             prop.neighborhood = request.POST.get('neighborhood', '').strip()
-            prop.exact_address = request.POST.get('exact_address', '').strip()
+            prop.avenue_street = request.POST.get('avenue_street', '').strip()
+            prop.address_number = request.POST.get('address_number', '').strip()
+            prop.exact_address = _address_from_post(request.POST)
             prop.google_maps_url = request.POST.get('google_maps_url', '').strip()
             prop.latitude = request.POST.get('latitude') or None
             prop.longitude = request.POST.get('longitude') or None
