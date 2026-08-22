@@ -1,5 +1,6 @@
 import base64
 
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
 from django.test import RequestFactory, TestCase
@@ -116,9 +117,13 @@ class PropertyDynamicPhotoUploadTests(TestCase):
         return SimpleUploadedFile(name, self.PNG_1X1, content_type='image/png')
 
     def request_with_files(self, files):
-        request = RequestFactory().post('/properties/create/', data={})
-        request.FILES = MultiValueDict(files)
-        return request
+        # RequestFactory parses multipart/form-data into request.FILES itself.
+        # Assigning request.FILES afterwards is invalid because WSGIRequest.FILES
+        # is a read-only parsed-property in supported Django versions.
+        return RequestFactory().post(
+            '/properties/create/',
+            data=MultiValueDict(files),
+        )
 
     def test_photos_are_saved_to_the_declared_room(self):
         request = self.request_with_files({
@@ -173,7 +178,7 @@ class PropertyDynamicPhotoUploadTests(TestCase):
             'has_kitchen': 'no',
         }
 
-        with self.assertRaisesMessage(Exception, 'Chambre 1 : maximum 5 photos.'):
+        with self.assertRaisesMessage(ValidationError, 'Chambre 1 : maximum 5 photos.'):
             _save_photos(self.property, request, post)
         self.assertEqual(PropertyPhoto.objects.filter(property=self.property).count(), 0)
 
@@ -197,5 +202,5 @@ class PropertyDynamicPhotoUploadTests(TestCase):
             'has_kitchen': 'no',
         }
 
-        with self.assertRaisesMessage(Exception, 'Maximum 40 photos par logement.'):
+        with self.assertRaisesMessage(ValidationError, 'Maximum 40 photos par logement.'):
             _save_photos(self.property, request, post)
