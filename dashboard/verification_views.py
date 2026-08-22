@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from notifications.models import Notification
-from users.models import IdentityVerification
+from users.models import IdentityVerification, IdentityVerificationEvent
 
 
 def staff_required(view):
@@ -16,7 +16,8 @@ def staff_required(view):
 @staff_required
 def office_verifications(request):
     verifications = (
-        IdentityVerification.objects.select_related('user')
+        IdentityVerification.objects.select_related('user', 'analysis')
+        .prefetch_related('events')
         .filter(status__in=['PENDING', 'IN_REVIEW', 'RETRY'])
         .order_by('submitted_at')
     )
@@ -30,30 +31,29 @@ def office_verification_decision(request, verification_id):
     reason = request.POST.get('reason', '').strip()
     with transaction.atomic():
         verification = get_object_or_404(
-            IdentityVerification.objects.select_for_update().select_related('user'),
+            IdentityVerification.objects.select_for_update().select_related('user', 'analysis'),
             pk=verification_id,
         )
+        old_status = verification.status
+        old_face = verification.facial_status
 
         if action == 'verify_document':
-            if verification.status == 'VERIFIED' and verification.facial_status == 'VERIFIED':
-                messages.info(request, 'Ce dossier est déjà entièrement certifié.')
-                return redirect('office_verifications')
             verification.status = 'VERIFIED'
             verification.verified_at = None
-            # Après un refus, le nouveau dossier doit repasser par une
-            # vérification faciale, même si l'ancien selfie existe encore.
             if verification.facial_status in {'RETRY', 'VERIFIED'}:
                 verification.facial_status = 'PENDING'
+            message = 'Document validé manuellement.'
 
         elif action == 'verify_face':
             if verification.status != 'VERIFIED':
                 messages.error(request, 'Validez d’abord la pièce d’identité.')
                 return redirect('office_verifications')
             if not verification.facial_photo:
-                messages.error(request, 'Aucune photo faciale n’est enregistrée. Le visage ne peut pas être validé.')
+                messages.error(request, 'Aucune photo faciale n’est enregistrée.')
                 return redirect('office_verifications')
             verification.facial_status = 'VERIFIED'
             verification.verified_at = timezone.now()
+            message = 'Vérification faciale validée manuellement.'
 
         elif action == 'reject':
             if not reason:
@@ -63,12 +63,24 @@ def office_verification_decision(request, verification_id):
             verification.facial_status = 'RETRY'
             verification.rejection_reason = reason
             verification.verified_at = None
+            message = 'Dossier refusé avec motif.'
 
         else:
             messages.error(request, 'Action de certification invalide.')
             return redirect('office_verifications')
 
         verification.save()
+        IdentityVerificationEvent.objects.create(
+            verification=verification,
+            actor=request.user,
+            event_type='MANUAL_DECISION',
+            from_status=old_status,
+            to_status=verification.status,
+            from_facial_status=old_face,
+            to_facial_status=verification.facial_status,
+            reason=reason or message,
+            metadata={'action': action},
+        )
         Notification.objects.create(
             recipient=verification.user,
             level='SUCCESS' if verification.user.is_certified else 'ACTION',
@@ -81,5 +93,5 @@ def office_verification_decision(request, verification_id):
             object_type='IdentityVerification',
             object_id=str(verification.pk),
         )
-    messages.success(request, 'Dossier de certification mis à jour.')
+    messages.success(request, message)
     return redirect('office_verifications')
