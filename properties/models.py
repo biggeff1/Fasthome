@@ -184,3 +184,43 @@ class Toilet(models.Model):
     location_type = models.CharField(max_length=10, choices=LOCATION)
     access_type = models.CharField(max_length=10, choices=ACCESS, blank=True)
     toilet_type = models.CharField(max_length=10, choices=TYPES)
+
+
+class CollaborationConsent(models.Model):
+    verification_accepted = models.BooleanField(default=False)
+    presentation_accepted = models.BooleanField(default=False)
+    visits_accepted = models.BooleanField(default=False)
+    management_accepted = models.BooleanField(default=False)
+    collaboration_accepted = models.BooleanField(default=False)
+    terms_version = models.CharField(max_length=50)
+    accepted_at = models.DateTimeField(blank=True, null=True)
+    publication = models.OneToOneField(
+        'PropertyPublication',
+        on_delete=models.CASCADE,
+        related_name='collaboration_consent',
+    )
+
+
+class Favorite(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+    property = models.ForeignKey(
+        Property,
+        on_delete=models.CASCADE,
+        related_name='favorited_by',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='favorites',
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('user', 'property'),
+                name='unique_favorite',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.user} — {self.property}'
