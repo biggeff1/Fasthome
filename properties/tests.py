@@ -6,6 +6,28 @@ from users.models import User
 from .models import Property, PropertyType
 
 
+class PropertyTypeSeedTests(TestCase):
+    def test_default_property_types_are_available_for_publication(self):
+        expected = [
+            'Maison',
+            'Appartement',
+            'Studio',
+            'Chambre',
+            'Duplex',
+            'Villa',
+            'Autre',
+        ]
+
+        self.assertEqual(
+            list(
+                PropertyType.objects.filter(active=True)
+                .order_by('order')
+                .values_list('name', flat=True)
+            ),
+            expected,
+        )
+
+
 class PropertyServiceConstraintTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
