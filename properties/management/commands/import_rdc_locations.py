@@ -139,6 +139,16 @@ class Command(BaseCommand):
                                 order += 1
                                 stats["CITY"] += 1
 
+                        if province.name == "Kinshasa" and current_territory and not current_city:
+                            current_city = self._ensure(
+                                province,
+                                "CITY",
+                                "Kinshasa",
+                                order,
+                                options["dry_run"],
+                            )
+                            order += 1
+
                         for name in communes:
                             if not self._valid_entity(name):
                                 continue
