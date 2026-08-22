@@ -39,7 +39,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--reconcile", action="store_true")
-        parser.add_argument("--deactivate-stale", action="store_true")
+        parser.add_argument(
+            "--deactivate-stale",
+            action="store_true",
+            help="Désactive les anciens LocationNode absents du JSON après réconciliation.",
+        )
         parser.add_argument("--dry-run", action="store_true")
 
     @transaction.atomic
@@ -62,9 +66,12 @@ class Command(BaseCommand):
 
         if options["reconcile"]:
             canonical = self.build_tree(payload, persist=True)
-            self.reconcile_property_locations(canonical)
-            if options["deactivate_stale"]:
-                self.deactivate_stale(canonical)
+            self.reconcile_property_locations()
+            # Avec --reconcile, le JSON devient la source de vérité. Les nœuds
+            # actifs qui n'existent pas dans le JSON doivent donc être masqués.
+            # On ne les supprime jamais : les PropertyLocation peuvent encore
+            # les référencer et les FK sont en PROTECT.
+            self.deactivate_stale(canonical)
             self.stdout.write(self.style.SUCCESS("Référentiel importé et propriétés réconciliées."))
             self.print_db_counts()
             return
@@ -112,37 +119,52 @@ class Command(BaseCommand):
                 )[0]
             else:
                 node = SimpleNode(name, kind, parent, generated_code(kind, province, parent.name if parent else "RDC", name))
-            canonical[(kind, norm(name), parent.id if parent else None)] = node
+            canonical.add(node.id if persist else (kind, norm(name), parent.id if parent else None)) if isinstance(canonical, set) else canonical.__setitem__((kind, norm(name), parent.id if parent else None), node)
             return node
 
-        if persist:
-            provinces = {p.name: p for p in LocationNode.objects.filter(kind="PROVINCE", active=True)}
-        else:
-            provinces = {}
+        # canonical est un dictionnaire de nœuds réellement présents dans le JSON.
+        # On conserve les IDs des nœuds persistés afin de pouvoir désactiver tout
+        # ancien nœud actif absent de cette collection.
+        canonical.clear()
+        canonical_ids = set()
+
+        def create_canonical(kind, name, parent, province, order):
+            node = create(kind, name, parent, province, order)
+            if persist:
+                canonical_ids.add(node.id)
+            return node
 
         for p_order, province in enumerate(payload["provinces"], 1):
-            p = create("PROVINCE", province["name"], None, province["name"], p_order)
+            p = create_canonical("PROVINCE", province["name"], None, province["name"], p_order)
             for c_order, city in enumerate(province.get("cities", []), 1):
-                city_node = create("CITY", item_name(city), p, province["name"], c_order)
+                city_node = create_canonical("CITY", item_name(city), p, province["name"], c_order)
                 for s_order, commune in enumerate(city.get("communes", []), 1):
-                    create("COMMUNE", commune_name(commune), city_node, province["name"], s_order)
+                    create_canonical("COMMUNE", commune_name(commune), city_node, province["name"], s_order)
             for t_order, territory in enumerate(province.get("territories", []), 1):
-                t = create("TERRITORY", item_name(territory), p, province["name"], t_order)
+                t = create_canonical("TERRITORY", item_name(territory), p, province["name"], t_order)
                 rural_items = territory.get("rural_communes", territory.get("communes_rurales", []))
                 for s_order, item in enumerate(rural_items, 1):
-                    create("RURAL_COMMUNE", commune_name(item), t, province["name"], s_order)
+                    create_canonical("RURAL_COMMUNE", commune_name(item), t, province["name"], s_order)
                 for s_order, item in enumerate(territory.get("sectors", territory.get("secteurs", [])), 1):
-                    create("SECTOR", item_name(item), t, province["name"], s_order)
+                    create_canonical("SECTOR", item_name(item), t, province["name"], s_order)
                 for s_order, item in enumerate(territory.get("chiefdoms", territory.get("chefferies", [])), 1):
-                    create("CHIEFDOM", item_name(item), t, province["name"], s_order)
-        return canonical
+                    create_canonical("CHIEFDOM", item_name(item), t, province["name"], s_order)
+
+        # Le set est plus fiable que les clés textuelles pour déterminer les nœuds
+        # issus du JSON, notamment lorsque deux noms identiques existent sous des parents différents.
+        return canonical_ids
 
     @staticmethod
-    def reconcile_property_locations(canonical):
+    def reconcile_property_locations():
         for location in PropertyLocation.objects.select_related("province", "city_or_territory", "subdivision"):
-            province = LocationNode.objects.filter(kind="PROVINCE", name__iexact=location.province.name, active=True).first()
+            province = LocationNode.objects.filter(
+                kind="PROVINCE", name__iexact=location.province.name, active=True
+            ).first()
             if not province:
-                raise CommandError(f"Province introuvable pour PropertyLocation {location.pk}: {location.province.name}")
+                raise CommandError(
+                    f"Province introuvable pour PropertyLocation {location.pk}: {location.province.name}"
+                )
+
             level2 = LocationNode.objects.filter(
                 kind=location.city_or_territory.kind,
                 name__iexact=location.city_or_territory.name,
@@ -150,9 +172,13 @@ class Command(BaseCommand):
                 active=True,
             ).first()
             if not level2:
-                raise CommandError(f"Parent introuvable pour PropertyLocation {location.pk}: {location.city_or_territory.name}")
+                raise CommandError(
+                    f"Parent introuvable pour PropertyLocation {location.pk}: {location.city_or_territory.name}"
+                )
+
             location.province_id = province.id
             location.city_or_territory_id = level2.id
+
             if location.subdivision_id:
                 subdivision = LocationNode.objects.filter(
                     kind=location.subdivision.kind,
@@ -161,18 +187,21 @@ class Command(BaseCommand):
                     active=True,
                 ).first()
                 if not subdivision:
-                    raise CommandError(f"Subdivision introuvable pour PropertyLocation {location.pk}: {location.subdivision.name}")
+                    raise CommandError(
+                        f"Subdivision introuvable pour PropertyLocation {location.pk}: {location.subdivision.name}"
+                    )
                 location.subdivision_id = subdivision.id
+
             location.save(update_fields=["province", "city_or_territory", "subdivision"])
 
     @staticmethod
-    def deactivate_stale(canonical):
-        current_ids = {node.id for node in canonical.values() if hasattr(node, "id") and node.id > 0}
-        if current_ids:
-            LocationNode.objects.filter(active=True).exclude(id__in=current_ids).update(active=False)
+    def deactivate_stale(canonical_ids):
+        if not canonical_ids:
+            raise CommandError("Impossible de désactiver les anciens nœuds : le référentiel canonique est vide.")
+        LocationNode.objects.filter(active=True).exclude(id__in=canonical_ids).update(active=False)
 
     def print_db_counts(self):
-        self.stdout.write("Base:")
+        self.stdout.write("Base active:")
         for key in EXPECTED_KEYS:
             self.stdout.write(f"  {key}: {LocationNode.objects.filter(kind=key, active=True).count()}")
 
