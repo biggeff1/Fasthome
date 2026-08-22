@@ -8,7 +8,6 @@
     if (!province || !city || !subdivision) return;
 
     const endpoint = '/properties/locations/children/';
-    const subdivisionKinds = ['COMMUNE', 'RURAL_COMMUNE', 'SECTOR', 'CHIEFDOM'];
     let requestSerial = 0;
 
     function resetSelect(select, placeholder, disabled) {
@@ -30,30 +29,17 @@
       });
     }
 
-    async function getChildren(parentId, kinds) {
-      const responses = await Promise.all(kinds.map(async function (kind) {
-        const url = new URL(endpoint, window.location.origin);
-        if (parentId) url.searchParams.set('parent', parentId);
-        url.searchParams.set('kind', kind);
-        const response = await fetch(url.toString(), {
-          method: 'GET',
-          credentials: 'same-origin',
-          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const payload = await response.json();
-        return payload.results || [];
-      }));
-      const merged = [];
-      const seen = new Set();
-      responses.flat().forEach(function (item) {
-        if (!seen.has(item.id)) {
-          seen.add(item.id);
-          merged.push(item);
-        }
+    async function getChildren(parentId) {
+      const url = new URL(endpoint, window.location.origin);
+      if (parentId) url.searchParams.set('parent', parentId);
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
       });
-      merged.sort(function (a, b) { return a.name.localeCompare(b.name, 'fr'); });
-      return merged;
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const payload = await response.json();
+      return payload.results || [];
     }
 
     async function loadProvinces() {
@@ -61,14 +47,13 @@
       resetSelect(city, 'Choisir d’abord une province', true);
       resetSelect(subdivision, 'Choisir d’abord une ville / un territoire', true);
       try {
-        const items = await getChildren(null, ['PROVINCE']);
-        addOptions(province, items);
+        const items = await getChildren(null);
+        const provinces = items.filter(item => item.kind === 'PROVINCE');
+        addOptions(province, provinces);
         province.disabled = false;
         province.options[0].textContent = 'Sélectionner une province';
       } catch (error) {
         resetSelect(province, 'Impossible de charger les provinces', true);
-        resetSelect(city, 'Province indisponible', true);
-        resetSelect(subdivision, 'Subdivision indisponible', true);
         console.error('Fasthome location hierarchy:', error);
       }
     }
@@ -77,15 +62,13 @@
       const serial = ++requestSerial;
       resetSelect(city, 'Chargement des villes / territoires…', true);
       resetSelect(subdivision, 'Choisir d’abord une ville / un territoire', true);
-      if (!provinceId) {
-        resetSelect(city, 'Choisir d’abord une province', true);
-        return;
-      }
+      if (!provinceId) return;
       try {
-        const items = await getChildren(provinceId, ['CITY', 'TERRITORY']);
+        const items = await getChildren(provinceId);
         if (serial !== requestSerial) return;
-        addOptions(city, items);
-        if (items.length) {
+        const cities = items.filter(item => item.kind === 'CITY' || item.kind === 'TERRITORY');
+        addOptions(city, cities);
+        if (cities.length) {
           city.disabled = false;
           city.options[0].textContent = 'Sélectionner une ville / un territoire';
         } else {
@@ -94,25 +77,23 @@
       } catch (error) {
         if (serial !== requestSerial) return;
         resetSelect(city, 'Erreur de chargement', true);
-        resetSelect(subdivision, 'Subdivision indisponible', true);
         console.error('Fasthome location hierarchy:', error);
       }
     }
 
     async function loadSubdivisions(parentId) {
       const serial = ++requestSerial;
-      resetSelect(subdivision, 'Chargement des subdivisions…', true);
-      if (!parentId) {
-        resetSelect(subdivision, 'Choisir d’abord une ville / un territoire', true);
-        return;
-      }
+      resetSelect(subdivision, 'Chargement des communes / secteurs / chefferies…', true);
+      if (!parentId) return;
       try {
-        const items = await getChildren(parentId, subdivisionKinds);
+        const items = await getChildren(parentId);
         if (serial !== requestSerial) return;
-        addOptions(subdivision, items);
-        if (items.length) {
+        const subdivisions = items.filter(item => ['COMMUNE', 'RURAL_COMMUNE', 'SECTOR', 'CHIEFDOM'].includes(item.kind));
+        addOptions(subdivision, subdivisions);
+        if (subdivisions.length) {
           subdivision.disabled = false;
           subdivision.options[0].textContent = 'Sélectionner une commune / secteur / chefferie';
+          subdivision.focus();
         } else {
           resetSelect(subdivision, 'Aucune subdivision disponible pour ce parent', true);
         }
@@ -125,9 +106,6 @@
 
     province.addEventListener('change', function () { loadCities(this.value); });
     city.addEventListener('change', function () { loadSubdivisions(this.value); });
-
-    // The creation flow starts with no selection. The backend still enforces
-    // the parent-child relationship when the form is submitted.
     loadProvinces();
   }
 
