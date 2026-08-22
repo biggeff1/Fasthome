@@ -75,13 +75,16 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+# KYC documents are deliberately outside MEDIA_ROOT and therefore outside
+# Django's development media helper. They must only be delivered by an
+# authenticated, audited document endpoint.
+PRIVATE_MEDIA_ROOT = Path(os.getenv('PRIVATE_MEDIA_ROOT', str(BASE_DIR / 'private_media')))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
-# Baseline security controls.
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
@@ -92,12 +95,9 @@ CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 14
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-# Les photos sont optimisées côté navigateur (~1 Mo/photo) avant l'envoi.
-# 50 Mo laisse une marge pour une publication pouvant contenir jusqu'à 40 photos.
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(50 * 1024 * 1024)))
 FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('FILE_UPLOAD_MAX_MEMORY_SIZE', str(10 * 1024 * 1024)))
 
-# Production-safe defaults. Local development keeps DEBUG and HTTP for convenience.
 if DEBUG:
     SECURE_SSL_REDIRECT = False
     SECURE_HSTS_SECONDS = 0
@@ -105,13 +105,9 @@ if DEBUG:
     SECURE_HSTS_PRELOAD = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
-    # Codespaces serves forwarded HTTPS requests from *.app.github.dev.
-    # Keep this development-only so production origins must be explicitly configured.
     CSRF_TRUSTED_ORIGINS = [
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
-        'https://localhost:8000',
-        'https://127.0.0.1:8000',
+        'http://localhost:8000', 'http://127.0.0.1:8000',
+        'https://localhost:8000', 'https://127.0.0.1:8000',
         'https://*.app.github.dev',
     ]
 else:
@@ -123,6 +119,3 @@ else:
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     CSRF_TRUSTED_ORIGINS = [x.strip() for x in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if x.strip()]
-
-# In production, do not use Django's static media helper for private files.
-# KYC/private documents must be delivered through an authenticated and audited layer.
