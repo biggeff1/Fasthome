@@ -27,7 +27,17 @@ class AccessControlTests(TestCase):
             phone='+243900001003', last_name='Staff', first_name='Test',
             is_staff=True,
         )
-        ptype = PropertyType.objects.create(name='Appartement')
+
+        # Property types are seeded by migration 0005. Reuse the canonical
+        # record instead of inserting a duplicate unique name in every test.
+        ptype, _created = PropertyType.objects.get_or_create(
+            name='Appartement',
+            defaults={'active': True, 'order': 2},
+        )
+        if not ptype.active:
+            ptype.active = True
+            ptype.save(update_fields=['active'])
+
         self.property = Property.objects.create(
             owner=self.owner, property_type=ptype,
             province='Haut-Katanga', city_or_territory='Lubumbashi',
