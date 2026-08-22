@@ -2,19 +2,26 @@
 {% block title %}Certifications — Fasthome{% endblock %}
 {% block content %}
 <main class="container">
-  <h1>🪪 Certifications</h1>
-  <p class="muted">La certification finale exige la validation du document et de la vérification faciale. Les documents restent privés.</p>
+  <h1>🪪 Vérifications d’identité</h1>
+  <p class="muted">Les contrôles automatiques produisent un score et une explication. Tout doute passe à un agent. Les documents KYC restent dans le stockage privé.</p>
   <div class="list">
     {% for verification in verifications %}
       <article class="list-item">
-        <h3>{{ verification.user.fasthome_id }}</h3>
-        <p>{{ verification.user.get_full_name }} · {{ verification.document_type }} · Document : {{ verification.get_status_display }} · Visage : {{ verification.get_facial_status_display }}</p>
+        <h3>{{ verification.user.fasthome_id }} — {{ verification.user.get_full_name }}</h3>
+        <p>{{ verification.get_document_type_display }} · Document : <strong>{{ verification.get_status_display }}</strong> · Visage : <strong>{{ verification.get_facial_status_display }}</strong></p>
+        {% if verification.analysis %}
+          <p><strong>Confiance :</strong> {{ verification.analysis.confidence_score }}% · <strong>OCR :</strong> {{ verification.analysis.ocr_engine }}</p>
+          <p><strong>Nom :</strong> {{ verification.analysis.extracted_name|default:'Non extrait' }} · <strong>Correspondance :</strong> {{ verification.analysis.name_match_score|default:'—' }}%</p>
+          <p><strong>Expiration :</strong> {{ verification.analysis.expiry_date|default:'Non déterminée' }} · <strong>Visage :</strong> {{ verification.analysis.face_match_score|default:'—' }}%</p>
+          {% if verification.analysis.fraud_signals %}<p><strong>Signaux :</strong> {{ verification.analysis.fraud_signals|join:', ' }}</p>{% endif %}
+          <div class="muted"><strong>Explication :</strong> {{ verification.analysis.explanation }}</div>
+        {% endif %}
         {% if verification.rejection_reason %}<div class="alert">Motif : {{ verification.rejection_reason }}</div>{% endif %}
         <form method="post" action="{% url 'office_verification_decision' verification.pk %}">
           {% csrf_token %}
           {% if verification.status != 'VERIFIED' %}<button class="btn btn-primary" name="action" value="verify_document">✓ Valider le document</button>{% endif %}
           {% if verification.status == 'VERIFIED' and verification.facial_status != 'VERIFIED' %}<button class="btn btn-primary" name="action" value="verify_face">✓ Valider le visage</button>{% endif %}
-          <input name="reason" placeholder="Motif si refus" aria-label="Motif du refus">
+          <input name="reason" placeholder="Motif obligatoire si refus" aria-label="Motif du refus">
           <button class="btn btn-light" name="action" value="reject">Refuser</button>
         </form>
       </article>
