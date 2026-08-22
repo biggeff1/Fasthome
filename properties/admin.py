@@ -4,7 +4,6 @@ from .models import (
     PropertyDeclaration, PropertyFeature, PropertyPhoto, PropertyPublication,
     PropertyType, Toilet,
 )
-from .location_models import LocationNode, PropertyLocation
 
 admin.site.register(PropertyType)
 admin.site.register(Property)
@@ -18,5 +17,3 @@ admin.site.register(PropertyPhoto)
 admin.site.register(PropertyPublication)
 admin.site.register(PropertyDeclaration)
 admin.site.register(Favorite)
-admin.site.register(LocationNode)
-admin.site.register(PropertyLocation)
