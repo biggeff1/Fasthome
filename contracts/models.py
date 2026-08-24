@@ -2,7 +2,11 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from core.storage import PrivateFileSystemStorage
 from core.validators import validate_identity_document
+
+
+private_contract_storage = PrivateFileSystemStorage()
 
 
 class Contract(models.Model):
@@ -12,7 +16,13 @@ class Contract(models.Model):
     lease = models.ForeignKey('leasing.Lease', on_delete=models.PROTECT, related_name='contracts')
     contract_type = models.CharField(max_length=10, choices=TYPES)
     status = models.CharField(max_length=20, choices=STATUS, default='PENDING')
-    signed_document = models.FileField(upload_to='private/contracts/', null=True, blank=True, validators=[validate_identity_document])
+    signed_document = models.FileField(
+        upload_to='private/contracts/',
+        storage=private_contract_storage,
+        null=True,
+        blank=True,
+        validators=[validate_identity_document],
+    )
     signed_at = models.DateTimeField(null=True, blank=True)
     uploaded_at = models.DateTimeField(null=True, blank=True)
     uploaded_by = models.ForeignKey('users.User', on_delete=models.PROTECT, null=True, blank=True, related_name='uploaded_contracts')
