@@ -128,10 +128,38 @@ def office_cases(request): return render(request, 'dashboard/office_cases.html',
 def office_accept_case(request, case_id):
     with transaction.atomic():
         case = get_object_or_404(RentalCase.objects.select_for_update().select_related('property', 'tenant', 'visit'), case_id=case_id)
-        if case.status not in {'OPEN', 'UNDER_REVIEW'} or case.visit.status != 'COMPLETED': messages.error(request, 'Ce dossier n’est pas éligible à la contractualisation.'); return redirect('office_cases')
-        lease, _ = Lease.objects.select_for_update().get_or_create(rental_case=case, defaults={'property': case.property, 'tenant': case.tenant, 'landlord': case.property.owner, 'monthly_rent': case.property.monthly_rent or Decimal('0'), 'guarantee_amount': case.property.guarantee_amount, 'status': 'PENDING'})
-        Contract.objects.get_or_create(lease=lease, contract_type='TENANT'); Contract.objects.get_or_create(lease=lease, contract_type='LANDLORD'); InspectionReport.objects.get_or_create(lease=lease, property=lease.property, report_type='ENTRY', defaults={'status': 'DRAFT'})
-        case.status = 'CONTRACTING'; case.save(update_fields=['status'])
+        if case.status not in {'OPEN', 'UNDER_REVIEW'} or case.visit.status != 'COMPLETED':
+            messages.error(request, 'Ce dossier n’est pas éligible à la contractualisation.')
+            return redirect('office_cases')
+
+        # Serialize all case acceptances for the same property. Without this
+        # lock, two completed visits for one property could each create a
+        # PENDING lease before either request observes the other one.
+        property_obj = Property.objects.select_for_update().select_related('owner').get(pk=case.property_id)
+        active_lease_exists = Lease.objects.filter(
+            property_id=property_obj.pk,
+            status__in=['PENDING', 'ACTIVE', 'RENEWAL', 'TERMINATION'],
+        ).exists()
+        if active_lease_exists:
+            messages.error(request, 'Ce logement fait déjà l’objet d’une location en cours de contractualisation ou active.')
+            return redirect('office_cases')
+
+        lease, _ = Lease.objects.select_for_update().get_or_create(
+            rental_case=case,
+            defaults={
+                'property': property_obj,
+                'tenant': case.tenant,
+                'landlord': property_obj.owner,
+                'monthly_rent': property_obj.monthly_rent or Decimal('0'),
+                'guarantee_amount': property_obj.guarantee_amount,
+                'status': 'PENDING',
+            },
+        )
+        Contract.objects.get_or_create(lease=lease, contract_type='TENANT')
+        Contract.objects.get_or_create(lease=lease, contract_type='LANDLORD')
+        InspectionReport.objects.get_or_create(lease=lease, property=lease.property, report_type='ENTRY', defaults={'status': 'DRAFT'})
+        case.status = 'CONTRACTING'
+        case.save(update_fields=['status'])
         Notification.objects.create(recipient=case.tenant, level='ACTION', title='Contrats en préparation', message=f'Les contrats de la location {lease.lease_id} sont en préparation.', object_type='Lease', object_id=lease.lease_id)
     return redirect('office_cases')
 
