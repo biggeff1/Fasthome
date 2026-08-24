@@ -1,8 +1,17 @@
+import io
+
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+from PIL import Image
 
 from users.models import IdentityVerification, User
+
+
+def valid_selfie(name='selfie.jpg'):
+    buffer = io.BytesIO()
+    Image.effect_noise((256, 256), 80).convert('RGB').save(buffer, format='JPEG')
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type='image/jpeg')
 
 
 class VerificationModerationTests(TestCase):
@@ -18,7 +27,7 @@ class VerificationModerationTests(TestCase):
         self.verification = IdentityVerification.objects.create(
             user=self.user, document_type='PASSPORT',
             document_file=SimpleUploadedFile('identity.pdf', b'%PDF-1.4 test'),
-            facial_photo=SimpleUploadedFile('selfie.jpg', b'fake-image-data', content_type='image/jpeg'),
+            facial_photo=valid_selfie(),
         )
 
     def test_document_then_face_makes_user_certified(self):
