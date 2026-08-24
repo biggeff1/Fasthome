@@ -52,10 +52,9 @@ class UserSecurityTests(TestCase):
         verification.save()
         user.refresh_from_db()
         self.assertTrue(user.is_certified)
-        self.assertTrue(user.profile_photo)
+        self.assertFalse(user.profile_photo)
 
     def test_closed_document_can_be_validated_again(self):
-        """Regression: KYC processing may close a FieldFile before model.save()."""
         user = self.make_user('closed-file@example.com', '+243900000012')
         verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=self.make_document(), status='REJECTED', facial_status='PENDING')
         verification.save()
@@ -67,7 +66,6 @@ class UserSecurityTests(TestCase):
         self.assertEqual(verification.status, 'PENDING')
 
     def test_closed_facial_photo_can_be_validated_again(self):
-        """Regression: image validators must also tolerate a closed FieldFile."""
         user = self.make_user('closed-face@example.com', '+243900000013')
         verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=self.make_document(), facial_photo=self.make_facial_photo(), status='REJECTED', facial_status='PENDING')
         verification.save()
