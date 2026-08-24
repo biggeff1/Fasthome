@@ -109,14 +109,8 @@ class IdentityVerification(models.Model):
         if user.is_certified != certified:
             user.is_certified = certified
             update_fields.append('is_certified')
-        if certified and self.facial_photo:
-            from django.core.files.base import ContentFile
-            self.facial_photo.open('rb')
-            try:
-                user.profile_photo.save(os.path.basename(self.facial_photo.name), ContentFile(self.facial_photo.read()), save=False)
-            finally:
-                self.facial_photo.close()
-            update_fields.append('profile_photo')
+        # Never copy a KYC selfie into profile_photo. The selfie is biometric
+        # material and must remain in the private KYC storage boundary.
         if update_fields:
             update_fields.append('updated_at')
             user.save(update_fields=update_fields)
@@ -126,7 +120,6 @@ class IdentityVerification(models.Model):
 
 
 class IdentityVerificationAnalysis(models.Model):
-    """Latest machine-analysis snapshot for the existing KYC record."""
     DECISIONS = [('AUTO_VERIFIED', 'Validation automatique'), ('MANUAL_REVIEW', 'Vérification manuelle'), ('REJECTED', 'Rejet automatique')]
     verification = models.OneToOneField(IdentityVerification, on_delete=models.CASCADE, related_name='analysis')
     quality_score = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -150,7 +143,6 @@ class IdentityVerificationAnalysis(models.Model):
 
 
 class IdentityVerificationEvent(models.Model):
-    """Immutable audit trail for automated and human KYC decisions."""
     EVENT_TYPES = [('SUBMITTED', 'Soumis'), ('AUTOMATED_CHECK', 'Contrôle automatique'), ('MANUAL_DECISION', 'Décision manuelle'), ('DOCUMENT_ACCESSED', 'Document consulté')]
     verification = models.ForeignKey(IdentityVerification, on_delete=models.CASCADE, related_name='events')
     actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='kyc_events')
