@@ -30,7 +30,7 @@ class VerificationModerationTests(TestCase):
             facial_photo=valid_selfie(),
         )
 
-    def test_document_then_face_makes_user_certified(self):
+    def test_document_then_face_makes_user_certified_without_promoting_biometric_photo(self):
         self.client.force_login(self.staff)
         self.client.post(reverse('office_verification_decision', args=[self.verification.pk]), {'action': 'verify_document'})
         self.verification.refresh_from_db(); self.user.refresh_from_db()
@@ -40,7 +40,7 @@ class VerificationModerationTests(TestCase):
         self.verification.refresh_from_db(); self.user.refresh_from_db()
         self.assertEqual(self.verification.facial_status, 'VERIFIED')
         self.assertTrue(self.user.is_certified)
-        self.assertTrue(bool(self.user.profile_photo))
+        self.assertFalse(bool(self.user.profile_photo))
 
     def test_face_cannot_be_finalized_before_document(self):
         self.client.force_login(self.staff)
