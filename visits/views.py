@@ -1,5 +1,6 @@
 from datetime import date
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect
@@ -25,32 +26,51 @@ def request_visit(request, property_id):
     if not request.user.is_certified:
         messages.error(request, 'Un compte certifié est nécessaire pour demander une visite.')
         return redirect('property_detail', property_id=property_id)
-    prop = get_object_or_404(Property, property_id=property_id, status='AVAILABLE')
-    if prop.owner_id == request.user.pk:
-        messages.error(request, 'Vous ne pouvez pas demander une visite de votre propre logement.')
-        return redirect('property_detail', property_id=property_id)
-    active_count = VisitRequest.objects.filter(
-        requester=request.user, status__in=['REQUESTED', 'CONFIRMED']
-    ).count()
-    if active_count >= MAX_ACTIVE_VISITS_PER_TENANT:
-        messages.error(request, 'Vous pouvez avoir au maximum deux demandes de visite actives à la fois.')
-        return redirect('activity')
+
     requested_date = request.POST.get('requested_date', '').strip()
     try:
         parsed_date = date.fromisoformat(requested_date)
     except ValueError:
         messages.error(request, 'La date de visite est invalide.')
         return redirect('property_detail', property_id=property_id)
+
     if parsed_date < timezone.localdate():
         messages.error(request, 'La date de visite doit être dans le futur.')
         return redirect('property_detail', property_id=property_id)
-    if VisitRequest.objects.filter(property=prop, requester=request.user, status__in=['REQUESTED', 'CONFIRMED']).exists():
-        messages.error(request, 'Vous avez déjà une demande de visite active pour ce logement.')
-        return redirect('property_detail', property_id=property_id)
+
     with transaction.atomic():
+        # Serialize requests made by the same tenant so concurrent requests
+        # cannot bypass the two-active-visits limit.
+        requester = get_user_model().objects.select_for_update().get(pk=request.user.pk)
+        prop = get_object_or_404(
+            Property.objects.select_for_update(),
+            property_id=property_id,
+            status='AVAILABLE',
+        )
+
+        if prop.owner_id == requester.pk:
+            messages.error(request, 'Vous ne pouvez pas demander une visite de votre propre logement.')
+            return redirect('property_detail', property_id=property_id)
+
+        active_count = VisitRequest.objects.filter(
+            requester=requester,
+            status__in=['REQUESTED', 'CONFIRMED'],
+        ).count()
+        if active_count >= MAX_ACTIVE_VISITS_PER_TENANT:
+            messages.error(request, 'Vous pouvez avoir au maximum deux demandes de visite actives à la fois.')
+            return redirect('activity')
+
+        if VisitRequest.objects.filter(
+            property=prop,
+            requester=requester,
+            status__in=['REQUESTED', 'CONFIRMED'],
+        ).exists():
+            messages.error(request, 'Vous avez déjà une demande de visite active pour ce logement.')
+            return redirect('property_detail', property_id=property_id)
+
         visit = VisitRequest.objects.create(
             property=prop,
-            requester=request.user,
+            requester=requester,
             requested_date=parsed_date,
             requested_time_slot=request.POST.get('requested_time_slot', '').strip()[:80],
         )
@@ -63,6 +83,7 @@ def request_visit(request, property_id):
             object_id=visit.visit_id,
         )
         messages.success(request, f'Demande {visit.visit_id} envoyée à Fasthome et au bailleur.')
+
     return redirect('property_detail', property_id=prop.property_id)
 
 
