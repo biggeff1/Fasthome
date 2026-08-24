@@ -1,15 +1,24 @@
 import os
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-only-change-me')
-DEBUG = os.getenv('DJANGO_DEBUG', '1') == '1'
+DEBUG = os.getenv('DJANGO_DEBUG', '0') == '1'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '').strip()
+if DEBUG:
+    SECRET_KEY = SECRET_KEY or 'dev-only-change-me'
+elif not SECRET_KEY or SECRET_KEY == 'dev-only-change-me':
+    raise ImproperlyConfigured('DJANGO_SECRET_KEY must be configured when DEBUG=0.')
+
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', '').split(',') if h.strip()]
 if DEBUG and not ALLOWED_HOSTS:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+elif not DEBUG and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured('DJANGO_ALLOWED_HOSTS must be configured when DEBUG=0.')
 
 INSTALLED_APPS = [
     'django.contrib.admin', 'django.contrib.auth', 'django.contrib.contenttypes',
