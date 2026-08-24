@@ -1,5 +1,6 @@
 from datetime import date
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect
@@ -40,7 +41,7 @@ def request_visit(request, property_id):
     with transaction.atomic():
         # Serialize requests made by the same tenant so concurrent requests
         # cannot bypass the two-active-visits limit.
-        requester = type(request.user).objects.select_for_update().get(pk=request.user.pk)
+        requester = get_user_model().objects.select_for_update().get(pk=request.user.pk)
         prop = get_object_or_404(
             Property.objects.select_for_update(),
             property_id=property_id,
