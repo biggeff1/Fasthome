@@ -102,6 +102,19 @@ class PaymentInvariantTests(TestCase):
         other_installment.save(update_fields=['lease'])
         with self.assertRaises(ValidationError): self._payment('1000', installment=other_installment)
 
+    def test_existing_payment_cannot_be_updated_to_exceed_installment_balance(self):
+        payment = self._payment('100000')
+        payment.amount = Decimal('300001')
+        with self.assertRaises(ValidationError): payment.save()
+
+    def test_existing_payment_cannot_be_moved_to_another_installment(self):
+        payment = self._payment('100000')
+        other_installment = RentInstallment.objects.create(
+            lease=self.lease, due_date=date.today().replace(day=2), amount_due=Decimal('300000'),
+        )
+        payment.installment = other_installment
+        with self.assertRaises(ValidationError): payment.save()
+
     def test_payout_cannot_exceed_amount_received(self):
         self._payment('150000')
         with self.assertRaises(ValidationError):
@@ -115,6 +128,27 @@ class PaymentInvariantTests(TestCase):
         LandlordPayout.objects.create(lease=self.lease, installment=self.installment, amount=Decimal('100000'), paid_at='2026-08-20T12:00:00Z', recorded_by=self._user())
         LandlordPayout.objects.create(lease=self.lease, installment=self.installment, amount=Decimal('200000'), paid_at='2026-08-20T13:00:00Z', recorded_by=self._user())
         self.assertEqual(self.installment.total_paid_to_landlord(), Decimal('300000'))
+
+    def test_existing_payout_cannot_be_updated_to_exceed_received_balance(self):
+        self._payment('200000')
+        payout = LandlordPayout.objects.create(
+            lease=self.lease, installment=self.installment, amount=Decimal('100000'),
+            paid_at='2026-08-20T12:00:00Z', recorded_by=self._user(),
+        )
+        payout.amount = Decimal('200001')
+        with self.assertRaises(ValidationError): payout.save()
+
+    def test_existing_payout_cannot_be_moved_to_another_installment(self):
+        self._payment('200000')
+        payout = LandlordPayout.objects.create(
+            lease=self.lease, installment=self.installment, amount=Decimal('100000'),
+            paid_at='2026-08-20T12:00:00Z', recorded_by=self._user(),
+        )
+        other_installment = RentInstallment.objects.create(
+            lease=self.lease, due_date=date.today().replace(day=2), amount_due=Decimal('300000'),
+        )
+        payout.installment = other_installment
+        with self.assertRaises(ValidationError): payout.save()
 
     def test_payout_must_be_positive(self):
         self._payment('100000')
