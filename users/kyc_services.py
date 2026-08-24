@@ -98,28 +98,14 @@ def name_match_score(extracted, user):
 
 
 def face_correspondence(document_bytes, selfie_bytes, filename):
-    if Path(filename).suffix.lower() == '.pdf':
-        return None, 'Correspondance faciale automatique indisponible pour ce PDF.'
-    try:
-        import cv2
-        import numpy as np
-        doc = cv2.imdecode(np.frombuffer(document_bytes, np.uint8), cv2.IMREAD_GRAYSCALE)
-        selfie = cv2.imdecode(np.frombuffer(selfie_bytes, np.uint8), cv2.IMREAD_GRAYSCALE)
-        if doc is None or selfie is None:
-            return None, 'Images incompatibles avec OpenCV.'
-        cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        dfaces = cascade.detectMultiScale(doc, 1.1, 5)
-        sfaces = cascade.detectMultiScale(selfie, 1.1, 5)
-        if len(dfaces) != 1 or len(sfaces) != 1:
-            return None, 'Un visage unique doit être détectable sur les deux images.'
-        dx, dy, dw, dh = dfaces[0]
-        sx, sy, sw, sh = sfaces[0]
-        dcrop = cv2.resize(doc[dy:dy+dh, dx:dx+dw], (128, 128))
-        scrop = cv2.resize(selfie[sy:sy+sh, sx:sx+sw], (128, 128))
-        correlation = float(np.corrcoef(dcrop.flatten(), scrop.flatten())[0, 1])
-        return max(0, min(100, round((correlation + 1) * 50))), 'Comparaison faciale heuristique OpenCV.'
-    except Exception:
-        return None, 'OpenCV non disponible: contrôle facial manuel requis.'
+    """Return no biometric score unless a real face-recognition provider is installed.
+
+    Haar-cascade detection plus pixel correlation is not identity verification and
+    must never be used to auto-certify a Fasthome account. The safe fallback is
+    manual review. A future provider can implement this interface and return a
+    calibrated score plus an explanation.
+    """
+    return None, 'Correspondance faciale biométrique fiable non disponible: vérification manuelle requise.'
 
 
 def fraud_signals(document_bytes, filename, quality_score):
@@ -189,8 +175,8 @@ def process_identity_verification(verification):
     if ocr_engine == 'unavailable':
         reasons.append('OCR indisponible: passage en vérification manuelle.')
 
-    # Safe degraded mode: missing OCR or face matching must never become an
-    # automatic rejection or approval. An agent gets the dossier instead.
+    # Safe degraded mode: missing OCR or biometric face matching can never
+    # become an automatic approval. Manual review is the only safe fallback.
     dependencies_missing = ocr_engine == 'unavailable' or face_score is None
     if all(checks) and confidence >= AUTO_VERIFY_THRESHOLD and not dependencies_missing:
         decision, status, facial_status = 'AUTO_VERIFIED', 'VERIFIED', 'VERIFIED'
