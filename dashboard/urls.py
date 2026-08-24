@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import contract_views
 from . import publication_views, verification_views, lease_lifecycle_views
 
 urlpatterns = [
@@ -11,6 +12,7 @@ urlpatterns = [
     path('leases/<str:lease_id>/requests/', lease_lifecycle_views.lease_requests, name='lease_requests'),
     path('leases/<str:lease_id>/renew/', lease_lifecycle_views.request_renewal, name='request_renewal'),
     path('leases/<str:lease_id>/exit/', lease_lifecycle_views.request_exit, name='request_exit'),
+    path('contracts/<str:contract_id>/document/', contract_views.contract_document, name='contract_document'),
     path('office/', views.office_dashboard, name='office_dashboard'),
     path('office/users/', views.office_users, name='office_users'),
     path('office/publications/', publication_views.office_publications, name='office_publications'),
