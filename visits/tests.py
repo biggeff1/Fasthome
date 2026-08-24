@@ -101,6 +101,20 @@ class VisitWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(VisitRequest.objects.filter(requester=self.tenant).count(), 2)
 
+    def test_request_visit_locks_tenant_before_counting_active_requests(self):
+        """The active-visit check must run while the tenant row is locked."""
+        self.client.force_login(self.tenant)
+        self.client.post(reverse('request_visit', args=[self.property.property_id]), {
+            'requested_date': (date.today() + timedelta(days=2)).isoformat(),
+            'requested_time_slot': '10:00-12:00',
+        })
+        self.assertEqual(
+            VisitRequest.objects.filter(
+                requester=self.tenant, status__in=['REQUESTED', 'CONFIRMED']
+            ).count(),
+            1,
+        )
+
     def test_landlord_can_approve_without_receiving_requester_identity(self):
         visit = VisitRequest.objects.create(
             property=self.property, requester=self.tenant,
