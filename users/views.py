@@ -115,18 +115,24 @@ def certification(request):
             try:
                 analysis = process_identity_verification(obj)
             except Exception as exc:
-                # Fail-safe degraded mode: never certify when the pipeline crashes.
-                obj.status = 'IN_REVIEW'
-                obj.facial_status = 'IN_REVIEW'
+                # Fail-safe degraded mode: keep the dossier in the waiting queue;
+                # never certify when the automated pipeline crashes.
+                obj.status = 'PENDING'
+                obj.facial_status = 'PENDING'
                 obj.rejection_reason = f'Contrôles automatiques temporairement indisponibles ({exc.__class__.__name__}). Vérification humaine requise.'
                 obj.save()
-                messages.warning(request, 'Les contrôles automatiques sont temporairement indisponibles. Votre dossier a été envoyé à un agent.')
+                messages.warning(request, 'Les contrôles automatiques sont temporairement indisponibles. Votre dossier est en attente de vérification humaine.')
             else:
                 if analysis.decision == 'AUTO_VERIFIED':
                     success_message = 'Identité vérifiée automatiquement. Votre compte Fasthome est maintenant certifié.'
                 elif analysis.decision == 'REJECTED':
                     success_message = 'La vérification automatique n’a pas été concluante. Consultez le motif et soumettez une nouvelle pièce si nécessaire.'
                 else:
+                    # PENDING is the queue state: an agent has not yet taken
+                    # ownership of the manual review.
+                    obj.status = 'PENDING'
+                    obj.facial_status = 'PENDING'
+                    obj.save()
                     success_message = 'Votre dossier nécessite une vérification par un agent Fasthome.'
 
         messages.success(request, success_message)
