@@ -3,6 +3,7 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from .forms import EmailLoginForm, IdentityVerificationForm, RegistrationForm
 from .kyc_services import process_identity_verification
@@ -15,9 +16,6 @@ def register(request):
     form = RegistrationForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         user = form.save()
-        user.is_email_verified = True
-        user.is_phone_verified = True
-        user.save(update_fields=['is_email_verified', 'is_phone_verified', 'updated_at'])
         login(request, user)
         messages.success(request, f'Compte créé. Votre ID Fasthome est {user.fasthome_id}.')
         return redirect('profile')
@@ -29,8 +27,12 @@ def login_view(request):
     if request.method == 'POST' and form.is_valid():
         user = form.get_user()
         login(request, user)
-        next_url = request.GET.get('next')
-        if next_url:
+        next_url = request.GET.get('next', '')
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
             return redirect(next_url)
         if user.is_superuser:
             return redirect('/admin/')
@@ -115,8 +117,6 @@ def certification(request):
             try:
                 analysis = process_identity_verification(obj)
             except Exception as exc:
-                # Fail-safe degraded mode: keep the dossier in the waiting queue;
-                # never certify when the automated pipeline crashes.
                 obj.status = 'PENDING'
                 obj.facial_status = 'PENDING'
                 obj.rejection_reason = f'Contrôles automatiques temporairement indisponibles ({exc.__class__.__name__}). Vérification humaine requise.'
@@ -128,8 +128,6 @@ def certification(request):
                 elif analysis.decision == 'REJECTED':
                     success_message = 'La vérification automatique n’a pas été concluante. Consultez le motif et soumettez une nouvelle pièce si nécessaire.'
                 else:
-                    # PENDING is the queue state: an agent has not yet taken
-                    # ownership of the manual review.
                     obj.status = 'PENDING'
                     obj.facial_status = 'PENDING'
                     obj.save()
