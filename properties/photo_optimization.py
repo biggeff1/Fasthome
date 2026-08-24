@@ -5,20 +5,15 @@ from django.core.files.base import ContentFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 
-MAX_PER_ZONE = 5
-MAX_TOTAL = 40
+MAX_PER_ZONE = 1
+MAX_TOTAL = 50
 MAX_DIMENSION = 1600
 WEBP_QUALITY = 74
 MAX_IMAGE_BYTES = 1_000_000
 
 
 def _compress(uploaded):
-    """Validate one image and only recompress it when necessary.
-
-    Normal publication uploads arrive from the browser already optimized as
-    WebP. Those files are validated and passed straight to storage so the
-    server does not spend time decoding/re-encoding every photo a second time.
-    """
+    """Validate one image and recompress it to a bounded WebP when needed."""
     try:
         uploaded.seek(0)
         with Image.open(uploaded) as source:
@@ -32,7 +27,6 @@ def _compress(uploaded):
                 and source.format == 'WEBP'
                 and max(width, height) <= MAX_DIMENSION
             )
-
             if is_small_webp:
                 uploaded.seek(0)
                 return uploaded
@@ -51,7 +45,7 @@ def _compress(uploaded):
 
 
 def save_photos(prop, request, post):
-    """Save up to 5 photos per zone and 40 photos per property."""
+    """Save one photo per declared zone and at most 50 photos per property."""
     from . import views
 
     uploads_by_slot = []
@@ -59,7 +53,7 @@ def save_photos(prop, request, post):
     for slot_key, label, category, room_number in views._photo_slots(post):
         files = request.FILES.getlist(f'photos_{slot_key}')
         if len(files) > MAX_PER_ZONE:
-            raise ValidationError(f'{label} : maximum {MAX_PER_ZONE} photos.')
+            raise ValidationError(f'{label} : maximum {MAX_PER_ZONE} photo.')
         if files:
             uploads_by_slot.append((label, category, room_number, files))
             total_new += len(files)
@@ -75,7 +69,7 @@ def save_photos(prop, request, post):
         existing_slot = prop.photos.filter(category=category, order=room_number).count()
         if existing_slot + len(files) > MAX_PER_ZONE:
             raise ValidationError(
-                f'{label} : il reste seulement {MAX_PER_ZONE - existing_slot} emplacement(s) photo.'
+                f'{label} : il reste seulement {MAX_PER_ZONE - existing_slot} emplacement photo.'
             )
 
         for image in files:
