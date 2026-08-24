@@ -54,6 +54,27 @@ class UserSecurityTests(TestCase):
         self.assertTrue(user.is_certified)
         self.assertTrue(user.profile_photo)
 
+    def test_closed_document_can_be_validated_again(self):
+        """Regression: KYC processing may close a FieldFile before model.save()."""
+        user = self.make_user('closed-file@example.com', '+243900000012')
+        verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=self.make_document(), status='REJECTED', facial_status='PENDING')
+        verification.save()
+        verification.document_file.open('rb')
+        verification.document_file.close()
+        verification.status = 'PENDING'
+        verification.full_clean()
+        verification.save()
+        self.assertEqual(verification.status, 'PENDING')
+
+    def test_closed_facial_photo_can_be_validated_again(self):
+        """Regression: image validators must also tolerate a closed FieldFile."""
+        user = self.make_user('closed-face@example.com', '+243900000013')
+        verification = IdentityVerification(user=user, document_type='PASSPORT', document_file=self.make_document(), facial_photo=self.make_facial_photo(), status='REJECTED', facial_status='PENDING')
+        verification.save()
+        verification.facial_photo.open('rb')
+        verification.facial_photo.close()
+        verification.full_clean()
+
     def test_user_manager_rejects_empty_email(self):
         with self.assertRaises(ValueError):
             User.objects.create_user(email='', password='A-secure-password-123', phone='+243900000005', last_name='Test', first_name='User')
