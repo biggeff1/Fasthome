@@ -1,7 +1,8 @@
 /* Fasthome — upload photo rapide et non bloquant pour les publications. */
 (() => {
-  const MAX_PHOTOS_TOTAL = 40;
-  const MAX_PHOTOS_PER_ZONE = 5;
+  // Keep client-side limits identical to the server-side publication policy.
+  const MAX_PHOTOS_TOTAL = 50;
+  const MAX_PHOTOS_PER_ZONE = 1;
   const MAX_DIMENSION = 1280;
   const QUALITY = 0.72;
   const MAX_IMAGE_BYTES = 800_000;
@@ -57,7 +58,6 @@
   }
 
   async function compress(file) {
-    // Une petite image WebP déjà légère ne mérite pas d’être retraitée.
     if (file.size <= MAX_IMAGE_BYTES && file.type === 'image/webp') return file;
 
     const image = await loadImage(file);
@@ -68,15 +68,10 @@
         throw new Error(`Image illisible : ${file.name}`);
       }
 
-      let scale = Math.min(
-        1,
-        MAX_DIMENSION / Math.max(sourceWidth, sourceHeight),
-      );
+      let scale = Math.min(1, MAX_DIMENSION / Math.max(sourceWidth, sourceHeight));
       let quality = QUALITY;
       let blob = null;
 
-      // Cible basse pour qu’une publication de nombreuses photos reste
-      // raisonnable sur mobile et sur les connexions lentes.
       for (let attempt = 0; attempt < 6; attempt += 1) {
         const width = Math.max(1, Math.round(sourceWidth * scale));
         const height = Math.max(1, Math.round(sourceHeight * scale));
@@ -112,7 +107,6 @@
         { type: 'image/webp', lastModified: Date.now() },
       );
 
-      // Ne jamais remplacer un original plus léger par une version plus lourde.
       if (file.size <= MAX_IMAGE_BYTES && file.size <= optimized.size) return file;
       return optimized;
     } finally {
@@ -146,8 +140,7 @@
           return;
         }
         const percent = Math.round((event.loaded / event.total) * 100);
-        status.textContent =
-          `Envoi des photos : ${percent}% (${Math.ceil(event.loaded / 1_000_000)} / ${Math.ceil(event.total / 1_000_000)} Mo)`;
+        status.textContent = `Envoi des photos : ${percent}% (${Math.ceil(event.loaded / 1_000_000)} / ${Math.ceil(event.total / 1_000_000)} Mo)`;
       });
 
       xhr.addEventListener('load', () => {
@@ -155,7 +148,6 @@
           resolve(xhr.responseURL || window.location.href);
           return;
         }
-
         const text = xhr.responseText || '';
         document.open();
         document.write(text);
@@ -163,13 +155,8 @@
         resolve(null);
       });
 
-      xhr.addEventListener('error', () => reject(new Error(
-        'Échec de l’envoi des photos. Vérifiez votre connexion puis réessayez.'
-      )));
-      xhr.addEventListener('abort', () => reject(new Error(
-        'Envoi des photos interrompu.'
-      )));
-
+      xhr.addEventListener('error', () => reject(new Error('Échec de l’envoi des photos. Vérifiez votre connexion puis réessayez.')));
+      xhr.addEventListener('abort', () => reject(new Error('Envoi des photos interrompu.')));
       xhr.send(formData);
     });
   }
@@ -180,54 +167,41 @@
 
     const status = ensureStatus(form);
     const inputs = photoInputs(form);
-    const filesByInput = inputs.map((input) => ({
-      input,
-      files: [...(input.files || [])],
-    }));
+    const filesByInput = inputs.map((input) => ({ input, files: [...(input.files || [])] }));
     const total = filesByInput.reduce((sum, item) => sum + item.files.length, 0);
 
     try {
       if (total > MAX_PHOTOS_TOTAL) {
         throw new Error(`Maximum ${MAX_PHOTOS_TOTAL} photos par logement.`);
       }
-
       for (const item of filesByInput) {
         if (item.files.length > MAX_PHOTOS_PER_ZONE) {
-          throw new Error(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour chaque zone du logement.`);
+          throw new Error(`Maximum ${MAX_PHOTOS_PER_ZONE} photo pour chaque zone du logement.`);
         }
       }
 
       status.hidden = false;
-      status.textContent = total
-        ? `Préparation de ${total} photo${total > 1 ? 's' : ''}…`
-        : 'Enregistrement…';
+      status.textContent = total ? `Préparation de ${total} photo${total > 1 ? 's' : ''}…` : 'Enregistrement…';
 
       const formData = new FormData(form, submitter || undefined);
       inputs.forEach((input) => formData.delete(input.name));
 
       const optimizedByInput = new Map();
       let completed = 0;
-      const allFiles = filesByInput.flatMap((item) =>
-        item.files.map((file) => ({ input: item.input, file }))
-      );
+      const allFiles = filesByInput.flatMap((item) => item.files.map((file) => ({ input: item.input, file })));
 
-      // Deux conversions simultanées : bon compromis entre vitesse et mémoire
-      // sur les téléphones Android modestes.
       for (let start = 0; start < allFiles.length; start += CONCURRENCY) {
         const batch = allFiles.slice(start, start + CONCURRENCY);
         const results = await Promise.all(batch.map(async ({ input, file }) => {
           const optimized = await compress(file);
           completed += 1;
-          status.textContent =
-            `Optimisation des photos : ${completed}/${total}`;
+          status.textContent = `Optimisation des photos : ${completed}/${total}`;
           await sleep();
           return { input, optimized };
         }));
 
         results.forEach(({ input, optimized }) => {
-          if (!optimizedByInput.has(input.name)) {
-            optimizedByInput.set(input.name, []);
-          }
+          if (!optimizedByInput.has(input.name)) optimizedByInput.set(input.name, []);
           optimizedByInput.get(input.name).push(optimized);
         });
       }
@@ -247,9 +221,7 @@
       const responseUrl = await uploadFormData(form, formData, status, total);
       if (responseUrl) window.location.assign(responseUrl);
     } finally {
-      if (form.dataset.photoUploading === '1') {
-        form.dataset.photoUploading = '0';
-      }
+      if (form.dataset.photoUploading === '1') form.dataset.photoUploading = '0';
     }
   }
 
@@ -266,16 +238,13 @@
       } catch (error) {
         const status = ensureStatus(form);
         status.hidden = false;
-        status.textContent =
-          error?.message || 'Impossible de préparer les photos.';
+        status.textContent = error?.message || 'Impossible de préparer les photos.';
         form.dataset.photoUploading = '0';
       }
     });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    document
-      .querySelectorAll('form[enctype="multipart/form-data"]')
-      .forEach(install);
+    document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(install);
   });
 })();
