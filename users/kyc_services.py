@@ -167,7 +167,9 @@ def process_identity_verification(verification):
 
     available_scores = [s for s in (quality_score, name_score, face_score) if s is not None]
     base = sum(available_scores) / len(available_scores) if available_scores else 0
-    confidence = round(max(0, min(100, base + (10 if ocr_engine != 'unavailable' and text else 0) - (10 * len([x for x in fraud if x != 'metadata_present']))))
+    fraud_penalty = 10 * len([x for x in fraud if x != 'metadata_present'])
+    ocr_bonus = 10 if ocr_engine != 'unavailable' and text else 0
+    confidence = round(max(0, min(100, base + ocr_bonus - fraud_penalty)))
 
     reasons = []
     if quality_explanation:
