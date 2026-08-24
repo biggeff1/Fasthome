@@ -91,9 +91,7 @@ def office_users(request):
 def office_approve_visit(request, visit_id):
     with transaction.atomic():
         visit = get_object_or_404(VisitRequest.objects.select_for_update(), visit_id=visit_id)
-        if visit.status != 'REQUESTED':
-            messages.error(request, 'Cette demande de visite n’est plus en attente.')
-            return redirect('office_visits')
+        if visit.status != 'REQUESTED': messages.error(request, 'Cette demande de visite n’est plus en attente.'); return redirect('office_visits')
         if request.POST.get('action') == 'approve':
             visit.fasthome_approved = True
             if visit.landlord_approved: visit.status = 'CONFIRMED'
@@ -197,9 +195,13 @@ def office_receipt(request):
     form = ReceiptForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
-            installment = RentInstallment.objects.select_for_update().get(pk=form.cleaned_data['installment'].pk); received = sum((p.amount for p in installment.payments.all()), Decimal('0'))
-            receipt = form.save(commit=False); receipt.installment = installment; receipt.received_by = request.user; receipt.save()
-            total = received + receipt.amount; installment.status = 'PAID' if total >= installment.amount_due else 'PARTIAL'; installment.save(update_fields=['status'])
+            installment = RentInstallment.objects.select_for_update().get(pk=form.cleaned_data['installment'].pk)
+            receipt = form.save(commit=False)
+            receipt.installment = installment
+            receipt.lease = installment.lease
+            receipt.recorded_by = request.user
+            receipt.save()
+            installment.refresh_from_db()
             if installment.status == 'PAID': _ensure_next_installment(installment.lease, installment)
         return redirect('office_dashboard')
     return render(request, 'dashboard/office_receipt.html', {'form': form})
