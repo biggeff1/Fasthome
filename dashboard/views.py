@@ -209,5 +209,21 @@ def office_receipt(request):
 @require_POST
 def office_payout(request):
     form = PayoutForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid(): form.save(commit=True); return redirect('office_dashboard')
-    return render(request, 'dashboard/office_payout.html', {'form': form})
+    if request.method != 'POST' or not form.is_valid():
+        return render(request, 'dashboard/office_payout.html', {'form': form})
+    with transaction.atomic():
+        installment = RentInstallment.objects.select_for_update().get(pk=form.cleaned_data['installment'].pk)
+        if installment.lease_id != form.cleaned_data['lease'].pk:
+            form.add_error(None, 'La location et l’échéance ne correspondent pas.')
+            return render(request, 'dashboard/office_payout.html', {'form': form})
+        received = sum((p.amount for p in installment.payments.all()), Decimal('0'))
+        already_paid = sum((p.amount for p in installment.payouts.all()), Decimal('0'))
+        amount = form.cleaned_data['amount']
+        if already_paid + amount > received:
+            form.add_error('amount', 'Le versement au bailleur dépasse le solde réellement reçu par Fasthome.')
+            return render(request, 'dashboard/office_payout.html', {'form': form})
+        payout = form.save(commit=False)
+        payout.installment = installment
+        payout.paid_by = request.user
+        payout.save()
+    return redirect('office_dashboard')
