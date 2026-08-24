@@ -22,11 +22,27 @@ def normalize_text(value):
 
 
 def _read_bytes(field):
-    field.open('rb')
+    """Read a Django FieldFile while preserving its caller-owned state."""
+    was_closed = bool(getattr(field, 'closed', False))
+    opened_here = False
     try:
+        if was_closed:
+            field.open('rb')
+            opened_here = True
+        else:
+            field.seek(0)
         return field.read()
     finally:
-        field.close()
+        if opened_here:
+            try:
+                field.close()
+            except (OSError, ValueError):
+                pass
+        elif not getattr(field, 'closed', False):
+            try:
+                field.seek(0)
+            except (OSError, ValueError):
+                pass
 
 
 def image_quality(image_bytes):
@@ -98,13 +114,7 @@ def name_match_score(extracted, user):
 
 
 def face_correspondence(document_bytes, selfie_bytes, filename):
-    """Return no biometric score unless a real face-recognition provider is installed.
-
-    Haar-cascade detection plus pixel correlation is not identity verification and
-    must never be used to auto-certify a Fasthome account. The safe fallback is
-    manual review. A future provider can implement this interface and return a
-    calibrated score plus an explanation.
-    """
+    """Never use heuristic image similarity as biometric identity proof."""
     return None, 'Correspondance faciale biométrique fiable non disponible: vérification manuelle requise.'
 
 
@@ -175,8 +185,6 @@ def process_identity_verification(verification):
     if ocr_engine == 'unavailable':
         reasons.append('OCR indisponible: passage en vérification manuelle.')
 
-    # Safe degraded mode: missing OCR or biometric face matching can never
-    # become an automatic approval. Manual review is the only safe fallback.
     dependencies_missing = ocr_engine == 'unavailable' or face_score is None
     if all(checks) and confidence >= AUTO_VERIFY_THRESHOLD and not dependencies_missing:
         decision, status, facial_status = 'AUTO_VERIFIED', 'VERIFIED', 'VERIFIED'
