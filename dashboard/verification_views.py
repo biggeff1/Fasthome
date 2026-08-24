@@ -10,25 +10,36 @@ from notifications.models import Notification
 from users.models import IdentityVerification, IdentityVerificationEvent
 
 
-def staff_required(view):
-    return user_passes_test(lambda u: u.is_authenticated and (u.is_staff or u.is_superuser))(view)
+def kyc_staff_required(view):
+    return user_passes_test(
+        lambda u: u.is_authenticated and (u.is_superuser or (u.is_staff and u.can_review_kyc))
+    )(view)
 
 
-@staff_required
+def _get_accessible_verification(verification_id, user):
+    queryset = IdentityVerification.objects.select_related('user', 'assigned_reviewer', 'analysis')
+    if user.is_superuser:
+        return get_object_or_404(queryset, pk=verification_id)
+    return get_object_or_404(queryset, pk=verification_id, assigned_reviewer=user, user__isnull=False)
+
+
+@kyc_staff_required
 def office_verifications(request):
-    verifications = (
-        IdentityVerification.objects.select_related('user', 'analysis')
+    queryset = (
+        IdentityVerification.objects.select_related('user', 'analysis', 'assigned_reviewer')
         .prefetch_related('events')
         .filter(status__in=['PENDING', 'IN_REVIEW', 'RETRY', 'REJECTED'])
         .order_by('submitted_at')
     )
-    return render(request, 'dashboard/office_verifications.html', {'verifications': verifications})
+    if not request.user.is_superuser:
+        queryset = queryset.filter(assigned_reviewer=request.user)
+    return render(request, 'dashboard/office_verifications.html', {'verifications': queryset})
 
 
-@staff_required
+@kyc_staff_required
 @require_GET
 def office_verification_document(request, verification_id):
-    verification = get_object_or_404(IdentityVerification.objects.select_related('user'), pk=verification_id)
+    verification = _get_accessible_verification(verification_id, request.user)
     try:
         document = verification.document_file
         if not document or not document.name:
@@ -49,16 +60,14 @@ def office_verification_document(request, verification_id):
     return FileResponse(document, as_attachment=True, filename=document.name.rsplit('/', 1)[-1])
 
 
-@staff_required
+@kyc_staff_required
 @require_POST
 def office_verification_decision(request, verification_id):
     action = request.POST.get('action')
     reason = request.POST.get('reason', '').strip()
     with transaction.atomic():
-        verification = get_object_or_404(
-            IdentityVerification.objects.select_for_update().select_related('user', 'analysis'),
-            pk=verification_id,
-        )
+        verification = _get_accessible_verification(verification_id, request.user)
+        verification = IdentityVerification.objects.select_for_update().select_related('user', 'assigned_reviewer', 'analysis').get(pk=verification.pk)
         old_status = verification.status
         old_face = verification.facial_status
 

@@ -60,6 +60,7 @@ class User(AbstractUser):
     is_phone_verified = models.BooleanField(default=False)
     is_email_verified = models.BooleanField(default=False)
     is_certified = models.BooleanField(default=False)
+    can_review_kyc = models.BooleanField(default=False)
     profile_photo = models.ImageField(upload_to='profiles/', null=True, blank=True, validators=[validate_image_upload])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -82,6 +83,14 @@ class IdentityVerification(models.Model):
     DOCUMENT_TYPES = [('PASSPORT', 'Passeport'), ('VOTER_CARD', "Carte d'électeur"), ('DRIVING_LICENSE', 'Permis de conduire')]
     STATUS = [('PENDING', 'En attente'), ('IN_REVIEW', 'En vérification'), ('VERIFIED', 'Vérifiée'), ('REJECTED', 'Refusée'), ('RETRY', 'À refaire')]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='identity_verification')
+    assigned_reviewer = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_kyc_verifications',
+        limit_choices_to={'is_staff': True, 'can_review_kyc': True},
+    )
     document_type = models.CharField(max_length=30, choices=DOCUMENT_TYPES)
     document_file = models.FileField(upload_to='identity/documents/', storage=private_storage, validators=[validate_identity_document])
     facial_photo = models.ImageField(upload_to=facial_upload_path, storage=private_storage, null=True, blank=True, validators=[validate_image_upload])
@@ -93,6 +102,10 @@ class IdentityVerification(models.Model):
 
     def clean(self):
         super().clean()
+        if self.assigned_reviewer_id:
+            reviewer = self.assigned_reviewer
+            if not reviewer.is_staff or not reviewer.can_review_kyc:
+                raise ValidationError({'assigned_reviewer': 'Le réviseur KYC doit être un agent habilité.'})
         if self.facial_status == 'VERIFIED' and not self.facial_photo:
             raise ValidationError({'facial_photo': 'Une photo faciale est obligatoire pour valider le visage.'})
         if self.facial_status == 'VERIFIED' and self.status != 'VERIFIED':
