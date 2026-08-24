@@ -77,8 +77,13 @@ class PaymentReceipt(models.Model):
         if self.installment_id and self.lease_id and self.installment.lease_id != self.lease_id:
             raise ValidationError({'installment': 'L’échéance sélectionnée n’appartient pas à cette location.'})
         if self.pk:
-            return
-        if self.installment_id and self.amount + self.installment.total_received() > self.installment.amount_due:
+            original = type(self).objects.only('amount', 'lease_id', 'installment_id').get(pk=self.pk)
+            if self.lease_id != original.lease_id or self.installment_id != original.installment_id:
+                raise ValidationError({'installment': 'Une écriture de paiement existante ne peut pas être déplacée vers une autre location ou échéance.'})
+            existing_total = self.installment.total_received() - original.amount
+        else:
+            existing_total = self.installment.total_received() if self.installment_id else Decimal('0')
+        if self.installment_id and self.amount + existing_total > self.installment.amount_due:
             raise ValidationError({'amount': 'Le montant reçu dépasse le solde de l’échéance.'})
 
     def save(self, *args, **kwargs):
@@ -112,8 +117,13 @@ class LandlordPayout(models.Model):
         if self.installment_id and self.lease_id and self.installment.lease_id != self.lease_id:
             raise ValidationError({'installment': 'L’échéance sélectionnée n’appartient pas à cette location.'})
         if self.pk:
-            return
-        if self.installment_id and self.amount + self.installment.total_paid_to_landlord() > self.installment.total_received():
+            original = type(self).objects.only('amount', 'lease_id', 'installment_id').get(pk=self.pk)
+            if self.lease_id != original.lease_id or self.installment_id != original.installment_id:
+                raise ValidationError({'installment': 'Un versement existant ne peut pas être déplacé vers une autre location ou échéance.'})
+            existing_total = self.installment.total_paid_to_landlord() - original.amount
+        else:
+            existing_total = self.installment.total_paid_to_landlord() if self.installment_id else Decimal('0')
+        if self.installment_id and self.amount + existing_total > self.installment.total_received():
             raise ValidationError({'amount': 'Le versement dépasse le montant réellement reçu par Fasthome.'})
 
     def save(self, *args, **kwargs):
