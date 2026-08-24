@@ -1,7 +1,10 @@
+import io
+
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+from PIL import Image
 
 from .models import IdentityVerification, User
 
@@ -14,8 +17,9 @@ class UserSecurityTests(TestCase):
         return SimpleUploadedFile(name, b'%PDF-1.4 test', content_type='application/pdf')
 
     def make_facial_photo(self, name='selfie.jpg'):
-        # Small valid-enough image upload for the project size/content validators.
-        return SimpleUploadedFile(name, b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xd9', content_type='image/jpeg')
+        buffer = io.BytesIO()
+        Image.effect_noise((32, 32), 80).convert('RGB').save(buffer, format='JPEG')
+        return SimpleUploadedFile(name, buffer.getvalue(), content_type='image/jpeg')
 
     def test_fasthome_id_is_generated_and_unique(self):
         first = self.make_user('one@example.com', '+243900000001')
