@@ -69,3 +69,16 @@ class LeaseLifecycleTests(TestCase):
         self.assertEqual(exit_response.status_code, 200)
         self.assertFalse(RenewalRequest.objects.filter(lease=self.lease).exists())
         self.assertFalse(LeaseExit.objects.filter(lease=self.lease).exists())
+
+    def test_staff_cannot_contract_second_case_for_property_with_active_lease(self):
+        second_tenant = User.objects.create_user(email='life-second-tenant@example.com', password='A-secure-password-123', phone='+243900001104', last_name='Tenant', first_name='Second')
+        second_visit = VisitRequest.objects.create(property=self.property, requester=second_tenant, requested_date=date.today(), requested_time_slot='10:00-11:00', status='COMPLETED')
+        second_case = RentalCase.objects.create(property=self.property, tenant=second_tenant, visit=second_visit, status='OPEN')
+
+        self.client.force_login(self.staff)
+        response = self.client.post(reverse('office_accept_case', args=[second_case.case_id]), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Lease.objects.filter(property=self.property).count(), 1)
+        second_case.refresh_from_db()
+        self.assertEqual(second_case.status, 'OPEN')
