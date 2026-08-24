@@ -20,20 +20,21 @@ def _can_access(user, lease):
 @login_required
 @require_POST
 def request_renewal(request, lease_id):
-    lease = get_object_or_404(Lease, lease_id=lease_id)
-    if request.user.pk != lease.tenant_id or lease.status != 'ACTIVE':
-        return redirect('lease_detail', lease_id=lease.lease_id)
-    if RenewalRequest.objects.filter(lease=lease, status='REQUESTED').exists():
-        messages.error(request, 'Une demande de renouvellement est déjà en cours.')
-        return redirect('lease_detail', lease_id=lease.lease_id)
-    requested_end_date = request.POST.get('requested_end_date')
-    proposed_rent = request.POST.get('proposed_monthly_rent') or None
-    reason = request.POST.get('reason', '').strip()
-    if not requested_end_date:
-        messages.error(request, 'Indiquez la nouvelle date de fin.')
-        return redirect('lease_detail', lease_id=lease.lease_id)
-    RenewalRequest.objects.create(lease=lease, requested_by=request.user, requested_end_date=requested_end_date, proposed_monthly_rent=proposed_rent, reason=reason)
-    Notification.objects.create(recipient=lease.landlord, level='ACTION', title='Demande de renouvellement', message=f'Une demande de renouvellement a été déposée pour {lease.lease_id}.', object_type='Lease', object_id=lease.lease_id)
+    with transaction.atomic():
+        lease = get_object_or_404(Lease.objects.select_for_update(), lease_id=lease_id)
+        if request.user.pk != lease.tenant_id or lease.status != 'ACTIVE':
+            return redirect('lease_detail', lease_id=lease.lease_id)
+        if RenewalRequest.objects.filter(lease=lease, status='REQUESTED').exists():
+            messages.error(request, 'Une demande de renouvellement est déjà en cours.')
+            return redirect('lease_detail', lease_id=lease.lease_id)
+        requested_end_date = request.POST.get('requested_end_date')
+        proposed_rent = request.POST.get('proposed_monthly_rent') or None
+        reason = request.POST.get('reason', '').strip()
+        if not requested_end_date:
+            messages.error(request, 'Indiquez la nouvelle date de fin.')
+            return redirect('lease_detail', lease_id=lease.lease_id)
+        RenewalRequest.objects.create(lease=lease, requested_by=request.user, requested_end_date=requested_end_date, proposed_monthly_rent=proposed_rent, reason=reason)
+        Notification.objects.create(recipient=lease.landlord, level='ACTION', title='Demande de renouvellement', message=f'Une demande de renouvellement a été déposée pour {lease.lease_id}.', object_type='Lease', object_id=lease.lease_id)
     messages.success(request, 'Demande de renouvellement envoyée.')
     return redirect('lease_detail', lease_id=lease.lease_id)
 
@@ -41,18 +42,19 @@ def request_renewal(request, lease_id):
 @login_required
 @require_POST
 def request_exit(request, lease_id):
-    lease = get_object_or_404(Lease, lease_id=lease_id)
-    if request.user.pk != lease.tenant_id or lease.status != 'ACTIVE':
-        return redirect('lease_detail', lease_id=lease.lease_id)
-    if LeaseExit.objects.filter(lease=lease, status='REQUESTED').exists():
-        messages.error(request, 'Une demande de sortie est déjà en cours.')
-        return redirect('lease_detail', lease_id=lease.lease_id)
-    requested_date = request.POST.get('requested_date')
-    if not requested_date:
-        messages.error(request, 'Indiquez la date de sortie souhaitée.')
-        return redirect('lease_detail', lease_id=lease.lease_id)
-    LeaseExit.objects.create(lease=lease, requested_by=request.user, requested_date=requested_date, reason=request.POST.get('reason', '').strip())
-    Notification.objects.create(recipient=lease.landlord, level='ACTION', title='Demande de sortie', message=f'Une demande de sortie a été déposée pour {lease.lease_id}.', object_type='Lease', object_id=lease.lease_id)
+    with transaction.atomic():
+        lease = get_object_or_404(Lease.objects.select_for_update(), lease_id=lease_id)
+        if request.user.pk != lease.tenant_id or lease.status != 'ACTIVE':
+            return redirect('lease_detail', lease_id=lease.lease_id)
+        if LeaseExit.objects.filter(lease=lease, status='REQUESTED').exists():
+            messages.error(request, 'Une demande de sortie est déjà en cours.')
+            return redirect('lease_detail', lease_id=lease.lease_id)
+        requested_date = request.POST.get('requested_date')
+        if not requested_date:
+            messages.error(request, 'Indiquez la date de sortie souhaitée.')
+            return redirect('lease_detail', lease_id=lease.lease_id)
+        LeaseExit.objects.create(lease=lease, requested_by=request.user, requested_date=requested_date, reason=request.POST.get('reason', '').strip())
+        Notification.objects.create(recipient=lease.landlord, level='ACTION', title='Demande de sortie', message=f'Une demande de sortie a été déposée pour {lease.lease_id}.', object_type='Lease', object_id=lease.lease_id)
     messages.success(request, 'Demande de sortie envoyée.')
     return redirect('lease_detail', lease_id=lease.lease_id)
 
@@ -123,7 +125,7 @@ def decide_exit(request, exit_id):
             Notification.objects.create(recipient=lease.tenant, level='SUCCESS', title='Sortie acceptée', message=f'La demande de sortie de {lease.lease_id} a été acceptée. Un PV de sortie doit être réalisé.', object_type='Lease', object_id=lease.lease_id)
         elif action == 'refuse':
             exit_request.status = 'REFUSED'
-            Notification.objects.create(recipient=exit_request.lease.tenant, level='INFO', title='Sortie refusée', message=f'La demande de sortie {exit_request.exit_id} a été refusée.', object_type='Lease', object_id=exit_request.lease.lease_id)
+            Notification.objects.create(recipient=exit_request.lease.tenant, level='INFO', title='Sortie refusée', message=f'La demande de sortie {exit_request.exit_id} a été refusée.', object_type='Lease', object_id=exit_request.lease_id)
         else:
             messages.error(request, 'Action invalide.')
             return redirect('office_lifecycle_requests')
