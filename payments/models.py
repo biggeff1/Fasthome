@@ -82,12 +82,14 @@ class PaymentReceipt(models.Model):
             raise ValidationError({'amount': 'Le montant reçu dépasse le solde de l’échéance.'})
 
     def save(self, *args, **kwargs):
-        self.full_clean()
         with transaction.atomic():
+            if self.installment_id:
+                self.installment = RentInstallment.objects.select_for_update().get(pk=self.installment_id)
+            self.full_clean()
             if not self.payment_id:
                 self.payment_id = f'PAY-{uuid.uuid4().hex[:10].upper()}'
             super().save(*args, **kwargs)
-            installment = RentInstallment.objects.get(pk=self.installment_id)
+            installment = RentInstallment.objects.select_for_update().get(pk=self.installment_id)
             installment.refresh_payment_status()
             if installment.status == 'PAID':
                 installment.ensure_next_installment()
@@ -115,7 +117,10 @@ class LandlordPayout(models.Model):
             raise ValidationError({'amount': 'Le versement dépasse le montant réellement reçu par Fasthome.'})
 
     def save(self, *args, **kwargs):
-        self.full_clean()
-        if not self.payout_id:
-            self.payout_id = f'PAY-OUT-{uuid.uuid4().hex[:10].upper()}'
-        super().save(*args, **kwargs)
+        with transaction.atomic():
+            if self.installment_id:
+                self.installment = RentInstallment.objects.select_for_update().get(pk=self.installment_id)
+            self.full_clean()
+            if not self.payout_id:
+                self.payout_id = f'PAY-OUT-{uuid.uuid4().hex[:10].upper()}'
+            super().save(*args, **kwargs)
