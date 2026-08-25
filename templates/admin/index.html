@@ -5,33 +5,49 @@
 {% block nav-breadcrumbs %}{% endblock %}
 {% block nav-sidebar %}{% endblock %}
 
-{% block content_title %}
-<div class="fh-admin-hero">
-  <div>
-    <p class="fh-eyebrow">CENTRE DE CONTRÔLE</p>
-    <h1>Administration Fasthome</h1>
-    <p>Gérez les logements, utilisateurs, visites, contrats, paiements et vérifications depuis un seul espace.</p>
-  </div>
-  <a class="fh-site-button" href="{{ site_url|default:'/' }}">Voir le site</a>
-</div>
-{% endblock %}
+{% block content_title %}{% endblock %}
 
 {% block content %}
 <style>
-.fh-admin-hero{display:flex;align-items:center;justify-content:space-between;gap:20px;background:linear-gradient(135deg,#123b63,#1d5d8f);color:#fff;border-radius:18px;padding:24px 26px;margin-bottom:22px;box-shadow:0 10px 28px rgba(18,59,99,.15)}
-.fh-eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;opacity:.75;margin:0 0 6px}.fh-admin-hero h1{color:#fff!important;margin:0 0 8px!important;font-size:28px!important}.fh-admin-hero p:not(.fh-eyebrow){margin:0;max-width:700px;color:#e5eff8;font-size:14px}.fh-site-button{background:#fff;color:#123b63!important;text-decoration:none!important;border-radius:10px;padding:10px 14px;font-weight:800;white-space:nowrap}
-.fh-section-title{font-size:18px;font-weight:800;margin:0 0 12px;color:#172b3d}.fh-app-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.fh-app-card{background:#fff;border:1px solid #dfe7ef;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(18,59,99,.07)}.fh-app-head{padding:14px 16px;background:#f7fafc;border-bottom:1px solid #e5ebf1;display:flex;justify-content:space-between;align-items:center}.fh-app-head a{font-weight:800;color:#123b63;text-decoration:none}.fh-models{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:10px}.fh-model{min-width:0;padding:8px}.fh-model a{display:block;color:#172b3d;text-decoration:none;font-weight:650;line-height:1.25}.fh-model-actions{display:flex;gap:5px;margin-top:6px}.fh-model-actions a{font-size:10px!important;padding:4px 6px!important;border-radius:7px!important;background:#edf5fb!important;color:#1d5d8f!important}.fh-model-actions a.addlink{background:#e8f7f1!important;color:#18815b!important}
-@media(max-width:800px){.fh-admin-hero{display:block;padding:18px;border-radius:14px}.fh-admin-hero h1{font-size:23px!important}.fh-site-button{display:inline-block;margin-top:14px}.fh-app-grid{grid-template-columns:1fr;gap:12px}.fh-models{grid-template-columns:1fr 1fr;padding:7px}.fh-model{padding:7px 6px}.fh-model a{font-size:12px}.fh-app-head{padding:12px 13px}}
+.fh-admin-hero{display:flex;align-items:center;justify-content:space-between;gap:20px;background:linear-gradient(135deg,#123b63,#1d5d8f);color:#fff;border-radius:18px;padding:25px 26px;margin-bottom:18px;box-shadow:0 10px 28px rgba(18,59,99,.15)}
+.fh-eyebrow{font-size:10px;font-weight:900;letter-spacing:.14em;opacity:.72;margin:0 0 7px}.fh-admin-hero h1{color:#fff!important;margin:0 0 8px!important;font-size:28px!important}.fh-admin-hero p:not(.fh-eyebrow){margin:0;max-width:720px;color:#e5eff8;font-size:14px}.fh-site-button{background:#fff;color:#123b63!important;text-decoration:none!important;border-radius:10px;padding:10px 14px;font-weight:800;white-space:nowrap}
+.fh-toolbar{background:#fff;border:1px solid #dfe7ef;border-radius:14px;padding:12px;display:flex;gap:10px;align-items:center;margin-bottom:20px;box-shadow:0 6px 18px rgba(18,59,99,.06)}
+.fh-search{flex:1;min-width:0;border:1px solid #cbd5e1!important;border-radius:10px!important;padding:10px 12px!important;font-size:14px!important;outline:none}.fh-search:focus{border-color:#1d5d8f!important;box-shadow:0 0 0 3px rgba(29,93,143,.1)!important}
+.fh-filter{border:1px solid #d7e1ea;background:#f7fafc;color:#35536d;border-radius:9px;padding:9px 10px;font-weight:700;cursor:pointer}.fh-filter.active{background:#123b63;color:#fff;border-color:#123b63}
+.fh-section-title{font-size:18px;font-weight:850;margin:0 0 12px;color:#172b3d}.fh-app-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.fh-app-card{background:#fff;border:1px solid #dfe7ef;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(18,59,99,.07)}.fh-app-head{padding:14px 16px;background:#f7fafc;border-bottom:1px solid #e5ebf1;display:flex;justify-content:space-between;align-items:center}.fh-app-head a{font-weight:850;color:#123b63;text-decoration:none}.fh-app-count{font-size:11px;background:#e7eef5;color:#526b80;padding:4px 7px;border-radius:999px;font-weight:800}.fh-models{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:10px}.fh-model{min-width:0;padding:8px}.fh-model>a,.fh-model>span{display:block;color:#172b3d;text-decoration:none;font-weight:700;line-height:1.25}.fh-model>a:hover{color:#1d5d8f}.fh-model-actions{display:flex;gap:5px;margin-top:7px}.fh-model-actions a{font-size:10px!important;padding:5px 7px!important;border-radius:7px!important;background:#edf5fb!important;color:#1d5d8f!important;text-decoration:none!important;font-weight:800!important}.fh-model-actions a.addlink{background:#e8f7f1!important;color:#18815b!important}
+.fh-empty{display:none;background:#fff;border:1px solid #dfe7ef;border-radius:14px;padding:24px;text-align:center;color:#64748b}
+.fh-recent{margin-top:24px}.fh-recent-card{background:#fff;border:1px solid #dfe7ef;border-radius:16px;box-shadow:0 8px 24px rgba(18,59,99,.07);overflow:hidden}.fh-recent-head{padding:14px 16px;background:#f7fafc;border-bottom:1px solid #e5ebf1;font-weight:850}.actionlist{margin:0!important;padding:0 16px!important;list-style:none!important}.actionlist li{padding:10px 0!important;border-bottom:1px solid #e5ebf1!important}.actionlist li:last-child{border-bottom:0!important}.actionlist a{color:#1d5d8f!important;font-weight:750!important;text-decoration:none!important}
+@media(max-width:800px){.fh-admin-hero{display:block;padding:18px;border-radius:14px}.fh-admin-hero h1{font-size:23px!important}.fh-site-button{display:inline-block;margin-top:14px}.fh-toolbar{display:block;padding:10px}.fh-filter{margin-top:8px;margin-right:5px}.fh-search{width:100%;box-sizing:border-box}.fh-app-grid{grid-template-columns:1fr;gap:12px}.fh-models{grid-template-columns:1fr 1fr;padding:7px}.fh-model{padding:7px 6px}.fh-model>a,.fh-model>span{font-size:12px}.fh-app-head{padding:12px 13px}.fh-app-card{border-radius:12px}}
 </style>
 
-<div class="fh-section-title">Modules de gestion</div>
-<div class="fh-app-grid">
+<div class="fh-admin-hero">
+  <div>
+    <p class="fh-eyebrow">CENTRE DE CONTRÔLE</p>
+    <h1>Bienvenue dans Fasthome</h1>
+    <p>Tout ce dont vous avez besoin pour gérer la plateforme immobilière, au même endroit.</p>
+  </div>
+  <a class="fh-site-button" href="{{ site_url|default:'/' }}">Voir le site</a>
+</div>
+
+<div class="fh-toolbar" aria-label="Recherche et filtres">
+  <input id="fh-admin-search" class="fh-search" type="search" placeholder="Rechercher un module ou une fonction…" autocomplete="off">
+  <div>
+    <button type="button" class="fh-filter active" data-filter="tous">Tout</button>
+    <button type="button" class="fh-filter" data-filter="immobilier">Immobilier</button>
+    <button type="button" class="fh-filter" data-filter="finance">Finance</button>
+    <button type="button" class="fh-filter" data-filter="securite">Sécurité</button>
+    <button type="button" class="fh-filter" data-filter="communication">Communication</button>
+  </div>
+</div>
+
+<div class="fh-section-title">Gestion de Fasthome</div>
+<div class="fh-app-grid" id="fh-app-grid">
 {% for app in app_list %}
-  <section class="fh-app-card">
-    <div class="fh-app-head"><a href="{{ app.app_url }}">{{ app.name }}</a><span>{{ app.models|length }}</span></div>
+  <section class="fh-app-card" data-app-label="{{ app.name|lower }}" data-category="general">
+    <div class="fh-app-head"><a href="{{ app.app_url }}">{{ app.name }}</a><span class="fh-app-count">{{ app.models|length }} éléments</span></div>
     <div class="fh-models">
     {% for model in app.models %}
-      <div class="fh-model">
+      <div class="fh-model" data-model-label="{{ model.name|lower }}">
         {% if model.admin_url %}<a href="{{ model.admin_url }}">{{ model.name }}</a>{% else %}<span>{{ model.name }}</span>{% endif %}
         <div class="fh-model-actions">
           {% if model.add_url %}<a class="addlink" href="{{ model.add_url }}">Ajouter</a>{% endif %}
@@ -45,11 +61,12 @@
   <section class="fh-app-card"><div class="fh-model"><p>Vous n'avez accès à aucun module.</p></div></section>
 {% endfor %}
 </div>
+<div id="fh-empty" class="fh-empty">Aucun résultat. Essayez un autre mot-clé.</div>
 
-<div style="margin-top:24px">
+<div class="fh-recent">
   <div class="fh-section-title">Activité récente</div>
-  <div id="content-related">
-    <h2>Mes actions</h2>
+  <div class="fh-recent-card">
+    <div class="fh-recent-head">Dernières actions effectuées</div>
     {% get_admin_log 8 as admin_log for_user user %}
     {% if admin_log %}
       <ul class="actionlist">
@@ -63,4 +80,43 @@
     {% else %}<p style="padding:14px 16px;color:#64748b">Aucune action récente.</p>{% endif %}
   </div>
 </div>
+
+<script>
+(function(){
+  const translations={
+    'authentication and authorization':'Authentification et sécurité','groups':'Groupes','users':'Utilisateurs','contracts':'Contrats','contract':'Contrat','inspections':'Inspections','inspection reports':'Rapports d’inspection','leasing':'Locations','leases':'Baux de location','rental cases':'Dossiers de location','notifications':'Notifications','payments':'Paiements','landlord payouts':'Versements aux propriétaires','payment receipts':'Reçus de paiement','rent installments':'Échéances de loyer','properties':'Biens immobiliers','bathrooms':'Salles de bain','bedrooms':'Chambres','favorites':'Favoris','kitchens':'Cuisines','living rooms':'Séjours','property declarations':'Déclarations du bien','property features':'Caractéristiques du bien','property photos':'Photos du bien','identity verification events':'Historique des vérifications','identity verifications':'Vérifications d’identité','visit requests':'Demandes de visite','visits':'Visites','matching':'Correspondances','audit':'Journal de contrôle','dashboard':'Tableau de bord','property':'Bien immobilier','users':'Utilisateurs'
+  };
+  const normalize=s=>s.trim().toLowerCase().replace(/\s+/g,' ');
+  document.querySelectorAll('.fh-app-head a,.fh-model>a,.fh-model>span,.mini.quiet').forEach(el=>{
+    const key=normalize(el.textContent); if(translations[key]) el.textContent=translations[key];
+  });
+  const categoryMap={
+    'properties':'immobilier','leasing':'immobilier','contracts':'immobilier','inspections':'immobilier','matching':'immobilier','visits':'immobilier',
+    'payments':'finance','audit':'securite','users':'securite','notifications':'communication','authentication and authorization':'securite'
+  };
+  document.querySelectorAll('.fh-app-card').forEach(card=>{
+    const raw=normalize(card.querySelector('.fh-app-head a')?.textContent||'');
+    let category='general';
+    const key=Object.keys(categoryMap).find(k=>raw===k||translations[k]===card.querySelector('.fh-app-head a')?.textContent);
+    if(key) category=categoryMap[key];
+    if(raw.includes('propert')||raw.includes('bien')) category='immobilier';
+    if(raw.includes('pay')||raw.includes('pai')) category='finance';
+    if(raw.includes('audit')||raw.includes('user')||raw.includes('utilisateur')||raw.includes('identity')||raw.includes('vérif')) category='securite';
+    if(raw.includes('notif')) category='communication';
+    card.dataset.category=category;
+  });
+  const search=document.getElementById('fh-admin-search'), empty=document.getElementById('fh-empty');
+  let active='tous';
+  function apply(){
+    const q=normalize(search.value); let visible=0;
+    document.querySelectorAll('.fh-app-card').forEach(card=>{
+      const text=normalize(card.textContent); const okText=!q||text.includes(q); const okCat=active==='tous'||card.dataset.category===active; const show=okText&&okCat;
+      card.style.display=show?'':'none'; if(show) visible++;
+    });
+    empty.style.display=visible?'none':'block';
+  }
+  search.addEventListener('input',apply);
+  document.querySelectorAll('.fh-filter').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.fh-filter').forEach(x=>x.classList.remove('active'));btn.classList.add('active');active=btn.dataset.filter;apply();}));
+})();
+</script>
 {% endblock %}
