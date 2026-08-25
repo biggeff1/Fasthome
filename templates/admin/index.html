@@ -1,0 +1,66 @@
+{% extends "admin/base_site.html" %}
+{% load i18n log %}
+
+{% block bodyclass %}{{ block.super }} dashboard{% endblock %}
+{% block nav-breadcrumbs %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+
+{% block content_title %}
+<div class="fh-admin-hero">
+  <div>
+    <p class="fh-eyebrow">CENTRE DE CONTRÔLE</p>
+    <h1>Administration Fasthome</h1>
+    <p>Gérez les logements, utilisateurs, visites, contrats, paiements et vérifications depuis un seul espace.</p>
+  </div>
+  <a class="fh-site-button" href="{{ site_url|default:'/' }}">Voir le site</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+.fh-admin-hero{display:flex;align-items:center;justify-content:space-between;gap:20px;background:linear-gradient(135deg,#123b63,#1d5d8f);color:#fff;border-radius:18px;padding:24px 26px;margin-bottom:22px;box-shadow:0 10px 28px rgba(18,59,99,.15)}
+.fh-eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;opacity:.75;margin:0 0 6px}.fh-admin-hero h1{color:#fff!important;margin:0 0 8px!important;font-size:28px!important}.fh-admin-hero p:not(.fh-eyebrow){margin:0;max-width:700px;color:#e5eff8;font-size:14px}.fh-site-button{background:#fff;color:#123b63!important;text-decoration:none!important;border-radius:10px;padding:10px 14px;font-weight:800;white-space:nowrap}
+.fh-section-title{font-size:18px;font-weight:800;margin:0 0 12px;color:#172b3d}.fh-app-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.fh-app-card{background:#fff;border:1px solid #dfe7ef;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(18,59,99,.07)}.fh-app-head{padding:14px 16px;background:#f7fafc;border-bottom:1px solid #e5ebf1;display:flex;justify-content:space-between;align-items:center}.fh-app-head a{font-weight:800;color:#123b63;text-decoration:none}.fh-models{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:10px}.fh-model{min-width:0;padding:8px}.fh-model a{display:block;color:#172b3d;text-decoration:none;font-weight:650;line-height:1.25}.fh-model-actions{display:flex;gap:5px;margin-top:6px}.fh-model-actions a{font-size:10px!important;padding:4px 6px!important;border-radius:7px!important;background:#edf5fb!important;color:#1d5d8f!important}.fh-model-actions a.addlink{background:#e8f7f1!important;color:#18815b!important}
+@media(max-width:800px){.fh-admin-hero{display:block;padding:18px;border-radius:14px}.fh-admin-hero h1{font-size:23px!important}.fh-site-button{display:inline-block;margin-top:14px}.fh-app-grid{grid-template-columns:1fr;gap:12px}.fh-models{grid-template-columns:1fr 1fr;padding:7px}.fh-model{padding:7px 6px}.fh-model a{font-size:12px}.fh-app-head{padding:12px 13px}}
+</style>
+
+<div class="fh-section-title">Modules de gestion</div>
+<div class="fh-app-grid">
+{% for app in app_list %}
+  <section class="fh-app-card">
+    <div class="fh-app-head"><a href="{{ app.app_url }}">{{ app.name }}</a><span>{{ app.models|length }}</span></div>
+    <div class="fh-models">
+    {% for model in app.models %}
+      <div class="fh-model">
+        {% if model.admin_url %}<a href="{{ model.admin_url }}">{{ model.name }}</a>{% else %}<span>{{ model.name }}</span>{% endif %}
+        <div class="fh-model-actions">
+          {% if model.add_url %}<a class="addlink" href="{{ model.add_url }}">Ajouter</a>{% endif %}
+          {% if model.admin_url %}<a href="{{ model.admin_url }}">Gérer</a>{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+    </div>
+  </section>
+{% empty %}
+  <section class="fh-app-card"><div class="fh-model"><p>Vous n'avez accès à aucun module.</p></div></section>
+{% endfor %}
+</div>
+
+<div style="margin-top:24px">
+  <div class="fh-section-title">Activité récente</div>
+  <div id="content-related">
+    <h2>Mes actions</h2>
+    {% get_admin_log 8 as admin_log for_user user %}
+    {% if admin_log %}
+      <ul class="actionlist">
+      {% for entry in admin_log %}
+        <li>
+          {% if entry.is_deletion or not entry.get_admin_url %}{{ entry.object_repr }}{% else %}<a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>{% endif %}
+          <br><span class="mini quiet">{% if entry.content_type %}{{ entry.content_type.name|capfirst }}{% else %}Action{% endif %}</span>
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}<p style="padding:14px 16px;color:#64748b">Aucune action récente.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}
