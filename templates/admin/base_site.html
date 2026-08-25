@@ -1,0 +1,78 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Fasthome{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}"><span class="fh-mark">F</span><span>Fasthome</span><small>Administration</small></a></h1>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+:root{--fh-navy:#123b63;--fh-navy-2:#0d2d4b;--fh-blue:#1d5d8f;--fh-bg:#f4f7fb;--fh-card:#fff;--fh-text:#172b3d;--fh-muted:#64748b;--fh-border:#dfe7ef;--fh-green:#18815b;--fh-shadow:0 8px 24px rgba(18,59,99,.08)}
+html,body{background:var(--fh-bg)!important;color:var(--fh-text)}
+body{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;font-size:14px!important}
+#container{min-height:100vh}
+#header{background:linear-gradient(135deg,var(--fh-navy-2),var(--fh-navy))!important;color:#fff!important;padding:0 24px!important;box-shadow:0 4px 18px rgba(0,0,0,.12)}
+#branding h1{margin:0!important;padding:16px 0!important;font-size:22px!important;line-height:1.1!important}
+#branding h1 a{display:flex;align-items:center;gap:10px;color:#fff!important;text-decoration:none!important;font-weight:800!important}
+#branding h1 small{font-size:11px;font-weight:500;opacity:.72;margin-left:4px}
+.fh-mark{width:34px;height:34px;border-radius:10px;background:#fff;color:var(--fh-navy);display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:20px}
+#user-tools{padding:12px 0!important;font-size:12px!important;color:#dbeafe!important;line-height:1.8!important}
+#user-tools a{color:#fff!important;text-decoration:none!important;font-weight:600}
+#user-tools a:hover{text-decoration:underline!important}
+#user-tools #logout-form{display:inline!important;margin:0 0 0 10px!important}
+#user-tools button{background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.25)!important;color:#fff!important;border-radius:8px!important;padding:6px 10px!important;cursor:pointer}
+.breadcrumbs{background:#fff!important;border-bottom:1px solid var(--fh-border)!important;color:var(--fh-muted)!important;padding:12px 28px!important}
+.breadcrumbs a{color:var(--fh-blue)!important;font-weight:700!important}
+.main{display:block!important;background:var(--fh-bg)!important}
+#nav-sidebar{background:#fff!important;border-right:1px solid var(--fh-border)!important}
+.content{max-width:1440px!important;margin:0 auto!important;padding:24px 28px 40px!important}
+#content{width:auto!important;max-width:none!important}
+#content h1{font-size:30px!important;line-height:1.15!important;color:var(--fh-text)!important;margin:0 0 22px!important;font-weight:800!important}
+#content-main{width:100%!important;float:none!important}
+.module{background:var(--fh-card)!important;border:1px solid var(--fh-border)!important;border-radius:16px!important;box-shadow:var(--fh-shadow)!important;overflow:hidden!important;margin:0 0 18px!important}
+.module h2,.module caption,.module caption a.section{background:var(--fh-navy)!important;color:#fff!important;border:0!important}
+.module caption{padding:14px 16px!important;text-align:left!important;font-size:16px!important;font-weight:800!important}
+.module caption a.section{text-decoration:none!important;display:block!important}
+.module table{width:100%!important;border-collapse:collapse!important}
+.module th,.module td{padding:12px 14px!important;border-top:1px solid var(--fh-border)!important;vertical-align:middle!important}
+.module th{font-weight:700!important;text-align:left!important}
+.module th a{color:var(--fh-text)!important;text-decoration:none!important}
+.module th a:hover{color:var(--fh-blue)!important}
+.module td{white-space:nowrap!important;text-align:right!important}
+.module td a{display:inline-block!important;border-radius:8px!important;padding:6px 9px!important;text-decoration:none!important;font-weight:700!important}
+.module td .addlink{color:#fff!important;background:var(--fh-green)!important}
+.module td .changelink,.module td .viewlink{color:var(--fh-blue)!important;background:#edf5fb!important}
+#content-related{background:var(--fh-card)!important;border:1px solid var(--fh-border)!important;border-radius:16px!important;box-shadow:var(--fh-shadow)!important;padding:0!important;overflow:hidden!important;margin-top:20px!important}
+#content-related h2,#content-related h3{margin:0!important;padding:14px 16px!important;background:#eef4f9!important;color:var(--fh-text)!important}
+#content-related h3{font-size:13px!important;background:#fff!important;color:var(--fh-muted)!important}
+.actionlist{margin:0!important;padding:0 16px 16px!important;list-style:none!important}
+.actionlist li{padding:10px 0!important;border-bottom:1px solid var(--fh-border)!important}
+.actionlist li:last-child{border-bottom:0!important}
+.actionlist a{color:var(--fh-blue)!important;font-weight:700!important;text-decoration:none!important}
+.mini.quiet{color:var(--fh-muted)!important}
+.messagelist{margin:0 0 18px!important;padding:0!important;list-style:none!important}
+.messagelist li{border-radius:10px!important;padding:12px 14px!important}
+input,select,textarea{border:1px solid #cbd5e1!important;border-radius:8px!important;padding:9px 10px!important;background:#fff!important;color:var(--fh-text)!important}
+button,.button,input[type=submit],input[type=button]{border-radius:9px!important;font-weight:700!important}
+#footer{height:20px}
+@media(max-width:800px){
+ #header{padding:0 14px!important;display:block!important}
+ #branding h1{padding:13px 0!important;font-size:19px!important}
+ #branding h1 small{display:none}
+ #user-tools{padding:8px 0 12px!important;font-size:11px!important}
+ .breadcrumbs{padding:9px 14px!important}
+ .content{padding:16px 12px 28px!important}
+ #content h1{font-size:24px!important;margin-bottom:16px!important}
+ .module{border-radius:12px!important;margin-bottom:14px!important}
+ .module caption{font-size:14px!important;padding:12px!important}
+ .module th,.module td{padding:10px 8px!important;font-size:12px!important}
+ .module td a{padding:5px 6px!important;font-size:11px!important}
+ .module td{width:1%!important}
+ #content-related{border-radius:12px!important}
+}
+</style>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
