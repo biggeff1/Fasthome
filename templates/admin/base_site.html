@@ -73,6 +73,15 @@ button,.button,input[type=submit],input[type=button]{border-radius:9px!important
  #content-related{border-radius:12px!important}
 }
 </style>
+<script>
+(function(){
+  const t={
+    'add':'Ajouter','change':'Modifier','view':'Voir','delete':'Supprimer','save':'Enregistrer','save and add another':'Enregistrer et ajouter un autre','save and continue editing':'Enregistrer et continuer les modifications','save as new':'Enregistrer comme nouveau','history':'Historique','search':'Rechercher','filter':'Filtrer','clear all filters':'Effacer tous les filtres','recent actions':'Actions récentes','my actions':'Mes actions','home':'Accueil','yes':'Oui','no':'Non','object':'Élément','action':'Action','password change':'Modifier le mot de passe','log out':'Déconnexion','view site':'Voir le site','change password':'Modifier le mot de passe','documentation':'Documentation'
+  };
+  const replace=el=>{if(el.children.length===0){const k=el.textContent.trim().toLowerCase();if(t[k])el.textContent=t[k]}};
+  document.querySelectorAll('a,button,input[type="submit"],input[type="button"],label,h1,h2,h3,th').forEach(replace);
+})();
+</script>
 {% endblock %}
 
 {% block nav-global %}{% endblock %}
