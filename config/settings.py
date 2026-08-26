@@ -105,10 +105,13 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(5
 FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('FILE_UPLOAD_MAX_MEMORY_SIZE', str(10 * 1024 * 1024)))
 
 # GitHub Codespaces serves the project through a dynamic *.app.github.dev
-# origin. Keep it trusted in every environment so protected POST actions
-# such as favorites are not rejected by Django's origin check.
+# origin. Also trust the local HTTPS origin used by the development server.
 CSRF_TRUSTED_ORIGINS = [
     'https://*.app.github.dev',
+    'https://localhost:8000',
+    'http://localhost:8000',
+    'https://127.0.0.1:8000',
+    'http://127.0.0.1:8000',
     *[x.strip() for x in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if x.strip()],
 ]
 
