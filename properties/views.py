@@ -8,6 +8,7 @@ from django.utils import timezone
 from .models import (
     Bathroom, Bedroom, CollaborationConsent, Kitchen, LivingRoom, Property,
     PropertyDeclaration, PropertyFeature, PropertyPhoto, PropertyPublication, PropertyType, Toilet,
+    Favorite,
 )
 
 FEATURE_OPTIONS = [
@@ -26,13 +27,29 @@ PHOTO_CATEGORIES = {
 
 
 def home(request):
-    properties = Property.objects.filter(status='AVAILABLE', publication__status='PUBLISHED').select_related('property_type').prefetch_related('photos')[:24]
-    return render(request, 'home.html', {'properties': properties})
+    properties = list(
+        Property.objects.filter(status='AVAILABLE', publication__status='PUBLISHED')
+        .select_related('property_type')
+        .prefetch_related('photos')[:24]
+    )
+    favorite_ids = set()
+    if request.user.is_authenticated:
+        favorite_ids = set(
+            Favorite.objects.filter(user=request.user, property_id__in=[p.pk for p in properties])
+            .values_list('property_id', flat=True)
+        )
+    return render(request, 'home.html', {'properties': properties, 'favorite_ids': favorite_ids})
 
 
 def property_detail(request, property_id):
-    prop = get_object_or_404(Property.objects.select_related('property_type').prefetch_related('photos', 'features'), property_id=property_id)
-    return render(request, 'properties/detail.html', {'property': prop})
+    prop = get_object_or_404(
+        Property.objects.select_related('property_type').prefetch_related(
+            'photos', 'features', 'bedrooms', 'living_rooms', 'bathrooms', 'toilets'
+        ),
+        property_id=property_id,
+    )
+    photos = list(prop.photos.all().order_by('order', 'id'))
+    return render(request, 'properties/detail.html', {'property': prop, 'property_photos': photos})
 
 
 def _positive(value, default=0):
@@ -217,56 +234,3 @@ def property_create(request):
         except (ValidationError, TypeError, ValueError) as exc:
             messages.error(request, str(exc))
     return render(request, 'properties/form.html', _context(types=types, creating=True))
-
-
-@login_required
-def property_edit(request, property_id):
-    prop = get_object_or_404(Property.objects.select_related('publication', 'property_type'), property_id=property_id, owner=request.user)
-    if request.method == 'POST':
-        try:
-            with transaction.atomic():
-                prop.furnished = request.POST.get('furnished') == 'yes'
-                prop.bedroom_count = _positive(request.POST.get('bedroom_count'), prop.bedroom_count)
-                prop.living_room_count = _positive(request.POST.get('living_room_count'), prop.living_room_count)
-                prop.bathroom_count = _positive(request.POST.get('bathroom_count'), prop.bathroom_count)
-                prop.toilet_count = _positive(request.POST.get('toilet_count'), prop.toilet_count)
-                prop.has_kitchen = request.POST.get('has_kitchen') == 'yes'
-                prop.floor = request.POST.get('floor', '').strip()
-                prop.ceiling_type = request.POST.get('ceiling_type', '').strip()
-                prop.floor_type = request.POST.get('floor_type', '').strip()
-                prop.electricity_source = request.POST.get('electricity_source', '').strip()
-                prop.electricity_days_per_week = _service_days(request.POST.get('electricity_days_per_week'))
-                prop.water_source = request.POST.get('water_source', '').strip()
-                prop.water_days_per_week = _service_days(request.POST.get('water_days_per_week'))
-                prop.province = request.POST.get('province', '').strip()
-                prop.city_or_territory = request.POST.get('city_or_territory', '').strip()
-                prop.administrative_subdivision = request.POST.get('administrative_subdivision', '').strip()
-                prop.neighborhood = request.POST.get('neighborhood', '').strip()
-                prop.avenue_street = request.POST.get('avenue_street', '').strip()
-                prop.address_number = request.POST.get('address_number', '').strip()
-                prop.exact_address = _address_from_post(request.POST)
-                prop.google_maps_url = request.POST.get('google_maps_url', '').strip()
-                prop.latitude = request.POST.get('latitude') or None
-                prop.longitude = request.POST.get('longitude') or None
-                prop.monthly_rent = request.POST.get('monthly_rent') or None
-                prop.guarantee_amount = request.POST.get('guarantee_amount') or None
-                prop.max_occupants = max(1, _positive(request.POST.get('max_occupants'), prop.max_occupants))
-                prop.save()
-                _save_dynamic_details(prop, request.POST)
-                _save_consents(prop.publication, request.POST)
-                _save_photos(prop, request, request.POST)
-                if request.POST.get('submit') == '1':
-                    _validate_publication_ready(prop.publication)
-                    prop.status = 'UNDER_REVIEW'
-                    prop.publication.status = 'SUBMITTED'
-                    prop.publication.submitted_at = timezone.now()
-                    prop.publication.save(update_fields=['status', 'submitted_at', 'updated_at'])
-                else:
-                    prop.save(update_fields=['updated_at'])
-            messages.success(request, 'Modifications enregistrées.')
-            if request.POST.get('submit') == '1':
-                messages.success(request, 'Publication soumise à Fasthome pour vérification.')
-            return redirect('property_edit', property_id=prop.property_id)
-        except (ValidationError, TypeError, ValueError) as exc:
-            messages.error(request, str(exc))
-    return render(request, 'properties/form.html', _context(types=PropertyType.objects.filter(active=True), property=prop, creating=False))
