@@ -5,14 +5,51 @@ from .models import IdentityVerification, IdentityVerificationAnalysis, Identity
 
 @admin.register(User)
 class FasthomeUserAdmin(UserAdmin):
+    """Administration du compte utilisateur Fasthome.
+
+    Le modèle User de Fasthome n'utilise pas le champ Django ``username``.
+    On définit donc les fieldsets explicitement au lieu d'hériter de
+    UserAdmin.fieldsets, qui ajoute automatiquement ``username``.
+    """
+
     ordering = ('-created_at',)
-    list_display = ('fasthome_id', 'email', 'phone', 'last_name', 'first_name', 'is_certified', 'is_staff', 'can_review_kyc')
+    list_display = (
+        'fasthome_id', 'email', 'phone', 'last_name', 'first_name',
+        'is_certified', 'is_staff', 'can_review_kyc',
+    )
     search_fields = ('fasthome_id', 'email', 'phone', 'last_name', 'first_name')
     readonly_fields = ('fasthome_id',)
-    fieldsets = UserAdmin.fieldsets + (
-        ('Fasthome', {'fields': ('postname', 'birth_date', 'sex', 'profession', 'fasthome_id', 'is_phone_verified', 'is_email_verified', 'is_certified', 'can_review_kyc', 'profile_photo')}),
+
+    fieldsets = (
+        (None, {'fields': ('password',)}),
+        ('Informations personnelles', {
+            'fields': ('first_name', 'last_name', 'postname', 'email', 'phone',
+                       'birth_date', 'sex', 'profession', 'profile_photo')
+        }),
+        ('Permissions', {
+            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')
+        }),
+        ('Dates importantes', {
+            'fields': ('last_login', 'date_joined')
+        }),
+        ('Fasthome', {
+            'fields': (
+                'fasthome_id', 'is_phone_verified', 'is_email_verified',
+                'is_certified', 'can_review_kyc',
+            )
+        }),
     )
-    add_fieldsets = UserAdmin.add_fieldsets + ((None, {'fields': ('email', 'phone', 'last_name', 'first_name')}),)
+
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': (
+                'email', 'phone', 'last_name', 'first_name',
+                'postname', 'birth_date', 'sex', 'profession',
+                'password1', 'password2',
+            ),
+        }),
+    )
 
 
 @admin.register(IdentityVerification)
