@@ -84,9 +84,6 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-# KYC documents are deliberately outside MEDIA_ROOT and therefore outside
-# Django's development media helper. They must only be delivered by an
-# authenticated, audited document endpoint.
 PRIVATE_MEDIA_ROOT = Path(os.getenv('PRIVATE_MEDIA_ROOT', str(BASE_DIR / 'private_media')))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -107,6 +104,14 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(50 * 1024 * 1024)))
 FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('FILE_UPLOAD_MAX_MEMORY_SIZE', str(10 * 1024 * 1024)))
 
+# GitHub Codespaces serves the project through a dynamic *.app.github.dev
+# origin. Keep it trusted in every environment so protected POST actions
+# such as favorites are not rejected by Django's origin check.
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.app.github.dev',
+    *[x.strip() for x in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if x.strip()],
+]
+
 if DEBUG:
     SECURE_SSL_REDIRECT = False
     SECURE_HSTS_SECONDS = 0
@@ -114,11 +119,6 @@ if DEBUG:
     SECURE_HSTS_PRELOAD = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
-    CSRF_TRUSTED_ORIGINS = [
-        'http://localhost:8000', 'http://127.0.0.1:8000',
-        'https://localhost:8000', 'https://127.0.0.1:8000',
-        'https://*.app.github.dev',
-    ]
 else:
     SECURE_SSL_REDIRECT = os.getenv('DJANGO_SECURE_SSL_REDIRECT', '1') == '1'
     SECURE_HSTS_SECONDS = int(os.getenv('DJANGO_HSTS_SECONDS', '31536000'))
@@ -127,4 +127,3 @@ else:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    CSRF_TRUSTED_ORIGINS = [x.strip() for x in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if x.strip()]
