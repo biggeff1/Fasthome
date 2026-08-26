@@ -27,27 +27,15 @@ PHOTO_CATEGORIES = {
 
 
 def home(request):
-    properties = list(
-        Property.objects.filter(status='AVAILABLE', publication__status='PUBLISHED')
-        .select_related('property_type')
-        .prefetch_related('photos')[:24]
-    )
+    properties = list(Property.objects.filter(status='AVAILABLE', publication__status='PUBLISHED').select_related('property_type').prefetch_related('photos')[:24])
     favorite_ids = set()
     if request.user.is_authenticated:
-        favorite_ids = set(
-            Favorite.objects.filter(user=request.user, property_id__in=[p.pk for p in properties])
-            .values_list('property_id', flat=True)
-        )
+        favorite_ids = set(Favorite.objects.filter(user=request.user, property_id__in=[p.pk for p in properties]).values_list('property_id', flat=True))
     return render(request, 'home.html', {'properties': properties, 'favorite_ids': favorite_ids})
 
 
 def property_detail(request, property_id):
-    prop = get_object_or_404(
-        Property.objects.select_related('property_type').prefetch_related(
-            'photos', 'features', 'bedrooms', 'living_rooms', 'bathrooms', 'toilets'
-        ),
-        property_id=property_id,
-    )
+    prop = get_object_or_404(Property.objects.select_related('property_type').prefetch_related('photos', 'features', 'bedrooms', 'living_rooms', 'bathrooms', 'toilets'), property_id=property_id)
     photos = list(prop.photos.all().order_by('order', 'id'))
     return render(request, 'properties/detail.html', {'property': prop, 'property_photos': photos})
 
@@ -77,20 +65,13 @@ def _address_from_post(post):
 
 def _photo_slots(post):
     slots = [('exterior', 'Extérieur', PHOTO_CATEGORIES['exterior'], 1)]
-    for i in range(1, _positive(post.get('living_room_count')) + 1):
-        slots.append((f'living_room_{i}', f'Salon {i}', PHOTO_CATEGORIES['living_room'], i))
-    for i in range(1, _positive(post.get('bedroom_count')) + 1):
-        slots.append((f'bedroom_{i}', f'Chambre {i}', PHOTO_CATEGORIES['bedroom'], i))
-    if post.get('has_kitchen') == 'yes':
-        slots.append(('kitchen', 'Cuisine', PHOTO_CATEGORIES['kitchen'], 1))
-    for i in range(1, _positive(post.get('bathroom_count')) + 1):
-        slots.append((f'bathroom_{i}', f'Salle de bain {i}', PHOTO_CATEGORIES['bathroom'], i))
-    for i in range(1, _positive(post.get('toilet_count')) + 1):
-        slots.append((f'toilet_{i}', f'Toilette {i}', PHOTO_CATEGORIES['toilet'], i))
-    if post.get('parking') == 'on' or post.get('garage') == 'on':
-        slots.append(('parking', 'Parking / Garage', PHOTO_CATEGORIES['parking'], 1))
-    if post.get('garden') == 'on':
-        slots.append(('garden', 'Jardin', PHOTO_CATEGORIES['garden'], 1))
+    for i in range(1, _positive(post.get('living_room_count')) + 1): slots.append((f'living_room_{i}', f'Salon {i}', PHOTO_CATEGORIES['living_room'], i))
+    for i in range(1, _positive(post.get('bedroom_count')) + 1): slots.append((f'bedroom_{i}', f'Chambre {i}', PHOTO_CATEGORIES['bedroom'], i))
+    if post.get('has_kitchen') == 'yes': slots.append(('kitchen', 'Cuisine', PHOTO_CATEGORIES['kitchen'], 1))
+    for i in range(1, _positive(post.get('bathroom_count')) + 1): slots.append((f'bathroom_{i}', f'Salle de bain {i}', PHOTO_CATEGORIES['bathroom'], i))
+    for i in range(1, _positive(post.get('toilet_count')) + 1): slots.append((f'toilet_{i}', f'Toilette {i}', PHOTO_CATEGORIES['toilet'], i))
+    if post.get('parking') == 'on' or post.get('garage') == 'on': slots.append(('parking', 'Parking / Garage', PHOTO_CATEGORIES['parking'], 1))
+    if post.get('garden') == 'on': slots.append(('garden', 'Jardin', PHOTO_CATEGORIES['garden'], 1))
     return slots
 
 
@@ -110,17 +91,13 @@ def _save_dynamic_details(prop, post):
     if prop.has_kitchen:
         kitchen, _ = Kitchen.objects.get_or_create(property=prop)
         kitchen.equipped = post.get('kitchen_equipped') == 'on'
-        for field in ['stove', 'oven', 'refrigerator', 'freezer', 'microwave', 'hood', 'sink', 'cupboards', 'table', 'chairs']:
-            setattr(kitchen, field, post.get(f'kitchen_{field}') == 'on')
+        for field in ['stove', 'oven', 'refrigerator', 'freezer', 'microwave', 'hood', 'sink', 'cupboards', 'table', 'chairs']: setattr(kitchen, field, post.get(f'kitchen_{field}') == 'on')
         kitchen.save()
-    else:
-        Kitchen.objects.filter(property=prop).delete()
+    else: Kitchen.objects.filter(property=prop).delete()
     prop.features.all().delete()
     exterior = {'courtyard', 'garden', 'terrace', 'balcony', 'veranda', 'parking', 'garage'}
     for key, _label in FEATURE_OPTIONS:
-        if post.get(key) == 'on':
-            category = 'EXTERIOR' if key in exterior else 'SECURITY'
-            PropertyFeature.objects.create(property=prop, key=key, category=category, value='true')
+        if post.get(key) == 'on': PropertyFeature.objects.create(property=prop, key=key, category='EXTERIOR' if key in exterior else 'SECURITY', value='true')
 
 
 def _save_consents(publication, post):
@@ -148,39 +125,27 @@ def _context(**extra):
 
 
 def _validate_publication_ready(publication):
-    if not publication.declaration.accepted_at:
-        raise ValidationError('Toutes les déclarations obligatoires doivent être acceptées.')
-    if not publication.collaboration_consent.accepted_at:
-        raise ValidationError('Toutes les conditions de collaboration avec Fasthome doivent être acceptées.')
+    if not publication.declaration.accepted_at: raise ValidationError('Toutes les déclarations obligatoires doivent être acceptées.')
+    if not publication.collaboration_consent.accepted_at: raise ValidationError('Toutes les conditions de collaboration avec Fasthome doivent être acceptées.')
     prop = publication.property
-    if not all([prop.province, prop.city_or_territory, prop.neighborhood, prop.avenue_street, prop.address_number]):
-        raise ValidationError('La localisation et l’adresse exacte du logement sont incomplètes. Renseignez les champs de localisation et l’adresse exacte.')
-    if not prop.monthly_rent or prop.monthly_rent <= 0:
-        raise ValidationError('Le loyer mensuel doit être renseigné et supérieur à zéro.')
-    if not prop.max_occupants or prop.max_occupants < 1:
-        raise ValidationError('La capacité maximale d’occupants doit être supérieure à zéro.')
+    if not all([prop.province, prop.city_or_territory, prop.neighborhood, prop.avenue_street, prop.address_number]): raise ValidationError('La localisation et l’adresse exacte du logement sont incomplètes. Renseignez les champs de localisation et l’adresse exacte.')
+    if not prop.monthly_rent or prop.monthly_rent <= 0: raise ValidationError('Le loyer mensuel doit être renseigné et supérieur à zéro.')
+    if not prop.max_occupants or prop.max_occupants < 1: raise ValidationError('La capacité maximale d’occupants doit être supérieure à zéro.')
 
 
 def _save_photos(prop, request, post):
-    slots = _photo_slots(post)
     uploads_by_slot = []
     total_new = 0
-    for slot_key, label, category, room_number in slots:
+    for slot_key, label, category, room_number in _photo_slots(post):
         files = request.FILES.getlist(f'photos_{slot_key}')
-        if len(files) > PHOTO_MAX_PER_ROOM:
-            raise ValidationError(f'{label} : maximum {PHOTO_MAX_PER_ROOM} photos.')
-        if files:
-            uploads_by_slot.append((slot_key, label, category, room_number, files))
-            total_new += len(files)
-    if total_new == 0:
-        return
+        if len(files) > PHOTO_MAX_PER_ROOM: raise ValidationError(f'{label} : maximum {PHOTO_MAX_PER_ROOM} photos.')
+        if files: uploads_by_slot.append((label, category, room_number, files)); total_new += len(files)
+    if total_new == 0: return
     existing_total = prop.photos.count()
-    if existing_total + total_new > PHOTO_MAX_TOTAL:
-        raise ValidationError(f'Maximum {PHOTO_MAX_TOTAL} photos par logement.')
-    for _slot_key, label, category, room_number, files in uploads_by_slot:
+    if existing_total + total_new > PHOTO_MAX_TOTAL: raise ValidationError(f'Maximum {PHOTO_MAX_TOTAL} photos par logement.')
+    for label, category, room_number, files in uploads_by_slot:
         existing_slot = prop.photos.filter(category=category, order=room_number).count()
-        if existing_slot + len(files) > PHOTO_MAX_PER_ROOM:
-            raise ValidationError(f'{label} : il reste seulement {PHOTO_MAX_PER_ROOM - existing_slot} emplacement(s) photo.')
+        if existing_slot + len(files) > PHOTO_MAX_PER_ROOM: raise ValidationError(f'{label} : il reste seulement {PHOTO_MAX_PER_ROOM - existing_slot} emplacement(s) photo.')
         for image in files:
             PropertyPhoto.objects.create(property=prop, image=image, category=category, order=room_number, is_primary=(existing_total == 0))
             existing_total += 1
@@ -196,34 +161,7 @@ def property_create(request):
         prop_type = get_object_or_404(PropertyType, pk=request.POST.get('property_type'))
         try:
             with transaction.atomic():
-                prop = Property.objects.create(
-                    owner=request.user,
-                    property_type=prop_type,
-                    furnished=request.POST.get('furnished') == 'yes',
-                    province=request.POST.get('province', '').strip(),
-                    city_or_territory=request.POST.get('city_or_territory', '').strip(),
-                    administrative_subdivision=request.POST.get('administrative_subdivision', '').strip(),
-                    neighborhood=request.POST.get('neighborhood', '').strip(),
-                    avenue_street=request.POST.get('avenue_street', '').strip(),
-                    address_number=request.POST.get('address_number', '').strip(),
-                    exact_address=_address_from_post(request.POST),
-                    google_maps_url=request.POST.get('google_maps_url', '').strip(),
-                    bedroom_count=_positive(request.POST.get('bedroom_count')),
-                    living_room_count=_positive(request.POST.get('living_room_count')),
-                    bathroom_count=_positive(request.POST.get('bathroom_count')),
-                    toilet_count=_positive(request.POST.get('toilet_count')),
-                    has_kitchen=request.POST.get('has_kitchen') == 'yes',
-                    floor=request.POST.get('floor', '').strip(),
-                    ceiling_type=request.POST.get('ceiling_type', '').strip(),
-                    floor_type=request.POST.get('floor_type', '').strip(),
-                    electricity_source=request.POST.get('electricity_source', '').strip(),
-                    electricity_days_per_week=_service_days(request.POST.get('electricity_days_per_week')),
-                    water_source=request.POST.get('water_source', '').strip(),
-                    water_days_per_week=_service_days(request.POST.get('water_days_per_week')),
-                    monthly_rent=request.POST.get('monthly_rent') or None,
-                    guarantee_amount=request.POST.get('guarantee_amount') or None,
-                    max_occupants=max(1, _positive(request.POST.get('max_occupants'), 1)),
-                )
+                prop = Property.objects.create(owner=request.user, property_type=prop_type, furnished=request.POST.get('furnished') == 'yes', province=request.POST.get('province', '').strip(), city_or_territory=request.POST.get('city_or_territory', '').strip(), administrative_subdivision=request.POST.get('administrative_subdivision', '').strip(), neighborhood=request.POST.get('neighborhood', '').strip(), avenue_street=request.POST.get('avenue_street', '').strip(), address_number=request.POST.get('address_number', '').strip(), exact_address=_address_from_post(request.POST), google_maps_url=request.POST.get('google_maps_url', '').strip(), bedroom_count=_positive(request.POST.get('bedroom_count')), living_room_count=_positive(request.POST.get('living_room_count')), bathroom_count=_positive(request.POST.get('bathroom_count')), toilet_count=_positive(request.POST.get('toilet_count')), has_kitchen=request.POST.get('has_kitchen') == 'yes', floor=request.POST.get('floor', '').strip(), ceiling_type=request.POST.get('ceiling_type', '').strip(), floor_type=request.POST.get('floor_type', '').strip(), electricity_source=request.POST.get('electricity_source', '').strip(), electricity_days_per_week=_service_days(request.POST.get('electricity_days_per_week')), water_source=request.POST.get('water_source', '').strip(), water_days_per_week=_service_days(request.POST.get('water_days_per_week')), monthly_rent=request.POST.get('monthly_rent') or None, guarantee_amount=request.POST.get('guarantee_amount') or None, max_occupants=max(1, _positive(request.POST.get('max_occupants'), 1)))
                 prop.save()
                 publication = PropertyPublication.objects.create(property=prop, status='DRAFT')
                 _save_dynamic_details(prop, request.POST)
@@ -231,6 +169,56 @@ def property_create(request):
                 _save_photos(prop, request, request.POST)
             messages.success(request, f'Brouillon {publication.publication_id} créé pour le logement {prop.property_id}.')
             return redirect('property_edit', property_id=prop.property_id)
-        except (ValidationError, TypeError, ValueError) as exc:
-            messages.error(request, str(exc))
+        except (ValidationError, TypeError, ValueError) as exc: messages.error(request, str(exc))
     return render(request, 'properties/form.html', _context(types=types, creating=True))
+
+
+@login_required
+def property_edit(request, property_id):
+    prop = get_object_or_404(Property.objects.select_related('publication', 'property_type'), property_id=property_id, owner=request.user)
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                prop.furnished = request.POST.get('furnished') == 'yes'
+                prop.bedroom_count = _positive(request.POST.get('bedroom_count'), prop.bedroom_count)
+                prop.living_room_count = _positive(request.POST.get('living_room_count'), prop.living_room_count)
+                prop.bathroom_count = _positive(request.POST.get('bathroom_count'), prop.bathroom_count)
+                prop.toilet_count = _positive(request.POST.get('toilet_count'), prop.toilet_count)
+                prop.has_kitchen = request.POST.get('has_kitchen') == 'yes'
+                prop.floor = request.POST.get('floor', '').strip()
+                prop.ceiling_type = request.POST.get('ceiling_type', '').strip()
+                prop.floor_type = request.POST.get('floor_type', '').strip()
+                prop.electricity_source = request.POST.get('electricity_source', '').strip()
+                prop.electricity_days_per_week = _service_days(request.POST.get('electricity_days_per_week'))
+                prop.water_source = request.POST.get('water_source', '').strip()
+                prop.water_days_per_week = _service_days(request.POST.get('water_days_per_week'))
+                prop.province = request.POST.get('province', '').strip()
+                prop.city_or_territory = request.POST.get('city_or_territory', '').strip()
+                prop.administrative_subdivision = request.POST.get('administrative_subdivision', '').strip()
+                prop.neighborhood = request.POST.get('neighborhood', '').strip()
+                prop.avenue_street = request.POST.get('avenue_street', '').strip()
+                prop.address_number = request.POST.get('address_number', '').strip()
+                prop.exact_address = _address_from_post(request.POST)
+                prop.google_maps_url = request.POST.get('google_maps_url', '').strip()
+                prop.latitude = request.POST.get('latitude') or None
+                prop.longitude = request.POST.get('longitude') or None
+                prop.monthly_rent = request.POST.get('monthly_rent') or None
+                prop.guarantee_amount = request.POST.get('guarantee_amount') or None
+                prop.max_occupants = max(1, _positive(request.POST.get('max_occupants'), prop.max_occupants))
+                prop.save()
+                _save_dynamic_details(prop, request.POST)
+                _save_consents(prop.publication, request.POST)
+                _save_photos(prop, request, request.POST)
+                if request.POST.get('submit') == '1':
+                    _validate_publication_ready(prop.publication)
+                    prop.status = 'UNDER_REVIEW'
+                    prop.publication.status = 'SUBMITTED'
+                    prop.publication.submitted_at = timezone.now()
+                    prop.publication.save(update_fields=['status', 'submitted_at', 'updated_at'])
+                else:
+                    prop.save(update_fields=['updated_at'])
+            messages.success(request, 'Modifications enregistrées.')
+            if request.POST.get('submit') == '1': messages.success(request, 'Publication soumise à Fasthome pour vérification.')
+            return redirect('property_edit', property_id=prop.property_id)
+        except (ValidationError, TypeError, ValueError) as exc: messages.error(request, str(exc))
+    return render(request, 'properties/form.html', _context(types=PropertyType.objects.filter(active=True), property=prop, creating=False))
