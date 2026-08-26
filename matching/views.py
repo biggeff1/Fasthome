@@ -1,4 +1,5 @@
 from decimal import Decimal
+import re
 import unicodedata
 from difflib import SequenceMatcher
 
@@ -10,33 +11,46 @@ from properties.models import Property
 from .models import MatchingResult, SearchRequest
 
 
-WEIGHTS = {
-    'budget': 25, 'province': 10, 'city': 15, 'subdivision': 10,
-    'neighborhood': 10, 'bedrooms': 10, 'living_rooms': 5,
-    'furnished': 5, 'occupants': 10,
-}
+# Le résultat est volontairement binaire : un logement doit satisfaire
+# TOUS les critères renseignés pour être proposé. La tolérance ne concerne
+# que les fautes de saisie des textes de localisation.
+LOCATION_FIELDS = ('province', 'city_or_territory', 'administrative_subdivision', 'neighborhood')
 
 
 def _normalize(value):
     value = unicodedata.normalize('NFKD', value or '')
-    return ''.join(c for c in value if not unicodedata.combining(c)).strip().casefold()
+    value = ''.join(c for c in value if not unicodedata.combining(c)).casefold()
+    value = re.sub(r"[^\w\s]", " ", value, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", value).strip()
 
 
-def _location_match(actual, requested, fuzzy=False):
+def _tokens(value):
+    return _normalize(value).split()
+
+
+def _location_match(actual, requested):
+    """Match a location while tolerating accents, case and ordinary typos."""
     actual_n = _normalize(actual)
     requested_n = _normalize(requested)
     if not actual_n or not requested_n:
         return False
     if actual_n == requested_n:
         return True
-    if fuzzy:
-        return SequenceMatcher(None, actual_n, requested_n).ratio() >= 0.86
-    return False
+
+    # Comparaison mot à mot : permet « Lubumbashi » / « Lubumbashii »,
+    # « Golf » / « Gollf », etc., sans rendre des lieux différents équivalents.
+    actual_tokens = _tokens(actual_n)
+    requested_tokens = _tokens(requested_n)
+    if len(actual_tokens) != len(requested_tokens):
+        return SequenceMatcher(None, actual_n, requested_n).ratio() >= 0.90
+    ratios = [SequenceMatcher(None, a, b).ratio() for a, b in zip(actual_tokens, requested_tokens)]
+    return all(ratio >= 0.86 for ratio in ratios)
 
 
 def score_property(prop, search):
-    """Compute a deterministic score only from criteria supplied by the user."""
+    """Return 100 only when every supplied criterion matches; otherwise 0."""
     checks = {}
+
     if search.maximum_budget is not None:
         checks['budget'] = prop.monthly_rent is not None and prop.monthly_rent <= search.maximum_budget
     if search.province:
@@ -46,7 +60,7 @@ def score_property(prop, search):
     if search.administrative_subdivision:
         checks['subdivision'] = _location_match(prop.administrative_subdivision, search.administrative_subdivision)
     if search.neighborhood:
-        checks['neighborhood'] = _location_match(prop.neighborhood, search.neighborhood, fuzzy=True)
+        checks['neighborhood'] = _location_match(prop.neighborhood, search.neighborhood)
     if search.minimum_bedrooms:
         checks['bedrooms'] = prop.bedroom_count >= search.minimum_bedrooms
     if search.minimum_living_rooms:
@@ -59,10 +73,9 @@ def score_property(prop, search):
     if not checks:
         return Decimal('0'), {}
 
-    active_weight = sum(WEIGHTS[key] for key in checks)
-    matched_weight = sum(WEIGHTS[key] for key, ok in checks.items() if ok)
-    score = Decimal(matched_weight * 100) / Decimal(active_weight)
-    return min(score, Decimal('100')), {key: (100 if ok else 0) for key, ok in checks.items()}
+    matched = all(checks.values())
+    score = Decimal('100') if matched else Decimal('0')
+    return score, {key: (100 if ok else 0) for key, ok in checks.items()}
 
 
 def _post_int(request, name, default=0, minimum=0):
@@ -106,14 +119,17 @@ def matching(request):
                 maximum_budget=maximum_budget,
                 requested_occupants=requested_occupants,
             )
+
             queryset = Property.objects.filter(
                 status='AVAILABLE', publication__status='PUBLISHED'
             ).select_related('property_type').prefetch_related('photos')
             for prop in queryset:
                 score, breakdown = score_property(prop, search)
-                if score >= 60:
+                if score == Decimal('100'):
                     results.append(MatchingResult.objects.create(
-                        search=search, property=prop, score=score,
+                        search=search,
+                        property=prop,
+                        score=score,
                         criteria_breakdown=breakdown,
                     ))
             results.sort(key=lambda item: item.score, reverse=True)
