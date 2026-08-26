@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -59,3 +61,16 @@ class AdminSmokeTests(TestCase):
         response = self.client.get(reverse('admin:index'))
         self.assertEqual(response.status_code, 200)
         self.assertIn('Administration Fasthome', response.content.decode('utf-8'))
+
+    def test_no_ambiguous_parentheses_plural_in_templates(self):
+        """Interdit les formulations visibles du type « logement(s) »."""
+        templates_root = Path(__file__).resolve().parents[1] / 'templates'
+        offenders = []
+        for path in templates_root.rglob('*.html'):
+            text = path.read_text(encoding='utf-8')
+            if '(s)' in text:
+                offenders.append(str(path.relative_to(templates_root.parent)))
+        self.assertFalse(
+            offenders,
+            'Formulations « (s) » encore présentes dans :\n' + '\n'.join(offenders),
+        )
