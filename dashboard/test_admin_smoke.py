@@ -22,25 +22,18 @@ class AdminSmokeTests(TestCase):
         self.client.force_login(self.admin_user)
         failures = []
 
-        for model, model_admin in admin.site._registry.items():
+        for model in admin.site._registry:
             opts = model._meta
             base = f'admin:{opts.app_label}_{opts.model_name}'
+            routes = [(f'{base}_changelist', 'liste'), (f'{base}_add', 'ajout')]
 
-            routes = [(f'{base}_changelist', 'liste')]
-            if model_admin.has_add_permission(self.client.request().wsgi_request) if False else True:
-                routes.append((f'{base}_add', 'ajout'))
-
-            # La page de modification est testée lorsqu'un objet existe déjà.
             obj = model.objects.order_by('pk').first()
             if obj is not None:
                 routes.append((f'{base}_change', 'modification'))
 
             for url_name, label in routes:
                 try:
-                    if url_name.endswith('_change'):
-                        url = reverse(url_name, args=[obj.pk])
-                    else:
-                        url = reverse(url_name)
+                    url = reverse(url_name, args=[obj.pk]) if url_name.endswith('_change') else reverse(url_name)
                 except NoReverseMatch:
                     continue
                 except Exception as exc:  # noqa: BLE001
