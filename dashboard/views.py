@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -51,7 +52,15 @@ def toggle_favorite(request, property_id):
     favorite, created = Favorite.objects.get_or_create(user=request.user, property=prop)
     if not created:
         favorite.delete()
-    messages.success(request, 'Logement ajouté aux favoris.' if created else 'Logement retiré des favoris.')
+
+    liked = created
+    # Les cartes de la page d'accueil utilisent une requête AJAX : le cœur
+    # doit changer d'état immédiatement, sans recharger ni déplacer la page.
+    wants_json = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', '')
+    if wants_json:
+        return JsonResponse({'success': True, 'liked': liked, 'property_id': prop.property_id})
+
+    messages.success(request, 'Logement ajouté aux favoris.' if liked else 'Logement retiré des favoris.')
     return redirect(request.POST.get('next') or request.META.get('HTTP_REFERER') or 'home')
 
 
@@ -132,28 +141,15 @@ def office_accept_case(request, case_id):
             messages.error(request, 'Ce dossier n’est pas éligible à la contractualisation.')
             return redirect('office_cases')
 
-        # Serialize all case acceptances for the same property. Without this
-        # lock, two completed visits for one property could each create a
-        # PENDING lease before either request observes the other one.
         property_obj = Property.objects.select_for_update().select_related('owner').get(pk=case.property_id)
-        active_lease_exists = Lease.objects.filter(
-            property_id=property_obj.pk,
-            status__in=['PENDING', 'ACTIVE', 'RENEWAL', 'TERMINATION'],
-        ).exists()
+        active_lease_exists = Lease.objects.filter(property_id=property_obj.pk, status__in=['PENDING', 'ACTIVE', 'RENEWAL', 'TERMINATION']).exists()
         if active_lease_exists:
             messages.error(request, 'Ce logement fait déjà l’objet d’une location en cours de contractualisation ou active.')
             return redirect('office_cases')
 
         lease, _ = Lease.objects.select_for_update().get_or_create(
             rental_case=case,
-            defaults={
-                'property': property_obj,
-                'tenant': case.tenant,
-                'landlord': property_obj.owner,
-                'monthly_rent': property_obj.monthly_rent or Decimal('0'),
-                'guarantee_amount': property_obj.guarantee_amount,
-                'status': 'PENDING',
-            },
+            defaults={'property': property_obj, 'tenant': case.tenant, 'landlord': property_obj.owner, 'monthly_rent': property_obj.monthly_rent or Decimal('0'), 'guarantee_amount': property_obj.guarantee_amount, 'status': 'PENDING'},
         )
         Contract.objects.get_or_create(lease=lease, contract_type='TENANT')
         Contract.objects.get_or_create(lease=lease, contract_type='LANDLORD')
