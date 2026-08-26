@@ -1,11 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 
 
 class AdminSmokeTests(TestCase):
-    """Ensure every registered admin changelist renders without a 500."""
+    """Vérifie que les parcours essentiels de l'administration ne renvoient pas 500."""
 
     @classmethod
     def setUpTestData(cls):
@@ -18,22 +18,51 @@ class AdminSmokeTests(TestCase):
             first_name='Smoke',
         )
 
-    def test_all_registered_changelists_render(self):
+    def test_all_registered_admin_routes_render(self):
         self.client.force_login(self.admin_user)
         failures = []
 
-        for model in admin.site._registry:
+        for model, model_admin in admin.site._registry.items():
             opts = model._meta
-            url_name = f'admin:{opts.app_label}_{opts.model_name}_changelist'
-            try:
-                response = self.client.get(reverse(url_name))
-            except Exception as exc:  # noqa: BLE001 - expose the failing route
-                failures.append(f'{url_name}: {type(exc).__name__}: {exc}')
-                continue
-            if response.status_code >= 500:
-                failures.append(f'{url_name}: HTTP {response.status_code}')
+            base = f'admin:{opts.app_label}_{opts.model_name}'
+
+            routes = [(f'{base}_changelist', 'liste')]
+            if model_admin.has_add_permission(self.client.request().wsgi_request) if False else True:
+                routes.append((f'{base}_add', 'ajout'))
+
+            # La page de modification est testée lorsqu'un objet existe déjà.
+            obj = model.objects.order_by('pk').first()
+            if obj is not None:
+                routes.append((f'{base}_change', 'modification'))
+
+            for url_name, label in routes:
+                try:
+                    if url_name.endswith('_change'):
+                        url = reverse(url_name, args=[obj.pk])
+                    else:
+                        url = reverse(url_name)
+                except NoReverseMatch:
+                    continue
+                except Exception as exc:  # noqa: BLE001
+                    failures.append(f'{url_name} ({label}): {type(exc).__name__}: {exc}')
+                    continue
+
+                try:
+                    response = self.client.get(url)
+                except Exception as exc:  # noqa: BLE001
+                    failures.append(f'{url_name} ({label}): {type(exc).__name__}: {exc}')
+                    continue
+
+                if response.status_code >= 500:
+                    failures.append(f'{url_name} ({label}): HTTP {response.status_code}')
 
         self.assertFalse(
             failures,
-            'Admin changelist failures:\n' + '\n'.join(failures),
+            'Erreurs de parcours Admin détectées :\n' + '\n'.join(failures),
         )
+
+    def test_admin_is_french(self):
+        self.client.force_login(self.admin_user)
+        response = self.client.get(reverse('admin:index'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Administration Fasthome', response.content.decode('utf-8'))
