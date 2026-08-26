@@ -1,0 +1,1 @@
+Refonte de Mes logements: séparation du logement et de sa publication, statuts explicites, brouillons guidés, gestion centralisée.
