@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -60,7 +60,6 @@ def my_properties(request):
         .prefetch_related('photos')
         .order_by('-updated_at', '-created_at')
     )
-
     counts = {
         'all': properties.count(),
         'available': properties.filter(status='AVAILABLE').count(),
@@ -68,26 +67,18 @@ def my_properties(request):
         'draft': properties.filter(Q(publication__isnull=True) | Q(publication__status__in=['DRAFT', 'CORRECTION_REQUIRED'])).distinct().count(),
         'rented': properties.filter(Q(status='RENTED') | Q(publication__status='RENTED')).distinct().count(),
     }
-
-    return render(request, 'dashboard/my_properties.html', {
-        'properties': properties,
-        'counts': counts,
-    })
+    return render(request, 'dashboard/my_properties.html', {'properties': properties, 'counts': counts})
 
 
 @login_required
 def property_manage(request, property_id):
     property_obj = get_object_or_404(
-        Property.objects.filter(owner=request.user)
-        .select_related('property_type', 'publication')
-        .prefetch_related('photos', 'features'),
+        Property.objects.filter(owner=request.user).select_related('property_type', 'publication').prefetch_related('photos', 'features'),
         property_id=property_id,
     )
-
     publication = getattr(property_obj, 'publication', None)
     visit_requests = VisitRequest.objects.filter(property=property_obj).order_by('-created_at')[:10]
     checklist = _publication_checklist(property_obj, publication) if publication else [('publication', 'La publication n’existe pas encore.')]
-
     return render(request, 'dashboard/property_manage.html', {
         'property': property_obj,
         'publication': publication,
@@ -100,10 +91,7 @@ def property_manage(request, property_id):
 
 @login_required
 def property_review(request, property_id):
-    property_obj = get_object_or_404(
-        Property.objects.filter(owner=request.user).select_related('property_type', 'publication'),
-        property_id=property_id,
-    )
+    property_obj = get_object_or_404(Property.objects.filter(owner=request.user).select_related('property_type', 'publication'), property_id=property_id)
     publication = get_object_or_404(PropertyPublication, property=property_obj)
     checklist = _publication_checklist(property_obj, publication)
     return render(request, 'dashboard/property_review.html', {
@@ -118,19 +106,15 @@ def property_review(request, property_id):
 @require_POST
 def property_submit(request, property_id):
     with transaction.atomic():
-        property_obj = get_object_or_404(
-            Property.objects.select_for_update().filter(owner=request.user).select_related('publication', 'property_type'),
-            property_id=property_id,
-        )
+        property_obj = get_object_or_404(Property.objects.select_for_update().filter(owner=request.user).select_related('publication', 'property_type'), property_id=property_id)
         publication = get_object_or_404(PropertyPublication.objects.select_for_update(), property=property_obj)
-        if publication.status not in {'DRAFT', 'CORRECTION_REQUIRED'} or property_obj.status not in {'DRAFT'}:
+        if publication.status not in {'DRAFT', 'CORRECTION_REQUIRED'} or property_obj.status != 'DRAFT':
             messages.error(request, 'Cette publication ne peut plus être envoyée dans son état actuel.')
             return redirect('property_manage', property_id=property_id)
         missing = _publication_checklist(property_obj, publication)
         if missing:
             messages.error(request, 'La publication n’est pas prête. Corrigez les éléments indiqués avant de l’envoyer.')
             return redirect('property_review', property_id=property_id)
-
         now = timezone.now()
         publication.status = 'SUBMITTED'
         publication.submitted_at = now
@@ -138,14 +122,7 @@ def property_submit(request, property_id):
         publication.save(update_fields=['status', 'submitted_at', 'correction_message', 'updated_at'])
         property_obj.status = 'UNDER_REVIEW'
         property_obj.save(update_fields=['status', 'updated_at'])
-        Notification.objects.create(
-            recipient=property_obj.owner,
-            level='SUCCESS',
-            title='Publication envoyée',
-            message=f'La publication {publication.publication_id} a été envoyée à Fasthome pour vérification.',
-            object_type='PropertyPublication',
-            object_id=publication.publication_id,
-        )
+        Notification.objects.create(recipient=property_obj.owner, level='SUCCESS', title='Publication envoyée', message=f'La publication {publication.publication_id} a été envoyée à Fasthome pour vérification.', object_type='PropertyPublication', object_id=publication.publication_id)
     messages.success(request, 'Votre publication est maintenant en cours de vérification par Fasthome.')
     return redirect('property_manage', property_id=property_id)
 
