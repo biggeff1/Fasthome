@@ -30,8 +30,8 @@ class MatchingCriteriaTests(TestCase):
             status='AVAILABLE',
         )
 
-    def test_matching_uses_only_defined_criteria_and_normalizes_text(self):
-        search = SearchRequest.objects.create(
+    def make_search(self, **overrides):
+        data = dict(
             furnished_preference='YES',
             province='haut-katanga',
             city_or_territory='LUBUMBASHI',
@@ -42,18 +42,35 @@ class MatchingCriteriaTests(TestCase):
             maximum_budget=Decimal('400000'),
             requested_occupants=4,
         )
+        data.update(overrides)
+        return SearchRequest.objects.create(**data)
+
+    def test_all_defined_criteria_must_match(self):
+        search = self.make_search()
         score, breakdown = score_property(self.property, search)
         self.assertEqual(score, Decimal('100'))
-        self.assertEqual(set(breakdown), {'budget', 'province', 'city', 'subdivision', 'neighborhood', 'bedrooms', 'living_rooms', 'furnished', 'occupants'})
+        self.assertTrue(all(value == 100 for value in breakdown.values()))
 
-    def test_neighborhood_typo_can_still_match(self):
-        search = SearchRequest.objects.create(
-            furnished_preference='ANY',
-            province='Haut-Katanga',
-            city_or_territory='Lubumbashi',
+    def test_one_failed_criterion_rejects_property(self):
+        search = self.make_search(maximum_budget=Decimal('300000'))
+        score, breakdown = score_property(self.property, search)
+        self.assertEqual(score, Decimal('0'))
+        self.assertEqual(breakdown['budget'], 0)
+
+    def test_typo_and_accents_in_location_are_accepted(self):
+        search = self.make_search(
+            province='Haut Katanga',
+            city_or_territory='Lubumbashii',
             neighborhood='Gollf',
-            requested_occupants=1,
         )
         score, breakdown = score_property(self.property, search)
+        self.assertEqual(score, Decimal('100'))
+        self.assertEqual(breakdown['province'], 100)
+        self.assertEqual(breakdown['city'], 100)
         self.assertEqual(breakdown['neighborhood'], 100)
-        self.assertGreaterEqual(score, Decimal('70'))
+
+    def test_non_matching_location_is_rejected(self):
+        search = self.make_search(city_or_territory='Likasi')
+        score, breakdown = score_property(self.property, search)
+        self.assertEqual(score, Decimal('0'))
+        self.assertEqual(breakdown['city'], 0)
