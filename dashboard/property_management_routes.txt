@@ -1,0 +1,1 @@
+Routes prévues: /dashboard/properties/ et /dashboard/properties/<property_id>/manage/.
