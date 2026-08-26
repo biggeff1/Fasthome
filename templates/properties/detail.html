@@ -10,12 +10,18 @@
     </div>
     <div class="card-body">
       <span class="badge">✓ Vérifié / disponible</span>
-      <p class="muted"><strong>ID logement :</strong> {{ property.property_id }}</p>
+      <p class="muted"><strong>ID du logement :</strong> {{ property.property_id }}</p>
       <h1>{{ property.property_type }}</h1>
       <p>{{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p>
       <div class="grid">
-        <div><h3>Composition</h3><p>{{ property.bedroom_count }} chambre(s)<br>{{ property.living_room_count }} salon(s)<br>{{ property.bathroom_count }} salle(s) de bain<br>{{ property.toilet_count }} toilette(s)</p></div>
-        <div><h3>Confort</h3><p>{{ property.floor_type|default:'Sol non renseigné' }}<br>{{ property.ceiling_type|default:'Plafond non renseigné' }}<br>{% if property.furnished %}Meublé{% else %}Non meublé{% endif %}<br>Maximum : {{ property.max_occupants }} occupant(s)</p></div>
+        <div>
+          <h3>Composition</h3>
+          <p>{{ property.bedroom_count }} chambre{{ property.bedroom_count|pluralize }}<br>{{ property.living_room_count }} salon{{ property.living_room_count|pluralize }}<br>{{ property.bathroom_count }} salle de bain{{ property.bathroom_count|pluralize }}<br>{{ property.toilet_count }} toilette{{ property.toilet_count|pluralize }}</p>
+        </div>
+        <div>
+          <h3>Confort</h3>
+          <p>{{ property.floor_type|default:'Sol non renseigné' }}<br>{{ property.ceiling_type|default:'Plafond non renseigné' }}<br>{% if property.furnished %}Meublé{% else %}Non meublé{% endif %}<br>Maximum : {{ property.max_occupants }} occupant{{ property.max_occupants|pluralize }}</p>
+        </div>
       </div>
       <hr>
       <p><strong>📍 Localisation :</strong> {{ property.province }} · {{ property.city_or_territory }}{% if property.administrative_subdivision %} · {{ property.administrative_subdivision }}{% endif %}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p>
