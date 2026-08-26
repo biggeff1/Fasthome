@@ -1,21 +1,33 @@
 {% extends 'base.html' %}
-{% block title %}Gérer le logement — Fasthome{% endblock %}
+{% block title %}Gérer {{ property.property_type }} — Fasthome{% endblock %}
 {% block content %}
 <main class="container">
-  <div class="section"><a class="muted" href="{% url 'my_properties' %}">← Mes logements</a><h1 style="margin-bottom:4px">{{ property.property_type }}</h1><p class="muted">{{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p><div style="margin-top:12px"><strong>Référence :</strong> {{ property.property_id }}</div></div>
-  <section class="section"><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-    <a class="list-item" href="{% url 'property_edit' property.property_id %}"><h3>✏️ Informations</h3><p class="muted">Modifier les caractéristiques du logement.</p></a>
-    <a class="list-item" href="{% url 'property_edit' property.property_id %}"><h3>📷 Photos</h3><p class="muted">Gérer les photos de chaque espace.</p></a>
-    <div class="list-item"><h3>📢 Publication</h3>{% if publication %}<p>{{ publication.get_status_display }}</p>{% else %}<p class="muted">Aucune publication créée.</p>{% endif %}</div>
-    <a class="list-item" href="{% url 'activity' %}"><h3>📅 Visites</h3><p class="muted">Consulter les demandes liées à vos logements.</p></a>
-  </div></section>
-  <section class="section"><h2>État du logement</h2>
-    {% if property.status == 'AVAILABLE' %}<p>🟢 <strong>Disponible</strong> — Le logement peut être proposé aux demandeurs.</p>
-    {% elif property.status == 'UNDER_REVIEW' %}<p>🟠 <strong>En vérification</strong> — Fasthome vérifie actuellement les informations.</p>
-    {% elif property.status == 'RENTED' %}<p>🔴 <strong>Loué</strong> — Le logement est associé à une location active.</p>
-    {% elif publication and publication.status == 'CORRECTION_REQUIRED' %}<p>⚠️ <strong>À corriger</strong> — {{ publication.correction_message|default:'Certaines informations doivent être corrigées.' }}</p>
-    {% else %}<p>✏️ <strong>À compléter</strong> — Terminez les informations et la publication avant de la soumettre.</p>{% endif %}
+  <p><a href="{% url 'my_properties' %}" class="muted">← Mes logements</a></p>
+  <section class="section" style="padding-top:12px">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div><div class="muted">Référence {{ property.property_id }}</div><h1 style="margin:4px 0">{{ property.property_type }}</h1><p class="muted">{{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p></div>
+      <a class="btn btn-primary" href="{% url 'property_edit' property.property_id %}">✏️ Modifier</a>
+    </div>
   </section>
-  {% if publication and publication.status == 'PUBLISHED' %}<section class="section"><h2>Publication active</h2><p class="muted">Votre logement est actuellement visible sur Fasthome.</p><div class="actions"><a class="btn btn-primary" href="{% url 'property_detail' property.property_id %}">Voir la publication</a></div></section>{% endif %}
+  <section class="section" style="padding-top:0"><div class="list-item"><strong>Situation du logement</strong><div style="margin-top:10px">
+    {% if property.status == 'AVAILABLE' %}<span class="badge">🟢 Disponible</span>
+    {% elif property.status == 'RENTED' %}<span class="badge">🔴 Loué</span>
+    {% elif publication and publication.status == 'CORRECTION_REQUIRED' %}<span class="badge">⚠️ À corriger</span>
+    {% elif property.status == 'UNDER_REVIEW' or publication and publication.status == 'SUBMITTED' or publication and publication.status == 'UNDER_REVIEW' %}<span class="badge">🟠 En vérification</span>
+    {% elif publication and publication.status == 'PUBLISHED' %}<span class="badge">🟢 Publication active</span>
+    {% else %}<span class="badge">✏️ À compléter</span>{% endif %}
+    <p class="muted" style="margin-bottom:0">{% if not publication or publication.status == 'DRAFT' %}Votre publication n’est pas encore terminée. Complétez les informations et les photos avant de la soumettre.{% elif publication.status == 'CORRECTION_REQUIRED' %}Fasthome demande une correction avant la publication. {{ publication.correction_message }}{% elif publication.status == 'SUBMITTED' or publication.status == 'UNDER_REVIEW' %}Votre dossier est actuellement examiné par Fasthome.{% elif publication.status == 'PUBLISHED' %}Votre logement est visible sur Fasthome et peut recevoir des demandes de visite.{% elif publication.status == 'RENTED' or property.status == 'RENTED' %}Ce logement est actuellement loué.{% else %}Le logement n’est pas actuellement publié.{% endif %}</p>
+  </div></div></section>
+  <section class="section"><h2>Informations du logement</h2><div class="grid">
+    <div class="list-item"><strong>Composition</strong><p class="muted">{{ property.bedroom_count }} chambre{% if property.bedroom_count != 1 %}s{% endif %} · {{ property.living_room_count }} salon{% if property.living_room_count != 1 %}s{% endif %} · {{ property.bathroom_count }} salle{% if property.bathroom_count != 1 %}s{% endif %} de bain · {{ property.toilet_count }} toilette{% if property.toilet_count != 1 %}s{% endif %}</p></div>
+    <div class="list-item"><strong>Capacité</strong><p class="muted">Jusqu’à {{ property.max_occupants }} occupant{% if property.max_occupants != 1 %}s{% endif %}</p></div>
+    <div class="list-item"><strong>Localisation</strong><p class="muted">{{ property.province }} · {{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p></div>
+    <div class="list-item"><strong>Loyer</strong><p class="muted">{% if property.monthly_rent %}Montant enregistré dans votre dossier{% else %}Non renseigné{% endif %}</p></div>
+  </div></section>
+  <section class="section"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h2 style="margin-bottom:4px">Photos</h2><p class="muted">{{ photos|length }} photo{% if photos|length != 1 %}s{% endif %} enregistrée{% if photos|length != 1 %}s{% endif %}.</p></div><a class="btn btn-light" href="{% url 'property_edit' property.property_id %}">Gérer les photos</a></div>
+    {% if photos %}<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-top:14px">{% for photo in photos %}<div class="card"><div class="photo" style="aspect-ratio:1/1"><img src="{{ photo.image.url }}" alt="{{ photo.get_category_display }}" style="width:100%;height:100%;object-fit:cover"></div><div class="card-body"><strong>{{ photo.get_category_display }}</strong></div></div>{% endfor %}</div>{% else %}<div class="list-item"><p class="muted">Aucune photo n’a encore été ajoutée.</p><a class="btn btn-primary" href="{% url 'property_edit' property.property_id %}">Ajouter des photos</a></div>{% endif %}
+  </section>
+  <section class="section"><h2>Publication</h2><div class="list-item">{% if publication %}<p><strong>Référence :</strong> {{ publication.publication_id }}</p><p><strong>Statut :</strong> {{ publication.get_status_display }}</p>{% if publication.submitted_at %}<p class="muted">Soumise le {{ publication.submitted_at|date:'d/m/Y à H:i' }}</p>{% endif %}{% if publication.published_at %}<p class="muted">Publiée le {{ publication.published_at|date:'d/m/Y à H:i' }}</p>{% endif %}{% if publication.status == 'DRAFT' %}<a class="btn btn-primary" href="{% url 'property_edit' property.property_id %}">Continuer la publication</a>{% elif publication.status == 'CORRECTION_REQUIRED' %}<a class="btn btn-primary" href="{% url 'property_edit' property.property_id %}">Corriger la publication</a>{% elif publication.status == 'PUBLISHED' %}<a class="btn btn-light" href="{% url 'property_detail' property.property_id %}">Voir la publication</a>{% endif %}{% else %}<p>Ce logement n’a pas encore de publication.</p><a class="btn btn-primary" href="{% url 'property_edit' property.property_id %}">Créer la publication</a>{% endif %}</div></section>
+  <section class="section"><h2>Demandes de visite</h2>{% for visit in visit_requests %}<div class="list-item" style="margin-bottom:10px"><strong>{{ visit.visit_id }}</strong><br><span class="muted">{{ visit.requested_date }}{% if visit.requested_time_slot %} · {{ visit.requested_time_slot }}{% endif %} · {{ visit.get_status_display }}</span></div>{% empty %}<div class="list-item"><p class="muted">Aucune demande de visite pour le moment.</p></div>{% endfor %}</section>
 </main>
 {% endblock %}
