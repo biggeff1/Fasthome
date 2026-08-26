@@ -2,103 +2,103 @@
 {% block title %}Fasthome — Trouver ou louer un logement{% endblock %}
 {% block content %}
 <style>
-  .home-properties-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-items:stretch; }
-  .home-property-card { min-width:0; overflow:hidden; border-radius:16px; }
-  .home-property-card .photo { height:125px; display:flex; align-items:center; justify-content:center; font-size:.85rem; }
-  .home-property-card .card-body { padding:11px; }
-  .home-property-card h3 { margin:8px 0 5px; font-size:1rem; line-height:1.2; }
-  .home-property-card p { margin:4px 0; font-size:.82rem; line-height:1.3; }
-  .home-property-card .badge { font-size:.7rem; padding:4px 7px; }
-  .home-property-card .btn { display:inline-block; margin-top:7px; padding:8px 10px; font-size:.78rem; border-radius:10px; }
-  .home-empty { grid-column:1 / -1; margin:6px 0 0; padding:18px; text-align:center; border-radius:14px; background:#f5f7fa; }
-  .home-choice { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin:22px 0 8px; }
-  .home-choice-card { display:flex; flex-direction:column; min-height:250px; padding:24px; border-radius:20px; text-decoration:none; transition:transform .18s ease, box-shadow .18s ease; }
-  .home-choice-card:hover,.home-choice-card:focus { transform:translateY(-3px); box-shadow:0 14px 35px rgba(0,0,0,.10); }
-  .home-choice-icon { font-size:2rem; margin-bottom:10px; }
-  .home-choice-card h2 { margin:0 0 10px; }
-  .home-choice-card p { margin:0 0 16px; line-height:1.6; color:#53606d; }
-  .home-choice-steps { margin:0; padding:0; list-style:none; display:grid; gap:8px; }
-  .home-choice-steps li { padding-left:28px; position:relative; line-height:1.4; }
+  .home-page { padding-top: 0; }
+  .home-hero { padding: 30px 0 18px; text-align:center; }
+  .home-hero h1 { max-width:760px; margin:0 auto 10px; font-size:clamp(1.9rem,5vw,3.2rem); line-height:1.08; }
+  .home-hero p { max-width:680px; margin:0 auto 16px; color:#5b6673; line-height:1.45; }
+  .home-main-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; max-width:620px; margin:0 auto; }
+  .home-main-actions .btn { min-width:0; min-height:48px; padding:10px 12px; text-align:center; }
+  .home-available { padding:14px 0 22px; }
+  .home-section-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .home-section-heading h2 { margin:0; font-size:1.45rem; }
+  .home-section-heading .btn { padding:7px 10px; font-size:.78rem; }
+  .home-properties-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; align-items:stretch; }
+  .home-property-card { min-width:0; overflow:hidden; border-radius:14px; display:flex; flex-direction:column; }
+  .home-property-photo { width:100%; aspect-ratio:1.12/1; background:#e9edf2; color:#7a8592; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .home-property-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+  .home-property-body { padding:9px; display:flex; flex-direction:column; flex:1; min-width:0; }
+  .home-property-body h3 { margin:7px 0 3px; font-size:.96rem; line-height:1.18; overflow-wrap:anywhere; }
+  .home-property-body p { margin:3px 0; font-size:.78rem; line-height:1.3; overflow-wrap:anywhere; }
+  .home-property-card .badge { font-size:.62rem; padding:4px 6px; align-self:flex-start; }
+  .home-property-card .btn { margin-top:auto; padding:7px 8px; font-size:.72rem; border-radius:9px; align-self:flex-start; }
+  .home-empty { grid-column:1 / -1; margin:0; padding:18px 12px; text-align:center; border-radius:14px; background:#f5f7fa; }
+  .home-choice { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:14px 0 8px; }
+  .home-choice-card { display:flex; flex-direction:column; min-height:230px; padding:18px; border-radius:18px; text-decoration:none; }
+  .home-choice-icon { font-size:1.7rem; margin-bottom:7px; }
+  .home-choice-card h2 { margin:0 0 8px; font-size:1.15rem; line-height:1.2; }
+  .home-choice-card p { margin:0 0 10px; line-height:1.45; color:#53606d; font-size:.9rem; }
+  .home-choice-steps { margin:0; padding:0; list-style:none; display:grid; gap:5px; }
+  .home-choice-steps li { padding-left:20px; position:relative; line-height:1.3; font-size:.82rem; }
   .home-choice-steps li::before { content:'✓'; position:absolute; left:0; font-weight:700; }
-  .home-choice-action { margin-top:auto; padding-top:18px; font-weight:700; }
-  .home-process { margin-top:28px; padding:24px; border-radius:20px; background:#f7f9fb; }
-  .home-process h2 { margin-top:0; }
-  .home-process-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
-  .home-process-step { padding:15px; background:#fff; border-radius:14px; }
-  .home-process-number { font-weight:800; margin-bottom:7px; }
-  .home-process-step h3 { margin:0 0 6px; font-size:1rem; }
-  .home-process-step p { margin:0; color:#53606d; font-size:.9rem; line-height:1.5; }
-  .home-trust { margin-top:24px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
-  .home-trust-item { padding:16px; border:1px solid rgba(0,0,0,.08); border-radius:14px; }
-  .home-trust-item strong { display:block; margin-bottom:5px; }
-  .home-trust-item span { color:#53606d; font-size:.9rem; line-height:1.45; }
-  @media (max-width:767px) { .home-properties-grid,.home-choice,.home-process-grid,.home-trust { grid-template-columns:1fr; } .home-choice-card { min-height:auto; } }
-  @media (min-width:768px) { .home-properties-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; } .home-property-card .photo { height:170px; } }
+  .home-choice-action { margin-top:auto; padding-top:12px; font-weight:700; font-size:.85rem; }
+  .home-process { margin-top:20px; padding:18px; border-radius:18px; background:#f7f9fb; }
+  .home-process h2 { margin:0 0 12px; font-size:1.35rem; }
+  .home-process-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+  .home-process-step { padding:12px; background:#fff; border-radius:12px; }
+  .home-process-number { font-weight:800; margin-bottom:5px; font-size:.8rem; }
+  .home-process-step h3 { margin:0 0 5px; font-size:.9rem; }
+  .home-process-step p { margin:0; color:#53606d; font-size:.78rem; line-height:1.4; }
+  .home-trust { margin-top:18px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+  .home-trust-item { padding:13px; border:1px solid rgba(0,0,0,.08); border-radius:13px; }
+  .home-trust-item strong { display:block; margin-bottom:4px; font-size:.9rem; }
+  .home-trust-item span { color:#53606d; font-size:.8rem; line-height:1.4; }
+  @media (max-width:767px) {
+    .home-hero { padding:20px 0 12px; }
+    .home-hero h1 { font-size:1.85rem; }
+    .home-hero p { font-size:.9rem; margin-bottom:12px; }
+    .home-main-actions { gap:8px; }
+    .home-main-actions .btn { min-height:46px; font-size:.74rem; padding:8px 6px; border-radius:11px; }
+    .home-available { padding:10px 0 16px; }
+    .home-section-heading h2 { font-size:1.25rem; }
+    .home-properties-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .home-property-card { border-radius:12px; }
+    .home-property-photo { aspect-ratio:1.08/1; }
+    .home-property-body { padding:8px; }
+    .home-property-body h3 { font-size:.88rem; }
+    .home-property-body p { font-size:.72rem; }
+    .home-property-card .btn { width:100%; font-size:.68rem; }
+    .home-property-card .badge { font-size:.58rem; }
+    .home-choice { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:10px; }
+    .home-choice-card { min-height:0; padding:12px; border-radius:14px; }
+    .home-choice-icon { font-size:1.45rem; }
+    .home-choice-card h2 { font-size:.98rem; }
+    .home-choice-card p { font-size:.76rem; line-height:1.35; }
+    .home-choice-steps { display:none; }
+    .home-choice-action { padding-top:9px; font-size:.75rem; }
+    .home-process { margin-top:14px; padding:14px; }
+    .home-process-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .home-trust { grid-template-columns:1fr; }
+  }
+  @media (min-width:768px) {
+    .home-properties-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+    .home-property-photo { aspect-ratio:1.35/1; }
+  }
 </style>
 
-<main class="container">
-  <section class="hero">
+<main class="container home-page">
+  <section class="home-hero">
     <h1>Votre logement. Votre projet. Un parcours encadré.</h1>
     <p>Fasthome vous accompagne pour trouver un logement ou mettre le vôtre en location, avec un parcours clair à chaque étape.</p>
-    <div class="actions"><a class="btn btn-primary" href="/matching/">🔎 Je cherche un logement</a><a class="btn btn-light" href="/properties/create/">🏠 Je veux louer mon logement</a></div>
-  </section>
-
-  <section class="section">
-    <div class="home-choice">
-      <a class="card home-choice-card" href="/matching/">
-        <div class="home-choice-icon">🔎</div>
-        <h2>Vous cherchez un logement ?</h2>
-        <p>Décrivez simplement ce que vous recherchez. Fasthome compare votre demande aux logements disponibles et vous présente ceux qui répondent à vos critères.</p>
-        <ul class="home-choice-steps">
-          <li>Indiquez votre budget et votre localisation</li>
-          <li>Précisez le type et les caractéristiques du logement</li>
-          <li>Consultez les logements correspondants</li>
-        </ul>
-        <span class="home-choice-action">Commencer ma recherche →</span>
-      </a>
-      <a class="card home-choice-card" href="/properties/create/">
-        <div class="home-choice-icon">🏠</div>
-        <h2>Vous êtes bailleur ?</h2>
-        <p>Présentez votre logement à Fasthome. Nous structurons sa publication et son parcours de mise en location afin de faciliter la recherche de candidats correspondants.</p>
-        <ul class="home-choice-steps">
-          <li>Déclarez votre logement et ses caractéristiques</li>
-          <li>Faites vérifier les informations nécessaires</li>
-          <li>Suivez les demandes et les étapes de location</li>
-        </ul>
-        <span class="home-choice-action">Présenter mon logement →</span>
-      </a>
+    <div class="home-main-actions">
+      <a class="btn btn-primary" href="/matching/">🔎 Je cherche un logement</a>
+      <a class="btn btn-light" href="/properties/create/">🏠 Je veux louer mon logement</a>
     </div>
   </section>
 
-  <section class="home-process">
-    <h2>Comment ça fonctionne ?</h2>
-    <div class="home-process-grid">
-      <div class="home-process-step"><div class="home-process-number">01</div><h3>Définissez votre besoin</h3><p>Budget, localisation et caractéristiques : vous indiquez ce qui compte réellement pour votre projet.</p></div>
-      <div class="home-process-step"><div class="home-process-number">02</div><h3>Fasthome compare</h3><p>Le système recherche les logements qui respectent les critères essentiels de votre demande.</p></div>
-      <div class="home-process-step"><div class="home-process-number">03</div><h3>Vous choisissez</h3><p>Vous consultez les résultats pertinents et pouvez demander une visite selon le parcours prévu.</p></div>
-      <div class="home-process-step"><div class="home-process-number">04</div><h3>Nous suivons la suite</h3><p>Les démarches, documents et étapes de la location sont organisés dans votre parcours Fasthome.</p></div>
-    </div>
-  </section>
-
-  <section class="section">
-    <h2>Pourquoi passer par Fasthome ?</h2>
-    <div class="home-trust">
-      <div class="home-trust-item"><strong>Une recherche ciblée</strong><span>Les résultats sont basés sur les critères que vous avez définis, pas sur une simple liste d'annonces.</span></div>
-      <div class="home-trust-item"><strong>Un parcours encadré</strong><span>Les principales étapes de la recherche, de la visite et du suivi sont structurées au même endroit.</span></div>
-      <div class="home-trust-item"><strong>Des informations centralisées</strong><span>Documents, contrats, échéances et éléments de suivi restent accessibles dans votre parcours.</span></div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
-      <h2 style="margin:0;">Quelques logements disponibles</h2>
-      {% if properties %}<a class="btn btn-light" href="/matching/" style="padding:7px 10px;font-size:.8rem;">Voir les résultats →</a>{% endif %}
+  <section class="home-available">
+    <div class="home-section-heading">
+      <h2>Logements disponibles</h2>
+      {% if properties %}<a class="btn btn-light" href="/matching/">Voir tout →</a>{% endif %}
     </div>
     <div class="home-properties-grid">
       {% for p in properties %}
         <article class="card home-property-card">
-          <div class="photo">Photo du logement</div>
-          <div class="card-body">
+          <div class="home-property-photo">
+            {% with p.photos.first as photo %}
+              {% if photo %}<img src="{{ photo.image.url }}" alt="Logement {{ p.property_id }}">{% else %}Photo du logement{% endif %}
+            {% endwith %}
+          </div>
+          <div class="home-property-body">
             <span class="badge">✓ Vérifié par Fasthome</span>
             <h3>{{ p.property_type }}</h3>
             <p>{{ p.city_or_territory }}{% if p.neighborhood %} · {{ p.neighborhood }}{% endif %}</p>
@@ -109,6 +109,44 @@
       {% empty %}
         <p class="muted home-empty">Aucun logement disponible pour le moment.</p>
       {% endfor %}
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="home-choice">
+      <a class="card home-choice-card" href="/matching/">
+        <div class="home-choice-icon">🔎</div>
+        <h2>Vous cherchez un logement ?</h2>
+        <p>Indiquez votre besoin. Fasthome recherche les logements qui correspondent à vos critères.</p>
+        <ul class="home-choice-steps"><li>Budget et localisation</li><li>Type et caractéristiques</li><li>Résultats ciblés</li></ul>
+        <span class="home-choice-action">Commencer ma recherche →</span>
+      </a>
+      <a class="card home-choice-card" href="/properties/create/">
+        <div class="home-choice-icon">🏠</div>
+        <h2>Vous êtes bailleur ?</h2>
+        <p>Présentez votre logement à Fasthome et suivez son parcours de mise en location.</p>
+        <ul class="home-choice-steps"><li>Déclarer le logement</li><li>Faire vérifier les informations</li><li>Suivre les demandes</li></ul>
+        <span class="home-choice-action">Présenter mon logement →</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="home-process">
+    <h2>Comment ça fonctionne ?</h2>
+    <div class="home-process-grid">
+      <div class="home-process-step"><div class="home-process-number">01</div><h3>Définissez votre besoin</h3><p>Budget, localisation et caractéristiques essentielles.</p></div>
+      <div class="home-process-step"><div class="home-process-number">02</div><h3>Fasthome compare</h3><p>Le système recherche les logements correspondants.</p></div>
+      <div class="home-process-step"><div class="home-process-number">03</div><h3>Vous choisissez</h3><p>Vous consultez les résultats pertinents et demandez une visite.</p></div>
+      <div class="home-process-step"><div class="home-process-number">04</div><h3>Nous suivons</h3><p>Les démarches et étapes de location restent organisées.</p></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Pourquoi passer par Fasthome ?</h2>
+    <div class="home-trust">
+      <div class="home-trust-item"><strong>Recherche ciblée</strong><span>Des résultats fondés sur vos critères essentiels.</span></div>
+      <div class="home-trust-item"><strong>Parcours encadré</strong><span>Recherche, visite et suivi dans un même parcours.</span></div>
+      <div class="home-trust-item"><strong>Suivi centralisé</strong><span>Documents, contrats et échéances organisés au même endroit.</span></div>
     </div>
   </section>
 </main>
