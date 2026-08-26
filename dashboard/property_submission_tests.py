@@ -44,10 +44,12 @@ class PropertyPublicationFlowTests(TestCase):
                 presentation_accepted=True, visits_accepted=True,
                 management_accepted=True, collaboration_accepted=True, accepted_at=now,
             )
-            fake = SimpleUploadedFile('exterieur.jpg', b'fake-image', content_type='image/jpeg')
-            PropertyPhoto.objects.create(property=prop, image=fake, category='EXTERIOR', order=1)
-            for category in ('LIVING_ROOM', 'BEDROOM', 'KITCHEN', 'BATHROOM', 'TOILET'):
-                fake = SimpleUploadedFile(f'{category.lower()}.jpg', b'fake-image', content_type='image/jpeg')
+            for category, filename in [
+                ('EXTERIOR', 'exterieur.jpg'), ('LIVING_ROOM', 'salon.jpg'),
+                ('BEDROOM', 'chambre.jpg'), ('KITCHEN', 'cuisine.jpg'),
+                ('BATHROOM', 'salle-de-bain.jpg'), ('TOILET', 'toilette.jpg'),
+            ]:
+                fake = SimpleUploadedFile(filename, b'fake-image', content_type='image/jpeg')
                 PropertyPhoto.objects.create(property=prop, image=fake, category=category, order=1)
         return prop, publication
 
@@ -55,7 +57,7 @@ class PropertyPublicationFlowTests(TestCase):
         prop, _ = self.make_property()
         response = self.client.get(reverse('property_review', args=[prop.property_id]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'La publication n’est pas encore prête')
+        self.assertContains(response, 'Votre publication n’est pas encore prête')
 
     def test_ready_draft_can_be_submitted(self):
         prop, publication = self.make_property(ready=True)
