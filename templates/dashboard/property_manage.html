@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Gérer le logement — Fasthome{% endblock %}
+{% block content %}
+<main class="container">
+  <div class="section"><a class="muted" href="{% url 'my_properties' %}">← Mes logements</a><h1 style="margin-bottom:4px">{{ property.property_type }}</h1><p class="muted">{{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p><div style="margin-top:12px"><strong>Référence :</strong> {{ property.property_id }}</div></div>
+  <section class="section"><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+    <a class="list-item" href="{% url 'property_edit' property.property_id %}"><h3>✏️ Informations</h3><p class="muted">Modifier les caractéristiques du logement.</p></a>
+    <a class="list-item" href="{% url 'property_edit' property.property_id %}"><h3>📷 Photos</h3><p class="muted">Gérer les photos de chaque espace.</p></a>
+    <div class="list-item"><h3>📢 Publication</h3>{% if publication %}<p>{{ publication.get_status_display }}</p>{% else %}<p class="muted">Aucune publication créée.</p>{% endif %}</div>
+    <a class="list-item" href="{% url 'activity' %}"><h3>📅 Visites</h3><p class="muted">Consulter les demandes liées à vos logements.</p></a>
+  </div></section>
+  <section class="section"><h2>État du logement</h2>
+    {% if property.status == 'AVAILABLE' %}<p>🟢 <strong>Disponible</strong> — Le logement peut être proposé aux demandeurs.</p>
+    {% elif property.status == 'UNDER_REVIEW' %}<p>🟠 <strong>En vérification</strong> — Fasthome vérifie actuellement les informations.</p>
+    {% elif property.status == 'RENTED' %}<p>🔴 <strong>Loué</strong> — Le logement est associé à une location active.</p>
+    {% elif publication and publication.status == 'CORRECTION_REQUIRED' %}<p>⚠️ <strong>À corriger</strong> — {{ publication.correction_message|default:'Certaines informations doivent être corrigées.' }}</p>
+    {% else %}<p>✏️ <strong>À compléter</strong> — Terminez les informations et la publication avant de la soumettre.</p>{% endif %}
+  </section>
+  {% if publication and publication.status == 'PUBLISHED' %}<section class="section"><h2>Publication active</h2><p class="muted">Votre logement est actuellement visible sur Fasthome.</p><div class="actions"><a class="btn btn-primary" href="{% url 'property_detail' property.property_id %}">Voir la publication</a></div></section>{% endif %}
+</main>
+{% endblock %}
