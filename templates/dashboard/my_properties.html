@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Mes logements — Fasthome{% endblock %}
+{% block content %}
+<main class="container">
+  <div class="section" style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap">
+    <div><h1 style="margin-bottom:6px">Mes logements</h1><p class="muted">Gérez vos biens, leurs publications et leur évolution sur Fasthome.</p></div>
+    <a class="btn btn-primary" href="{% url 'property_create' %}">＋ Ajouter un logement</a>
+  </div>
+  <section class="section"><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+    <div class="list-item"><strong>{{ counts.all }}</strong><div class="muted">Tous mes logements</div></div>
+    <div class="list-item"><strong>{{ counts.available }}</strong><div class="muted">🟢 Disponibles</div></div>
+    <div class="list-item"><strong>{{ counts.review }}</strong><div class="muted">🟠 En vérification</div></div>
+    <div class="list-item"><strong>{{ counts.draft }}</strong><div class="muted">✏️ À compléter</div></div>
+    <div class="list-item"><strong>{{ counts.rented }}</strong><div class="muted">🔴 Loués</div></div>
+  </div></section>
+  <section class="section">
+    {% for p in properties %}{% with publication=p.publication %}
+      <article class="list-item" style="margin-bottom:16px">
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          {% with photo=p.photos.first %}{% if photo.image %}<img src="{{ photo.image.url }}" alt="{{ p.property_type }}" style="width:110px;height:90px;object-fit:cover;border-radius:14px">{% else %}<div style="width:110px;height:90px;border-radius:14px;background:#eef2f6;display:grid;place-items:center;font-size:30px">🏠</div>{% endif %}{% endwith %}
+          <div style="flex:1;min-width:0"><h2 style="margin:0 0 4px">{{ p.property_type }}</h2><div class="muted">{{ p.city_or_territory }}{% if p.neighborhood %} · {{ p.neighborhood }}{% endif %}</div><div style="margin-top:8px">{{ p.bedroom_count }} chambre{% if p.bedroom_count != 1 %}s{% endif %} · {{ p.living_room_count }} salon{% if p.living_room_count != 1 %}s{% endif %}</div><div style="margin-top:10px">
+            {% if p.status == 'AVAILABLE' %}<span class="badge">🟢 Disponible</span>{% elif p.status == 'RENTED' %}<span class="badge">🔴 Loué</span>{% elif publication.status == 'CORRECTION_REQUIRED' %}<span class="badge">⚠️ À corriger</span>{% elif p.status == 'UNDER_REVIEW' or publication.status == 'UNDER_REVIEW' or publication.status == 'SUBMITTED' %}<span class="badge">🟠 En vérification</span>{% else %}<span class="badge">✏️ À compléter</span>{% endif %}
+          </div></div>
+        </div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid #e8edf2">
+          {% if not publication or publication.status == 'DRAFT' %}<strong>Publication à terminer</strong><p class="muted">Complétez les informations et les photos avant de l'envoyer à Fasthome.</p><a class="btn btn-primary" href="{% url 'property_edit' p.property_id %}">Continuer la publication</a>
+          {% elif publication.status == 'CORRECTION_REQUIRED' %}<strong>Corrections demandées</strong><p class="muted">{{ publication.correction_message|default:"Certaines informations doivent être corrigées." }}</p><a class="btn btn-primary" href="{% url 'property_edit' p.property_id %}">Corriger</a>
+          {% elif publication.status == 'SUBMITTED' or publication.status == 'UNDER_REVIEW' %}<strong>Publication en cours de vérification</strong><p class="muted">Votre dossier a été transmis à Fasthome. Nous vérifions actuellement les informations.</p><a class="btn btn-light" href="{% url 'property_manage' p.property_id %}">Voir l'avancement</a>
+          {% elif publication.status == 'PUBLISHED' %}<strong>✓ Publication active</strong><p class="muted">Votre logement est actuellement visible sur Fasthome.</p><a class="btn btn-primary" href="{% url 'property_manage' p.property_id %}">Gérer le logement</a>
+          {% else %}<a class="btn btn-light" href="{% url 'property_manage' p.property_id %}">Gérer le logement</a>{% endif %}
+        </div>
+      </article>
+    {% endwith %}{% empty %}
+      <div class="section" style="text-align:center;padding:40px 20px"><div style="font-size:48px">🏠</div><h2>Vous n'avez encore aucun logement</h2><p class="muted">Ajoutez votre premier logement pour commencer sa publication sur Fasthome.</p><a class="btn btn-primary" href="{% url 'property_create' %}">Ajouter mon logement</a></div>
+    {% endfor %}
+  </section>
+</main>
+{% endblock %}
