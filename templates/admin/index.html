@@ -13,49 +13,31 @@
 </style>
 
 <div class="fh-wrap">
-  <div class="fh-hero">
-    <div><h1>Administration Fasthome</h1><p>Gérez les logements, utilisateurs, visites, contrats et vérifications.</p></div>
-    <a class="fh-site" href="{{ site_url|default:'/' }}">Voir le site</a>
-  </div>
-
-  <input id="fh-admin-search" class="fh-search" type="search" placeholder="Rechercher : logement, utilisateur, KYC…" autocomplete="off" aria-label="Rechercher dans l'administration">
+  <div class="fh-hero"><div><h1>Administration Fasthome</h1><p>Accédez rapidement aux logements, utilisateurs, KYC, visites, contrats et finances.</p></div><a class="fh-site" href="{{ site_url|default:'/' }}">Voir le site</a></div>
+  <input id="fh-admin-search" class="fh-search" type="search" placeholder="Rechercher un logement, un utilisateur, un KYC…" autocomplete="off" aria-label="Rechercher dans l'administration">
 
   <div class="fh-title">Accès rapides</div>
   <div class="fh-grid" id="fh-quick">
     {% for app in app_list %}
       {% if app.app_label == 'properties' %}
-      <section class="fh-card fh-app" data-search="logements biens publications déclarations photos">
-        <div class="fh-card-head">🏠 Logements</div><div class="fh-links">
-          {% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}
-        </div>
+      <section class="fh-card fh-app" data-search="logements biens publications déclarations photos types">
+        <div class="fh-card-head">🏠 Logements</div><div class="fh-links">{% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}</div>
       </section>
-      {% endif %}
-      {% if app.app_label == 'users' %}
+      {% elif app.app_label == 'users' %}
       <section class="fh-card fh-app" data-search="utilisateurs comptes kyc vérification identité">
-        <div class="fh-card-head">👥 Utilisateurs & KYC</div><div class="fh-links">
-          {% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}
-        </div>
+        <div class="fh-card-head">👥 Utilisateurs & KYC</div><div class="fh-links">{% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}</div>
       </section>
-      {% endif %}
-      {% if app.app_label == 'visits' %}
+      {% elif app.app_label == 'visits' %}
       <section class="fh-card fh-app" data-search="visites demandes rendez-vous">
-        <div class="fh-card-head">📅 Visites</div><div class="fh-links">
-          {% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}
-        </div>
+        <div class="fh-card-head">📅 Visites</div><div class="fh-links">{% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}</div>
       </section>
-      {% endif %}
-      {% if app.app_label == 'contracts' or app.app_label == 'leasing' %}
-      <section class="fh-card fh-app" data-search="contrats locations sorties renouvellements">
-        <div class="fh-card-head">📄 Contrats & Locations</div><div class="fh-links">
-          {% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}
-        </div>
+      {% elif app.app_label == 'contracts' or app.app_label == 'leasing' %}
+      <section class="fh-card fh-app" data-search="contrats locations sorties renouvellements dossiers">
+        <div class="fh-card-head">📄 Contrats & Locations</div><div class="fh-links">{% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}</div>
       </section>
-      {% endif %}
-      {% if app.app_label == 'payments' %}
-      <section class="fh-card fh-app" data-search="paiements finances reçus">
-        <div class="fh-card-head">💰 Finances</div><div class="fh-links">
-          {% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}
-        </div>
+      {% elif app.app_label == 'payments' %}
+      <section class="fh-card fh-app" data-search="paiements finances reçus loyers">
+        <div class="fh-card-head">💰 Finances</div><div class="fh-links">{% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}</div>
       </section>
       {% endif %}
     {% endfor %}
@@ -65,22 +47,13 @@
   <div class="fh-grid" id="fh-other">
     {% for app in app_list %}
       {% if app.app_label != 'properties' and app.app_label != 'users' and app.app_label != 'visits' and app.app_label != 'contracts' and app.app_label != 'leasing' and app.app_label != 'payments' %}
-      <section class="fh-card fh-app" data-search="{{ app.name|lower }} {{ app.app_label|lower }}">
-        <div class="fh-card-head">{{ app.name }}</div><div class="fh-links">
-          {% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}
-        </div>
-      </section>
+      <section class="fh-card fh-app" data-search="{{ app.name|lower }} {{ app.app_label|lower }}"><div class="fh-card-head">{{ app.name }}</div><div class="fh-links">{% for model in app.models %}<a class="fh-link" href="{{ model.admin_url }}">{{ model.name }}<span class="fh-badge">Gérer</span></a>{% endfor %}</div></section>
       {% endif %}
     {% endfor %}
   </div>
   <div id="fh-no-results" class="fh-empty" style="display:none">Aucun résultat.</div>
-
-  <div class="fh-recent"><h2>Activité récente</h2>
-    {% get_admin_log 6 as admin_log for_user user %}
-    {% if admin_log %}<ul class="actionlist">{% for entry in admin_log %}<li>{% if entry.is_deletion or not entry.get_admin_url %}{{ entry.object_repr }}{% else %}<a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>{% endif %} — {% if entry.content_type %}{{ entry.content_type.name|capfirst }}{% else %}Action{% endif %}</li>{% endfor %}</ul>{% else %}<div class="fh-empty">Aucune action récente.</div>{% endif %}
-  </div>
+  <div class="fh-recent"><h2>Activité récente</h2>{% get_admin_log 6 as admin_log for_user user %}{% if admin_log %}<ul class="actionlist">{% for entry in admin_log %}<li>{% if entry.is_deletion or not entry.get_admin_url %}{{ entry.object_repr }}{% else %}<a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>{% endif %} — {% if entry.content_type %}{{ entry.content_type.name|capfirst }}{% else %}Action{% endif %}</li>{% endfor %}</ul>{% else %}<div class="fh-empty">Aucune action récente.</div>{% endif %}</div>
 </div>
-
 <script>
 (function(){const s=document.getElementById('fh-admin-search'),cards=document.querySelectorAll('.fh-app'),empty=document.getElementById('fh-no-results');if(!s)return;s.addEventListener('input',function(){const q=this.value.trim().toLowerCase();let n=0;cards.forEach(c=>{const ok=!q||c.dataset.search.includes(q);c.style.display=ok?'':'none';if(ok)n++;});empty.style.display=n?'none':'';});})();
 </script>
