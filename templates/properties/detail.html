@@ -2,8 +2,8 @@
 {% block title %}{{ property.property_type }} — Fasthome{% endblock %}
 {% block content %}
 <style>
-.property-detail{max-width:980px;padding-top:14px}.property-gallery{position:relative;border-radius:18px;overflow:hidden;background:#e9edf2}.property-gallery-track{display:flex;width:100%;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scrollbar-width:none}.property-gallery-track::-webkit-scrollbar{display:none}.property-slide{position:relative;min-width:100%;aspect-ratio:16/9;scroll-snap-align:start;background:#e9edf2;display:flex;align-items:center;justify-content:center}.property-slide img{width:100%;height:100%;object-fit:cover;display:block}.property-slide-label{position:absolute;left:12px;bottom:12px;padding:7px 11px;border-radius:9px;background:rgba(0,0,0,.68);color:#fff;font-size:.8rem;font-weight:700;backdrop-filter:blur(4px)}.property-gallery-nav{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;pointer-events:none;padding:0 10px}.property-gallery-nav button{pointer-events:auto;width:38px;height:38px;border:0;border-radius:50%;background:rgba(255,255,255,.9);color:#18344d;font-size:1.25rem;cursor:pointer;box-shadow:0 2px 9px rgba(0,0,0,.16)}.property-gallery-counter{position:absolute;right:12px;bottom:12px;padding:5px 8px;border-radius:999px;background:rgba(0,0,0,.65);color:#fff;font-size:.7rem;font-weight:700}.property-gallery-dots{display:flex;justify-content:center;gap:5px;padding:8px;background:#fff}.property-gallery-dot{width:6px;height:6px;border:0;border-radius:50%;background:#c9d0d8;padding:0}.property-gallery-dot.active{background:#163a5f;transform:scale(1.25)}.property-detail-card{margin-top:12px}.property-detail-body{padding:18px}.property-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.property-title-row h1{margin:6px 0 3px;font-size:clamp(1.65rem,4vw,2.5rem);line-height:1.1}.property-location{margin:0 0 12px;color:#5b6673}.property-id{font-size:.78rem}.property-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}.property-summary-item{padding:11px;background:#f6f8fa;border-radius:12px;text-align:center}.property-summary-item strong{display:block;font-size:1rem}.property-summary-item span{display:block;margin-top:2px;color:#64707d;font-size:.72rem}.property-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}.property-info{padding:15px;background:#f8fafc;border:1px solid #edf0f3;border-radius:14px}.property-info h2{margin:0 0 9px;font-size:1rem}.property-info p{margin:0;color:#53606d;line-height:1.6}.property-location-box{margin-top:12px;padding:15px;border-radius:14px;background:#f8fafc}.property-location-box p{margin:0;line-height:1.5}.property-rent{margin-top:12px;padding:14px 15px;border-radius:14px;background:#edf4fa}.property-rent p{margin:0}.property-actions{display:flex;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-top:16px}.property-actions form{margin:0}.property-visit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;flex:1 1 100%;padding:13px;border-radius:14px;background:#f7f9fb;border:1px solid #e7ebef}.visit-field{display:grid;gap:5px}.visit-field label{font-size:.76rem;font-weight:800;color:#263747}.visit-hint{margin:0;color:#64707d;font-size:.7rem;line-height:1.35}.visit-date-wrap{position:relative}.visit-date-wrap::before{content:'📅';position:absolute;left:12px;top:50%;transform:translateY(-50%);z-index:1;pointer-events:none}.property-visit input{width:100%;min-height:46px;padding:10px 11px;border:1px solid #bfc9d3;border-radius:10px;background:#fff;color:#18212b;font:inherit}.property-visit input[type=date]{padding-left:40px;color-scheme:light}.property-visit input[type=date]:invalid{color:#64707d}.property-visit .visit-time{grid-column:1/-1}.property-visit button{grid-column:1/-1;min-height:46px}
-@media(max-width:767px){.property-detail{padding:8px 10px 18px}.property-gallery{border-radius:14px}.property-slide{aspect-ratio:1.12/1}.property-slide-label{left:9px;bottom:9px;font-size:.72rem;padding:6px 9px}.property-gallery-nav{padding:0 7px}.property-gallery-nav button{width:34px;height:34px;font-size:1.05rem}.property-gallery-counter{right:9px;bottom:9px}.property-gallery-dots{padding:6px}.property-detail-card{border-radius:14px}.property-detail-body{padding:12px}.property-title-row{display:block}.property-title-row h1{font-size:1.45rem}.property-location{font-size:.86rem;margin-bottom:9px}.property-summary{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:10px 0}.property-summary-item{padding:8px 4px;border-radius:9px}.property-summary-item strong{font-size:.84rem}.property-summary-item span{font-size:.62rem}.property-info-grid{grid-template-columns:1fr;gap:8px}.property-info{padding:11px}.property-info h2{font-size:.9rem}.property-info p,.property-location-box p,.property-rent p{font-size:.78rem}.property-actions{gap:6px}.property-actions>.btn,.property-actions form>.btn{flex:1 1 auto;min-height:42px;font-size:.76rem}.property-visit{grid-template-columns:1fr;gap:8px;padding:10px}.property-visit .visit-time{grid-column:auto}.property-visit button{grid-column:auto}}
+.property-detail{max-width:980px;padding-top:14px}.property-gallery{position:relative;border-radius:18px;overflow:hidden;background:#e9edf2}.property-gallery-track{display:flex;width:100%;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scrollbar-width:none}.property-gallery-track::-webkit-scrollbar{display:none}.property-slide{position:relative;min-width:100%;aspect-ratio:16/9;scroll-snap-align:start;background:#e9edf2;display:flex;align-items:center;justify-content:center}.property-slide img{width:100%;height:100%;object-fit:cover;display:block}.property-slide-label{position:absolute;left:12px;bottom:12px;padding:7px 11px;border-radius:9px;background:rgba(0,0,0,.68);color:#fff;font-size:.8rem;font-weight:700;backdrop-filter:blur(4px)}.property-gallery-nav{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;pointer-events:none;padding:0 10px}.property-gallery-nav button{pointer-events:auto;width:38px;height:38px;border:0;border-radius:50%;background:rgba(255,255,255,.9);color:#18344d;font-size:1.25rem;cursor:pointer;box-shadow:0 2px 9px rgba(0,0,0,.16)}.property-gallery-counter{position:absolute;right:12px;bottom:12px;padding:5px 8px;border-radius:999px;background:rgba(0,0,0,.65);color:#fff;font-size:.7rem;font-weight:700}.property-gallery-dots{display:flex;justify-content:center;gap:5px;padding:8px;background:#fff}.property-gallery-dot{width:6px;height:6px;border:0;border-radius:50%;background:#c9d0d8;padding:0}.property-gallery-dot.active{background:#163a5f;transform:scale(1.25)}.property-detail-card{margin-top:12px}.property-detail-body{padding:18px}.property-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.property-title-row h1{margin:6px 0 3px;font-size:clamp(1.65rem,4vw,2.5rem);line-height:1.1}.property-location{margin:0 0 12px;color:#5b6673}.property-id{font-size:.78rem}.property-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}.property-summary-item{padding:11px;background:#f6f8fa;border-radius:12px;text-align:center}.property-summary-item strong{display:block;font-size:1rem}.property-summary-item span{display:block;margin-top:2px;color:#64707d;font-size:.72rem}.property-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}.property-info{padding:15px;background:#f8fafc;border:1px solid #edf0f3;border-radius:14px}.property-info h2{margin:0 0 9px;font-size:1rem}.property-info p{margin:0;color:#53606d;line-height:1.6}.property-location-box{margin-top:12px;padding:15px;border-radius:14px;background:#f8fafc}.property-location-box p{margin:0;line-height:1.5}.property-rent{margin-top:12px;padding:14px 15px;border-radius:14px;background:#edf4fa}.property-rent p{margin:0}.property-actions{display:flex;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-top:16px}.property-actions form{margin:0}.property-visit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;flex:1 1 100%;padding:13px;border-radius:14px;background:#f7f9fb;border:1px solid #e7ebef}.visit-field{display:grid;gap:5px}.visit-field label{font-size:.76rem;font-weight:800;color:#263747}.visit-hint{margin:0;color:#64707d;font-size:.7rem;line-height:1.35}.visit-date-wrap{position:relative}.visit-date-wrap::before{content:'📅';position:absolute;left:12px;top:50%;transform:translateY(-50%);z-index:1;pointer-events:none}.property-visit input{width:100%;min-height:46px;padding:10px 11px;border:1px solid #bfc9d3;border-radius:10px;background:#fff;color:#18212b;font:inherit}.property-visit input[type=date]{padding-left:40px;color-scheme:light}.property-visit input[type=date]:invalid{color:#64707d}.visit-time-range{display:grid;grid-template-columns:1fr 1fr;gap:8px}.visit-time-field{position:relative}.visit-time-field::before{content:'🕐';position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:1;pointer-events:none;font-size:.9rem}.visit-time-field input[type=time]{padding-left:36px;color-scheme:light}.visit-time-field input[type=time]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.8}.visit-time-help{margin:0;color:#64707d;font-size:.68rem;line-height:1.35}.property-visit button{grid-column:1/-1;min-height:46px}.share-button{min-height:44px;cursor:pointer}.share-button:disabled{opacity:.7;cursor:wait}
+@media(max-width:767px){.property-detail{padding:8px 10px 18px}.property-gallery{border-radius:14px}.property-slide{aspect-ratio:1.12/1}.property-slide-label{left:9px;bottom:9px;font-size:.72rem;padding:6px 9px}.property-gallery-nav{padding:0 7px}.property-gallery-nav button{width:34px;height:34px;font-size:1.05rem}.property-gallery-counter{right:9px;bottom:9px}.property-gallery-dots{padding:6px}.property-detail-card{border-radius:14px}.property-detail-body{padding:12px}.property-title-row{display:block}.property-title-row h1{font-size:1.45rem}.property-location{font-size:.86rem;margin-bottom:9px}.property-summary{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:10px 0}.property-summary-item{padding:8px 4px;border-radius:9px}.property-summary-item strong{font-size:.84rem}.property-summary-item span{font-size:.62rem}.property-info-grid{grid-template-columns:1fr;gap:8px}.property-info{padding:11px}.property-info h2{font-size:.9rem}.property-info p,.property-location-box p,.property-rent p{font-size:.78rem}.property-actions{gap:6px}.property-actions>.btn,.property-actions form>.btn{flex:1 1 auto;min-height:42px;font-size:.76rem}.property-visit{grid-template-columns:1fr;gap:8px;padding:10px}.visit-time-range{grid-template-columns:1fr 1fr;gap:7px}.property-visit button{grid-column:auto}.visit-time-field input[type=time]{padding-left:34px}.share-button{width:100%}}
 </style>
 
 <main class="container property-detail">
@@ -33,12 +33,20 @@
       <div class="property-location-box"><p><strong>📍 Localisation :</strong> {{ property.province }} · {{ property.city_or_territory }}{% if property.administrative_subdivision %} · {{ property.administrative_subdivision }}{% endif %}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p></div>
       <div class="property-rent"><p><strong>💰 Loyer</strong><br>Montant communiqué selon le parcours Fasthome.</p></div>
       <div class="property-actions">
-        <button class="btn btn-light" type="button" onclick="navigator.clipboard.writeText(location.href)">↗ Partager</button>
+        <button class="btn btn-light share-button" id="shareProperty" type="button">↗ Partager</button>
         {% if request.user.is_authenticated %}
-          <form method="post" action="{% url 'request_visit' property.property_id %}" class="property-visit">
+          <form method="post" action="{% url 'request_visit' property.property_id %}" class="property-visit" id="visitForm">
             {% csrf_token %}
             <div class="visit-field"><label for="requested_date">Date de visite</label><p class="visit-hint">Choisissez le jour où vous souhaitez visiter ce logement.</p><div class="visit-date-wrap"><input id="requested_date" name="requested_date" type="date" required aria-label="Date souhaitée pour la visite"></div></div>
-            <div class="visit-field"><label for="requested_time_slot">Créneau souhaité <span class="muted">(facultatif)</span></label><input id="requested_time_slot" class="visit-time" name="requested_time_slot" type="text" maxlength="80" placeholder="Ex. 10h00 – 12h00"></div>
+            <div class="visit-field">
+              <label>Créneau souhaité <span class="muted">(facultatif)</span></label>
+              <p class="visit-time-help">Touchez l’horloge pour choisir directement l’heure.</p>
+              <div class="visit-time-range">
+                <div class="visit-time-field"><input id="requested_time_start" type="time" aria-label="Heure de début" aria-describedby="visitTimeHelp" step="900"></div>
+                <div class="visit-time-field"><input id="requested_time_end" type="time" aria-label="Heure de fin" step="900"></div>
+              </div>
+              <input id="requested_time_slot" name="requested_time_slot" type="hidden" value="">
+            </div>
             <button class="btn btn-primary" type="submit">📅 Demander une visite</button>
           </form>
         {% else %}
@@ -52,16 +60,54 @@
 <script>
 (function(){
   const track=document.getElementById('propertyGalleryTrack');
-  if(!track)return;
-  const slides=track.querySelectorAll('.property-slide');
-  const counter=document.getElementById('galleryCounter');
-  const dots=[...document.querySelectorAll('.property-gallery-dot')];
-  let index=0;
-  function goTo(i){index=(i+slides.length)%slides.length; track.scrollTo({left:track.clientWidth*index,behavior:'smooth'}); if(counter)counter.textContent=(index+1)+' / '+slides.length; dots.forEach((d,n)=>d.classList.toggle('active',n===index));}
-  const prev=document.getElementById('galleryPrev'); const next=document.getElementById('galleryNext');
-  if(prev)prev.addEventListener('click',()=>goTo(index-1)); if(next)next.addEventListener('click',()=>goTo(index+1)); dots.forEach(d=>d.addEventListener('click',()=>goTo(Number(d.dataset.index))));
-  track.addEventListener('scroll',()=>{const i=Math.round(track.scrollLeft/track.clientWidth);if(i!==index){index=i;if(counter)counter.textContent=(index+1)+' / '+slides.length;dots.forEach((d,n)=>d.classList.toggle('active',n===index));}});
-  const date=document.getElementById('requested_date'); if(date){const now=new Date(); const y=now.getFullYear(); const m=String(now.getMonth()+1).padStart(2,'0'); const d=String(now.getDate()).padStart(2,'0'); date.min=`${y}-${m}-${d}`;}
+  if(track){
+    const slides=track.querySelectorAll('.property-slide');
+    const counter=document.getElementById('galleryCounter');
+    const dots=[...document.querySelectorAll('.property-gallery-dot')];
+    let index=0;
+    function goTo(i){index=(i+slides.length)%slides.length;track.scrollTo({left:track.clientWidth*index,behavior:'smooth'});if(counter)counter.textContent=(index+1)+' / '+slides.length;dots.forEach((d,n)=>d.classList.toggle('active',n===index));}
+    const prev=document.getElementById('galleryPrev');const next=document.getElementById('galleryNext');
+    if(prev)prev.addEventListener('click',()=>goTo(index-1));if(next)next.addEventListener('click',()=>goTo(index+1));dots.forEach(d=>d.addEventListener('click',()=>goTo(Number(d.dataset.index))));
+    track.addEventListener('scroll',()=>{const i=Math.round(track.scrollLeft/track.clientWidth);if(i!==index){index=i;if(counter)counter.textContent=(index+1)+' / '+slides.length;dots.forEach((d,n)=>d.classList.toggle('active',n===index));}});
+  }
+
+  const date=document.getElementById('requested_date');
+  if(date){const now=new Date();const y=now.getFullYear();const m=String(now.getMonth()+1).padStart(2,'0');const d=String(now.getDate()).padStart(2,'0');date.min=`${y}-${m}-${d}`;}
+
+  const visitForm=document.getElementById('visitForm');
+  const start=document.getElementById('requested_time_start');
+  const end=document.getElementById('requested_time_end');
+  const hiddenSlot=document.getElementById('requested_time_slot');
+  if(visitForm&&start&&end&&hiddenSlot){
+    visitForm.addEventListener('submit',function(){
+      if(start.value&&end.value){hiddenSlot.value=start.value+' – '+end.value;}
+      else if(start.value){hiddenSlot.value='À partir de '+start.value;}
+      else if(end.value){hiddenSlot.value="Jusqu'à "+end.value;}
+      else{hiddenSlot.value='';}
+    });
+  }
+
+  const shareButton=document.getElementById('shareProperty');
+  if(shareButton){
+    shareButton.addEventListener('click',async function(){
+      const shareData={title:document.title,text:'Découvrez ce logement sur Fasthome.',url:window.location.href};
+      shareButton.disabled=true;
+      try{
+        if(navigator.share){
+          await navigator.share(shareData);
+        }else if(navigator.clipboard){
+          await navigator.clipboard.writeText(window.location.href);
+          shareButton.textContent='✓ Lien copié';
+          setTimeout(()=>{shareButton.textContent='↗ Partager';shareButton.disabled=false;},1800);
+          return;
+        }else{
+          window.prompt('Copiez le lien du logement :',window.location.href);
+        }
+      }catch(error){
+        if(error&&error.name!=='AbortError'&&navigator.clipboard){try{await navigator.clipboard.writeText(window.location.href);shareButton.textContent='✓ Lien copié';setTimeout(()=>shareButton.textContent='↗ Partager',1800);}catch(e){}}
+      }finally{shareButton.disabled=false;}
+    });
+  }
 })();
 </script>
 {% endblock %}
