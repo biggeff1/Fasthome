@@ -1,10 +1,13 @@
 from django.urls import path
 from . import views
+from . import property_views
 from . import contract_views
 from . import publication_views, verification_views, lease_lifecycle_views
 
 urlpatterns = [
     path('', views.activity, name='activity'),
+    path('properties/', property_views.my_properties, name='my_properties'),
+    path('properties/<str:property_id>/', property_views.property_manage, name='property_manage'),
     path('favorites/', views.favorites, name='favorites'),
     path('favorites/<str:property_id>/toggle/', views.toggle_favorite, name='toggle_favorite'),
     path('notifications/', views.notifications, name='notifications'),
