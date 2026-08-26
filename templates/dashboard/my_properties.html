@@ -23,7 +23,18 @@
           </div></div>
         </div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid #e8edf2">
-          {% if not publication or publication.status == 'DRAFT' %}<strong>Publication à terminer</strong><p class="muted">Complétez les informations et les photos avant de l'envoyer à Fasthome.</p><a class="btn btn-primary" href="{% url 'property_edit' p.property_id %}">Continuer la publication</a>
+          {% if not publication or publication.status == 'DRAFT' %}
+            <strong>Publication à terminer</strong>
+            <p class="muted">Complétez les informations et les photos avant de l'envoyer à Fasthome.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <a class="btn btn-primary" href="{% url 'property_edit' p.property_id %}">Continuer la publication</a>
+              {% if publication and publication.status == 'DRAFT' and p.status == 'DRAFT' %}
+                <form method="post" action="{% url 'property_delete_draft' p.property_id %}" style="margin:0" onsubmit="return confirm('Supprimer définitivement ce brouillon et toutes les données saisies pour ce logement ?');">
+                  {% csrf_token %}
+                  <button class="btn" type="submit" style="background:#fff1f1;color:#9b1c1c;border:1px solid #efb5b5">Supprimer le brouillon</button>
+                </form>
+              {% endif %}
+            </div>
           {% elif publication.status == 'CORRECTION_REQUIRED' %}<strong>Corrections demandées</strong><p class="muted">{{ publication.correction_message|default:"Certaines informations doivent être corrigées." }}</p><a class="btn btn-primary" href="{% url 'property_edit' p.property_id %}">Corriger</a>
           {% elif publication.status == 'SUBMITTED' or publication.status == 'UNDER_REVIEW' %}<strong>Publication en cours de vérification</strong><p class="muted">Votre dossier a été transmis à Fasthome. Nous vérifions actuellement les informations.</p><a class="btn btn-light" href="{% url 'property_manage' p.property_id %}">Voir l'avancement</a>
           {% elif publication.status == 'PUBLISHED' %}<strong>✓ Publication active</strong><p class="muted">Votre logement est actuellement visible sur Fasthome.</p><a class="btn btn-primary" href="{% url 'property_manage' p.property_id %}">Gérer le logement</a>
