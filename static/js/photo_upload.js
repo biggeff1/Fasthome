@@ -248,3 +248,124 @@
     document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(install);
   });
 })();
+
+/* Fasthome — sélecteur photo mobile : Galerie ou Appareil photo. */
+(() => {
+  const STYLE_ID = 'fasthome-photo-picker-style';
+  const MODAL_ID = 'fasthome-photo-picker';
+  let bypassNextClick = false;
+  let activeInput = null;
+
+  function ensureStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `
+      #${MODAL_ID}{position:fixed;inset:0;z-index:10000;display:none;align-items:flex-end;justify-content:center;background:rgba(10,25,40,.48);padding:16px}
+      #${MODAL_ID}.is-open{display:flex}
+      .fh-photo-sheet{width:min(100%,440px);background:#fff;border-radius:20px;padding:18px;box-shadow:0 18px 50px rgba(0,0,0,.25);animation:fhPhotoSheetIn .18s ease-out}
+      .fh-photo-sheet h3{margin:0 0 5px;color:#18344d;font-size:1.08rem}
+      .fh-photo-sheet p{margin:0 0 15px;color:#6d7782;font-size:.84rem}
+      .fh-photo-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+      .fh-photo-option{min-height:82px;border:1px solid #dfe5eb;border-radius:14px;background:#f7f9fb;color:#18344d;font-weight:800;cursor:pointer;font-size:.88rem}
+      .fh-photo-option span{display:block;font-size:1.65rem;margin-bottom:5px}
+      .fh-photo-cancel{width:100%;margin-top:10px;border:0;background:transparent;color:#6d7782;padding:10px;cursor:pointer;font-weight:700}
+      @keyframes fhPhotoSheetIn{from{transform:translateY(18px);opacity:.4}to{transform:translateY(0);opacity:1}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensureModal() {
+    let modal = document.getElementById(MODAL_ID);
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = MODAL_ID;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Choisir une source pour la photo');
+    modal.innerHTML = `
+      <div class="fh-photo-sheet">
+        <h3>Ajouter une photo</h3>
+        <p>Choisissez comment ajouter la photo de ce logement.</p>
+        <div class="fh-photo-options">
+          <button type="button" class="fh-photo-option" data-photo-choice="gallery"><span>🖼️</span>Choisir dans la galerie</button>
+          <button type="button" class="fh-photo-option" data-photo-choice="camera"><span>📷</span>Prendre une photo</button>
+        </div>
+        <button type="button" class="fh-photo-cancel" data-photo-choice="cancel">Annuler</button>
+      </div>`;
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) closePicker();
+      const choice = event.target.closest('[data-photo-choice]')?.dataset.photoChoice;
+      if (!choice) return;
+      if (choice === 'cancel') {
+        closePicker();
+        return;
+      }
+      chooseSource(choice);
+    });
+    return modal;
+  }
+
+  function closePicker() {
+    document.getElementById(MODAL_ID)?.classList.remove('is-open');
+    activeInput = null;
+  }
+
+  function chooseSource(source) {
+    const input = activeInput;
+    if (!input) return;
+
+    const previousCapture = input.getAttribute('capture');
+    bypassNextClick = true;
+    if (source === 'camera') input.setAttribute('capture', 'environment');
+    else input.removeAttribute('capture');
+
+    closePicker();
+    input.click();
+
+    window.setTimeout(() => {
+      bypassNextClick = false;
+      if (previousCapture === null) input.removeAttribute('capture');
+      else input.setAttribute('capture', previousCapture);
+    }, 400);
+  }
+
+  function showPicker(input) {
+    activeInput = input;
+    ensureStyle();
+    const modal = ensureModal();
+    modal.classList.add('is-open');
+  }
+
+  function updatePhotoCount(input) {
+    const wrapper = input.closest('.photo-slot');
+    const count = wrapper?.querySelector('.photo-count');
+    if (!count) return;
+    const total = input.files?.length || 0;
+    count.textContent = total
+      ? `${total} photo${total > 1 ? 's' : ''} sélectionnée${total > 1 ? 's' : ''}`
+      : 'Aucune photo sélectionnée';
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('click', (event) => {
+      const input = event.target.closest('input[type="file"][name^="photos_"]');
+      if (!input) return;
+      if (bypassNextClick) return;
+      event.preventDefault();
+      event.stopPropagation();
+      showPicker(input);
+    }, true);
+
+    document.addEventListener('change', (event) => {
+      const input = event.target.closest('input[type="file"][name^="photos_"]');
+      if (input) updatePhotoCount(input);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closePicker();
+    });
+  });
+})();
