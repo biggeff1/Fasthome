@@ -15,7 +15,12 @@ class PropertyPublicationFlowTests(TestCase):
             last_name='Test', first_name='Bailleur', is_certified=True,
         )
         self.client.force_login(self.user)
-        self.property_type = PropertyType.objects.create(name='Maison', active=True)
+        self.property_type, _ = PropertyType.objects.get_or_create(
+            name='Maison', defaults={'active': True}
+        )
+        if not self.property_type.active:
+            self.property_type.active = True
+            self.property_type.save(update_fields=['active'])
 
     def make_property(self, ready=False, status='DRAFT', publication_status='DRAFT'):
         prop = Property.objects.create(
