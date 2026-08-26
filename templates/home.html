@@ -11,6 +11,20 @@
   .home-property-card .badge { font-size:.7rem; padding:4px 7px; }
   .home-property-card .btn { display:inline-block; margin-top:7px; padding:8px 10px; font-size:.78rem; border-radius:10px; }
   .home-empty { grid-column:1 / -1; margin:6px 0 0; padding:18px; text-align:center; border-radius:14px; background:#f5f7fa; }
+
+  .home-service-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+  .home-service-card { position:relative; height:100%; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+  .home-service-card:hover, .home-service-card:focus-within { transform:translateY(-2px); box-shadow:0 10px 28px rgba(0,0,0,.08); }
+  .home-service-card .card-body { height:100%; display:flex; flex-direction:column; }
+  .home-service-card h3 { margin-bottom:8px; }
+  .home-service-card p { color:#53606d; line-height:1.55; }
+  .home-service-link { margin-top:auto; padding-top:12px; font-weight:700; text-decoration:none; }
+  .home-service-details { margin-top:12px; padding:12px 14px; border-radius:12px; background:#f7f9fb; border-left:3px solid currentColor; }
+  .home-service-details strong { display:block; margin-bottom:5px; }
+  .home-service-details p { margin:0; font-size:.9rem; }
+  .home-section-intro { max-width:760px; margin:0 0 16px; color:#53606d; line-height:1.55; }
+
+  @media (max-width:767px) { .home-properties-grid,.home-service-grid { grid-template-columns:1fr; } }
   @media (min-width:768px) { .home-properties-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; } .home-property-card .photo { height:170px; } }
 </style>
 
@@ -44,16 +58,66 @@
     </div>
   </section>
 
-  <section class="section"><h2>Pour les locataires</h2><div class="grid">
-    <div class="card"><div class="card-body"><h3>Location professionnelle</h3><p>Fasthome encadre la recherche, la visite et le suivi de la location.</p></div></div>
-    <div class="card"><div class="card-body"><h3>Matching</h3><p>Trouvez les logements correspondant à vos critères essentiels.</p></div></div>
-    <div class="card"><div class="card-body"><h3>Suivi</h3><p>Contrats, PV, échéances et paiements restent centralisés.</p></div></div>
-  </div></section>
+  <section class="section">
+    <h2>Pour les locataires</h2>
+    <p class="home-section-intro">Un accompagnement clair, de la recherche jusqu'au suivi de votre location. Chaque étape est encadrée par Fasthome pour vous faire gagner du temps et avancer avec des informations vérifiées.</p>
+    <div class="home-service-grid">
+      <article class="card home-service-card">
+        <div class="card-body">
+          <h3>Location professionnelle</h3>
+          <p>Fasthome vous accompagne dans la recherche d'un logement, l'organisation de la visite et les étapes qui suivent votre décision.</p>
+          <div class="home-service-details"><strong>Ce que Fasthome fait pour vous</strong><p>Nous structurons votre demande, organisons le parcours de visite et centralisons les informations utiles jusqu'à la location.</p></div>
+          <a class="home-service-link" href="/matching/">Commencer ma recherche →</a>
+        </div>
+      </article>
+      <article class="card home-service-card">
+        <div class="card-body">
+          <h3>Matching</h3>
+          <p>Votre recherche est comparée aux logements disponibles selon vos critères essentiels : localisation, budget et caractéristiques du logement.</p>
+          <div class="home-service-details"><strong>Une recherche plus pertinente</strong><p>Vous voyez en priorité les logements qui correspondent le mieux à votre besoin, au lieu de parcourir des annonces sans rapport.</p></div>
+          <a class="home-service-link" href="/matching/">Trouver mon logement →</a>
+        </div>
+      </article>
+      <article class="card home-service-card">
+        <div class="card-body">
+          <h3>Suivi</h3>
+          <p>Votre parcours reste centralisé afin de retrouver facilement les démarches, documents, échéances et informations liées à votre location.</p>
+          <div class="home-service-details"><strong>Tout au même endroit</strong><p>Contrats, procès-verbaux, échéances et paiements sont suivis dans votre espace Fasthome.</p></div>
+          <a class="home-service-link" href="/dashboard/">Voir mon suivi →</a>
+        </div>
+      </article>
+    </div>
+  </section>
 
-  <section class="section"><h2>Pour les bailleurs</h2><div class="grid">
-    <div class="card"><div class="card-body"><h3>Clients qualifiés</h3><p>Les logements sont proposés à des personnes dont les critères correspondent.</p></div></div>
-    <div class="card"><div class="card-body"><h3>Réduire la vacance</h3><p>Fasthome structure le parcours afin de faciliter la mise en location.</p></div></div>
-    <div class="card"><div class="card-body"><h3>Suivi professionnel</h3><p>Contrats, PV, loyers reçus et versements sont suivis dans le système.</p></div></div>
-  </div></section>
+  <section class="section">
+    <h2>Pour les bailleurs</h2>
+    <p class="home-section-intro">Confiez votre logement à un parcours structuré : présentation, qualification des candidats et suivi administratif sont organisés par Fasthome.</p>
+    <div class="home-service-grid">
+      <article class="card home-service-card">
+        <div class="card-body">
+          <h3>Clients qualifiés</h3>
+          <p>Votre logement est présenté à des personnes dont le projet et les critères correspondent à ses caractéristiques.</p>
+          <div class="home-service-details"><strong>Un processus plus ciblé</strong><p>Fasthome organise la mise en relation dans son propre parcours et limite les démarches inutiles.</p></div>
+          <a class="home-service-link" href="/properties/create/">Proposer mon logement →</a>
+        </div>
+      </article>
+      <article class="card home-service-card">
+        <div class="card-body">
+          <h3>Réduire la vacance</h3>
+          <p>Un logement correctement présenté et intégré au parcours Fasthome peut être proposé plus efficacement aux demandeurs correspondants.</p>
+          <div class="home-service-details"><strong>Un parcours organisé</strong><p>La publication, la recherche de candidats et les étapes de mise en location sont structurées dans le système.</p></div>
+          <a class="home-service-link" href="/properties/create/">Mettre mon logement en location →</a>
+        </div>
+      </article>
+      <article class="card home-service-card">
+        <div class="card-body">
+          <h3>Suivi professionnel</h3>
+          <p>Les éléments administratifs et financiers liés à la location sont centralisés pour faciliter le suivi dans la durée.</p>
+          <div class="home-service-details"><strong>Une gestion lisible</strong><p>Contrats, procès-verbaux, loyers reçus et versements sont enregistrés et suivis dans le système.</p></div>
+          <a class="home-service-link" href="/dashboard/">Accéder au suivi →</a>
+        </div>
+      </article>
+    </div>
+  </section>
 </main>
 {% endblock %}
