@@ -1,32 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}Certifications — Fasthome{% endblock %}
 {% block content %}
-<main class="container">
-  <h1>🪪 Vérifications d’identité</h1>
-  <p class="muted">Les contrôles automatiques produisent un score et une explication. Tout doute passe à un agent. Les documents KYC restent dans le stockage privé.</p>
-  <div class="list">
-    {% for verification in verifications %}
-      <article class="list-item">
-        <h3>{{ verification.user.fasthome_id }} — {{ verification.user.get_full_name }}</h3>
-        <p>{{ verification.get_document_type_display }} · Document : <strong>{{ verification.get_status_display }}</strong> · Visage : <strong>{{ verification.get_facial_status_display }}</strong></p>
-        <p><a class="btn btn-light" href="{% url 'office_verification_document' verification.pk %}">🔐 Ouvrir la pièce protégée</a></p>
-        {% if verification.analysis %}
-          <p><strong>Confiance :</strong> {{ verification.analysis.confidence_score }}% · <strong>OCR :</strong> {{ verification.analysis.ocr_engine }}</p>
-          <p><strong>Nom :</strong> {{ verification.analysis.extracted_name|default:'Non extrait' }} · <strong>Correspondance :</strong> {{ verification.analysis.name_match_score|default:'—' }}%</p>
-          <p><strong>Expiration :</strong> {{ verification.analysis.expiry_date|default:'Non déterminée' }} · <strong>Visage :</strong> {{ verification.analysis.face_match_score|default:'—' }}%</p>
-          {% if verification.analysis.fraud_signals %}<p><strong>Signaux :</strong> {{ verification.analysis.fraud_signals|join:', ' }}</p>{% endif %}
-          <div class="muted"><strong>Explication :</strong> {{ verification.analysis.explanation }}</div>
-        {% endif %}
-        {% if verification.rejection_reason %}<div class="alert">Motif : {{ verification.rejection_reason }}</div>{% endif %}
-        <form method="post" action="{% url 'office_verification_decision' verification.pk %}">
-          {% csrf_token %}
-          {% if verification.status != 'VERIFIED' %}<button class="btn btn-primary" name="action" value="verify_document">✓ Valider le document</button>{% endif %}
-          {% if verification.status == 'VERIFIED' and verification.facial_status != 'VERIFIED' %}<button class="btn btn-primary" name="action" value="verify_face">✓ Valider le visage</button>{% endif %}
-          <input name="reason" placeholder="Motif obligatoire si refus" aria-label="Motif du refus">
-          <button class="btn btn-light" name="action" value="reject">Refuser</button>
-        </form>
-      </article>
-    {% empty %}<p class="muted">Aucun dossier de certification à traiter.</p>{% endfor %}
-  </div>
-</main>
+<main class="container office-page"><div class="office-main">
+<div class="office-top"><div><span class="office-kicker">Contrôle humain</span><h1 class="office-title">Vérifications d’identité</h1><p class="office-subtitle">Traitez les dossiers avec une séparation nette entre analyse automatique et décision de l’agent.</p></div><div class="office-user"><div class="office-avatar">KYC</div><div><strong>Zone sécurisée</strong><small>Documents privés</small></div></div></div>
+<section class="section-card verification-intro"><div class="verification-banner"><div><strong>Avant de décider</strong><span>Consultez la pièce protégée et les signaux automatiques. En cas de doute, privilégiez une vérification humaine.</span></div><span class="verification-lock">🔐 Privé</span></div></section>
+<div class="verification-list">{% for verification in verifications %}<article class="section-card verification-card"><header class="verification-head"><div><span class="verification-id">{{ verification.user.fasthome_id }}</span><h2>{{ verification.user.get_full_name }}</h2><p>{{ verification.get_document_type_display }}</p></div><div class="verification-status"><span>Document</span><strong>{{ verification.get_status_display }}</strong><span>Visage · {{ verification.get_facial_status_display }}</span></div></header>
+<div class="verification-actions"><a class="btn btn-light" href="{% url 'office_verification_document' verification.pk %}">🔐 Ouvrir la pièce protégée</a></div>
+{% if verification.analysis %}<div class="analysis-grid"><div class="analysis-box"><small>Confiance</small><strong>{{ verification.analysis.confidence_score }}%</strong></div><div class="analysis-box"><small>Correspondance nom</small><strong>{{ verification.analysis.name_match_score|default:'—' }}%</strong></div><div class="analysis-box"><small>Correspondance visage</small><strong>{{ verification.analysis.face_match_score|default:'—' }}%</strong></div><div class="analysis-box"><small>Expiration</small><strong>{{ verification.analysis.expiry_date|default:'Non déterminée' }}</strong></div></div><div class="analysis-detail"><strong>Analyse automatique</strong><p>OCR : {{ verification.analysis.ocr_engine }} · {{ verification.analysis.explanation }}</p>{% if verification.analysis.fraud_signals %}<p class="analysis-warning"><strong>Signaux :</strong> {{ verification.analysis.fraud_signals|join:', ' }}</p>{% endif %}</div>{% endif %}
+{% if verification.rejection_reason %}<div class="alert verification-rejection"><strong>Décision précédente :</strong> {{ verification.rejection_reason }}</div>{% endif %}
+<form class="verification-decision" method="post" action="{% url 'office_verification_decision' verification.pk %}">{% csrf_token %}<div class="decision-reason"><label for="reason-{{ verification.pk }}">Motif en cas de refus</label><input id="reason-{{ verification.pk }}" name="reason" placeholder="Expliquez brièvement la raison du refus"></div><div class="decision-buttons">{% if verification.status != 'VERIFIED' %}<button class="btn btn-primary" name="action" value="verify_document">✓ Valider le document</button>{% endif %}{% if verification.status == 'VERIFIED' and verification.facial_status != 'VERIFIED' %}<button class="btn btn-primary" name="action" value="verify_face">✓ Valider le visage</button>{% endif %}<button class="btn btn-light" name="action" value="reject">Refuser</button></div></form></article>{% empty %}<section class="section-card matching-empty"><h2>Aucun dossier à traiter</h2><p class="muted">La file de certification est à jour.</p></section>{% endfor %}</div></div></main>
 {% endblock %}
