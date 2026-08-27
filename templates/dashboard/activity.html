@@ -13,7 +13,7 @@
   {% if landlord_visit_requests %}
   <section class="section">
     <h2>📅 Demandes de visite à traiter</h2>
-    <p class="muted">Vous pouvez consulter la demande sans voir l’identité du demandeur. Votre décision est nécessaire avant la confirmation définitive par Fasthome.</p>
+    <p class="muted">Consultez l’état de chaque demande. L’identité du demandeur reste masquée.</p>
     <div class="grid">
       {% for v in landlord_visit_requests %}
       <article class="list-item">
@@ -23,7 +23,10 @@
         {% if v.requested_time_slot %}<p><strong>Créneau :</strong> {{ v.requested_time_slot }}</p>{% endif %}
         <p><strong>Votre validation :</strong> {% if v.landlord_approved %}Acceptée{% else %}En attente{% endif %}</p>
         <p><strong>Validation Fasthome :</strong> {% if v.fasthome_approved %}Acceptée{% else %}En attente{% endif %}</p>
-        {% if not v.landlord_approved and not v.fasthome_approved %}
+        {% if v.status == 'CONFIRMED' %}
+          <p class="success"><strong>✓ Visite confirmée</strong></p>
+          <p class="muted">Les deux validations sont acceptées. La visite est définitivement confirmée par Fasthome.</p>
+        {% elif not v.landlord_approved and not v.fasthome_approved %}
         <div class="actions">
           <form method="post" action="{% url 'landlord_visit_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="approve"><button class="btn btn-primary" type="submit">✓ Accepter la visite</button></form>
           <form method="post" action="{% url 'landlord_visit_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="refuse"><button class="btn btn-light" type="submit">✕ Refuser</button></form>
@@ -33,7 +36,9 @@
           <form method="post" action="{% url 'landlord_visit_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="approve"><button class="btn btn-primary" type="submit">✓ Accepter la visite</button></form>
           <form method="post" action="{% url 'landlord_visit_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="refuse"><button class="btn btn-light" type="submit">✕ Refuser</button></form>
         </div>
-        {% else %}<p class="muted">Votre décision est enregistrée. Fasthome doit encore valider la demande.</p>{% endif %}
+        {% elif not v.fasthome_approved %}
+          <p class="muted">Votre décision est enregistrée. La validation Fasthome est encore en attente.</p>
+        {% endif %}
       </article>
       {% endfor %}
     </div>
