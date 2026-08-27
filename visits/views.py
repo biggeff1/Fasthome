@@ -8,7 +8,11 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from leasing.models import RentalCase
-from notifications.models import Notification
+from notifications.services import (
+    visit_requested, visit_landlord_approved, visit_landlord_refused,
+    visit_fasthome_approved, visit_fasthome_refused, visit_confirmed,
+    visit_completed, rental_case_created,
+)
 from properties.models import Property
 from .models import VisitRequest
 
@@ -17,42 +21,6 @@ MAX_ACTIVE_VISITS_PER_TENANT = 2
 
 def _staff_required(request):
     return request.user.is_active and request.user.is_staff
-
-
-def _notify_admins(*, level, title, message, visit):
-    """Notify every active staff administrator about a visit event."""
-    admins = get_user_model().objects.filter(is_active=True, is_staff=True).exclude(pk=visit.requester_id)
-    Notification.objects.bulk_create([
-        Notification(
-            recipient=admin,
-            level=level,
-            title=title,
-            message=message,
-            object_type='VisitRequest',
-            object_id=visit.visit_id,
-        )
-        for admin in admins
-    ])
-
-
-def _notify_visit_confirmed(visit):
-    """The final confirmation is visible to requester, landlord and admins."""
-    message = 'La demande de visite est définitivement confirmée : Fasthome et le bailleur ont tous les deux accepté.'
-    recipients = [visit.requester_id, visit.property.owner_id]
-    admins = list(get_user_model().objects.filter(is_active=True, is_staff=True).values_list('pk', flat=True))
-    recipients.extend(admins)
-    unique_ids = set(recipients)
-    Notification.objects.bulk_create([
-        Notification(
-            recipient_id=user_id,
-            level='SUCCESS',
-            title='Visite définitivement confirmée',
-            message=message,
-            object_type='VisitRequest',
-            object_id=visit.visit_id,
-        )
-        for user_id in unique_ids
-    ])
 
 
 @login_required
@@ -84,8 +52,7 @@ def request_visit(request, property_id):
             messages.error(request, 'Vous avez déjà une demande de visite active pour ce logement.')
             return redirect('property_detail', property_id=property_id)
         visit = VisitRequest.objects.create(property=prop, requester=requester, requested_date=parsed_date, requested_time_slot=request.POST.get('requested_time_slot', '').strip()[:80])
-        Notification.objects.create(recipient=prop.owner, level='ACTION', title='Demande de visite à valider', message='Une demande de visite pour votre logement nécessite votre validation. L’identité du demandeur reste masquée à cette étape.', object_type='VisitRequest', object_id=visit.visit_id)
-        _notify_admins(level='ACTION', title='Nouvelle demande de visite', message='Une nouvelle demande de visite est en attente de validation du bailleur et de Fasthome.', visit=visit)
+        visit_requested(visit)
         messages.success(request, f'Demande {visit.visit_id} envoyée à Fasthome et au bailleur.')
     return redirect('property_detail', property_id=prop.property_id)
 
@@ -105,13 +72,16 @@ def fasthome_visit_decision(request, visit_id):
                 visit.status = 'CONFIRMED'
             visit.save(update_fields=['fasthome_approved', 'status'])
             if visit.status == 'CONFIRMED':
-                _notify_visit_confirmed(visit)
+                visit_confirmed(visit)
+            else:
+                visit_fasthome_approved(visit)
         elif action == 'refuse':
             visit.status = 'REFUSED'
             visit.save(update_fields=['status'])
-            Notification.objects.create(recipient=visit.requester, level='INFO', title='Demande de visite non confirmée', message='Votre demande de visite n’a pas été confirmée par Fasthome.', object_type='VisitRequest', object_id=visit.visit_id)
+            visit_fasthome_refused(visit)
         else:
             messages.error(request, 'Action de visite invalide.')
+            return redirect('activity')
     return redirect('activity')
 
 
@@ -130,14 +100,16 @@ def landlord_visit_decision(request, visit_id):
                 visit.status = 'CONFIRMED'
             visit.save(update_fields=['landlord_approved', 'status'])
             if visit.status == 'CONFIRMED':
-                _notify_visit_confirmed(visit)
+                visit_confirmed(visit)
+            else:
+                visit_landlord_approved(visit)
         elif action == 'refuse':
             visit.status = 'REFUSED'
             visit.save(update_fields=['status'])
-            # A landlord refusal is confidential at this stage: only Fasthome/admins are notified.
-            _notify_admins(level='ACTION', title='Demande de visite refusée par le bailleur', message='Le bailleur a refusé une demande de visite. Consultez la demande pour traiter la suite.', visit=visit)
+            visit_landlord_refused(visit)
         else:
             messages.error(request, 'Action de visite invalide.')
+            return redirect('activity')
     return redirect('activity')
 
 
@@ -149,8 +121,11 @@ def mark_visit_completed(request, visit_id):
         return redirect('activity')
     with transaction.atomic():
         visit = get_object_or_404(VisitRequest.objects.select_for_update(), visit_id=visit_id, status='CONFIRMED')
-        visit.status = 'COMPLETED'; visit.completed_at = timezone.now(); visit.completed_by = request.user; visit.save(update_fields=['status', 'completed_at', 'completed_by'])
-        Notification.objects.create(recipient=visit.requester, level='ACTION', title='Visite effectuée', message='La visite a été enregistrée. Vous pouvez maintenant décider si vous souhaitez prendre le logement.', object_type='VisitRequest', object_id=visit.visit_id)
+        visit.status = 'COMPLETED'
+        visit.completed_at = timezone.now()
+        visit.completed_by = request.user
+        visit.save(update_fields=['status', 'completed_at', 'completed_by'])
+        visit_completed(visit)
     return redirect('activity')
 
 
@@ -165,8 +140,9 @@ def tenant_decision(request, visit_id):
             if not created:
                 messages.info(request, f'Votre dossier {case.case_id} existe déjà.')
                 return redirect('activity')
-            visit.property.status = 'UNDER_REVIEW'; visit.property.save(update_fields=['status', 'updated_at'])
-            Notification.objects.create(recipient=request.user, level='SUCCESS', title='Dossier de location créé', message=f'Votre dossier {case.case_id} est maintenant en traitement.', object_type='RentalCase', object_id=case.case_id)
+            visit.property.status = 'UNDER_REVIEW'
+            visit.property.save(update_fields=['status', 'updated_at'])
+            rental_case_created(case)
             messages.success(request, 'Votre choix a été enregistré. Fasthome traite maintenant votre dossier.')
             return redirect('activity')
         if action == 'decline':
