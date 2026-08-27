@@ -11,6 +11,9 @@ from django.views.decorators.http import require_POST
 
 from properties.models import Favorite, Property
 from visits.models import VisitRequest
+from visits.views import (
+    visit_fasthome_approved, visit_fasthome_refused, visit_confirmed, visit_completed,
+)
 from leasing.models import RentalCase, Lease, RenewalRequest, LeaseExit
 from contracts.models import Contract
 from inspections.models import InspectionReport
@@ -147,16 +150,20 @@ def office_users(request):
 @require_POST
 def office_approve_visit(request, visit_id):
     with transaction.atomic():
-        visit = get_object_or_404(VisitRequest.objects.select_for_update(), visit_id=visit_id)
+        visit = get_object_or_404(VisitRequest.objects.select_for_update().select_related('property', 'requester'), visit_id=visit_id)
         if visit.status != 'REQUESTED': messages.error(request, 'Cette demande de visite n’est plus en attente.'); return redirect('office_visits')
         if request.POST.get('action') == 'approve':
             visit.fasthome_approved = True
             if visit.landlord_approved: visit.status = 'CONFIRMED'
             visit.save(update_fields=['fasthome_approved', 'status'])
+            if visit.status == 'CONFIRMED':
+                visit_confirmed(visit)
+            else:
+                visit_fasthome_approved(visit)
         elif request.POST.get('action') == 'refuse':
             visit.status = 'REFUSED'; visit.save(update_fields=['status'])
+            visit_fasthome_refused(visit)
         else: messages.error(request, 'Action invalide.'); return redirect('office_visits')
-        Notification.objects.create(recipient=visit.requester, level='INFO', title='Mise à jour de votre demande de visite', message='Votre demande de visite a été mise à jour par Fasthome.', object_type='VisitRequest', object_id=visit.visit_id)
     return redirect('office_visits')
 
 
@@ -164,10 +171,10 @@ def office_approve_visit(request, visit_id):
 @require_POST
 def office_complete_visit(request, visit_id):
     with transaction.atomic():
-        visit = get_object_or_404(VisitRequest.objects.select_for_update(), visit_id=visit_id)
+        visit = get_object_or_404(VisitRequest.objects.select_for_update().select_related('property', 'requester'), visit_id=visit_id)
         if visit.status != 'CONFIRMED': messages.error(request, 'La visite n’est plus confirmée.'); return redirect('office_visits')
         visit.status = 'COMPLETED'; visit.completed_at = timezone.now(); visit.completed_by = request.user; visit.save(update_fields=['status', 'completed_at', 'completed_by'])
-        Notification.objects.create(recipient=visit.requester, level='SUCCESS', title='Visite effectuée', message='La visite est enregistrée. Vous pouvez maintenant choisir de prendre ou non le logement.', object_type='VisitRequest', object_id=visit.visit_id)
+        visit_completed(visit)
     return redirect('office_visits')
 
 
