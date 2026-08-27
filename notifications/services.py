@@ -16,11 +16,11 @@ def notify(recipient, *, level='INFO', title, message, object_type='', object_id
 
 def notify_ids(user_ids, *, level='INFO', title, message, object_type='', object_id='', unique=True):
     rows = []
-    for user_id in set(user_ids):
-        if not user_id:
-            continue
-        if unique and object_type and object_id and Notification.objects.filter(recipient_id=user_id, object_type=object_type, object_id=str(object_id), title=title).exists():
-            continue
+    existing = set()
+    ids = {uid for uid in user_ids if uid}
+    if unique and object_type and object_id and ids:
+        existing = set(Notification.objects.filter(recipient_id__in=ids, object_type=object_type, object_id=str(object_id), title=title).values_list('recipient_id', flat=True))
+    for user_id in ids - existing:
         rows.append(Notification(recipient_id=user_id, level=level, title=title, message=message, object_type=object_type, object_id=str(object_id or '')))
     if rows:
         Notification.objects.bulk_create(rows)
@@ -32,20 +32,24 @@ def staff(**kwargs):
     return notify_ids(_staff_ids(exclude), **kwargs)
 
 
+# VISITES
 def visit_requested(visit):
     notify(visit.property.owner, level='ACTION', title='Demande de visite à valider', message='Une demande de visite pour votre logement nécessite votre validation.', object_type='VisitRequest', object_id=visit.visit_id)
     staff(level='ACTION', title='Nouvelle demande de visite', message='Une nouvelle demande de visite est en attente de traitement.', object_type='VisitRequest', object_id=visit.visit_id, exclude_ids=(visit.requester_id,))
 
 
 def visit_landlord_approved(visit):
-    staff(level='INFO', title='Le bailleur a accepté une visite', message='Le bailleur a accepté cette demande. Votre validation Fasthome est maintenant nécessaire.', object_type='VisitRequest', object_id=visit.visit_id)
+    notify(visit.requester, level='INFO', title='Bailleur favorable à la visite', message='Le bailleur a accepté votre demande. Fasthome doit maintenant effectuer sa validation.', object_type='VisitRequest', object_id=visit.visit_id)
+    staff(level='ACTION', title='Validation du bailleur à traiter', message='Le bailleur a accepté cette demande. Votre validation Fasthome est maintenant nécessaire.', object_type='VisitRequest', object_id=visit.visit_id)
 
 
 def visit_landlord_refused(visit):
-    staff(level='ACTION', title='Demande de visite refusée par le bailleur', message='Le bailleur a refusé une demande de visite. Consultez la demande pour traiter la suite.', object_type='VisitRequest', object_id=visit.visit_id)
+    notify(visit.requester, level='ACTION', title='Demande de visite refusée', message='Le bailleur a refusé votre demande de visite.', object_type='VisitRequest', object_id=visit.visit_id)
+    staff(level='INFO', title='Demande de visite refusée par le bailleur', message='Le bailleur a refusé cette demande de visite.', object_type='VisitRequest', object_id=visit.visit_id)
 
 
 def visit_fasthome_approved(visit):
+    notify(visit.requester, level='INFO', title='Validation Fasthome reçue', message='Fasthome a accepté la demande. La confirmation dépend des validations requises.', object_type='VisitRequest', object_id=visit.visit_id)
     notify(visit.property.owner, level='INFO', title='Validation Fasthome reçue', message='Fasthome a accepté la demande. La confirmation dépend des validations requises.', object_type='VisitRequest', object_id=visit.visit_id)
 
 
@@ -55,13 +59,15 @@ def visit_fasthome_refused(visit):
 
 
 def visit_confirmed(visit):
-    notify_ids([visit.requester_id, visit.property.owner_id, *_staff_ids()], level='SUCCESS', title='Visite définitivement confirmée', message='Le bailleur et Fasthome ont accepté la demande de visite.', object_type='VisitRequest', object_id=visit.visit_id)
+    notify_ids([visit.requester_id, visit.property.owner_id], level='SUCCESS', title='Visite définitivement confirmée', message='Le bailleur et Fasthome ont accepté la demande de visite.', object_type='VisitRequest', object_id=visit.visit_id)
+    staff(level='SUCCESS', title='Visite confirmée', message='La visite a reçu toutes les validations nécessaires.', object_type='VisitRequest', object_id=visit.visit_id)
 
 
 def visit_completed(visit):
     notify(visit.requester, level='SUCCESS', title='Visite effectuée', message='La visite du logement a été enregistrée par Fasthome.', object_type='VisitRequest', object_id=visit.visit_id)
 
 
+# PUBLICATIONS
 def publication_submitted(publication):
     staff(level='ACTION', title='Nouvelle publication à vérifier', message='Un logement vient d’être soumis et attend une vérification.', object_type='PropertyPublication', object_id=publication.publication_id)
 
@@ -78,6 +84,7 @@ def publication_rejected(publication, reason):
     notify(publication.property.owner, level='ACTION', title='Publication rejetée', message=f'Votre publication a été rejetée. Motif : {reason}', object_type='PropertyPublication', object_id=publication.publication_id)
 
 
+# KYC
 def verification_submitted(verification):
     staff(level='ACTION', title='Nouvelle vérification à traiter', message='Une nouvelle vérification d’identité est en attente.', object_type='IdentityVerification', object_id=verification.pk)
 
@@ -86,10 +93,19 @@ def verification_in_review(verification):
     notify(verification.user, level='INFO', title='Vérification en cours', message='Votre vérification d’identité est actuellement examinée par Fasthome.', object_type='IdentityVerification', object_id=verification.pk)
 
 
+def verification_document_verified(verification):
+    notify(verification.user, level='INFO', title='Pièce d’identité validée', message='Votre pièce d’identité a été validée. La vérification faciale reste à finaliser.', object_type='IdentityVerification', object_id=verification.pk)
+
+
 def verification_decided(verification, approved, reason=''):
-    notify(verification.user, level='SUCCESS' if approved else 'ACTION', title='Identité vérifiée' if approved else 'Vérification à corriger', message='Votre vérification d’identité a été validée.' if approved else f'Votre vérification nécessite une correction. {reason}'.strip(), object_type='IdentityVerification', object_id=verification.pk)
+    notify(verification.user, level='SUCCESS' if approved else 'ACTION', title='Identité certifiée' if approved else 'Vérification à corriger', message='Votre identité est maintenant certifiée sur Fasthome.' if approved else f'Votre vérification nécessite une correction. {reason}'.strip(), object_type='IdentityVerification', object_id=verification.pk)
 
 
+def verification_manual_review(verification):
+    staff(level='ACTION', title='Vérification humaine requise', message='Les contrôles automatiques demandent une vérification humaine.', object_type='IdentityVerification', object_id=verification.pk)
+
+
+# LOCATION / CONTRATS
 def rental_case_created(case):
     notify(case.tenant, level='INFO', title='Dossier de location créé', message='Votre dossier de location a été créé et sera traité par Fasthome.', object_type='RentalCase', object_id=case.case_id)
     staff(level='ACTION', title='Nouveau dossier de location', message='Un nouveau dossier de location nécessite un traitement.', object_type='RentalCase', object_id=case.case_id)
@@ -100,28 +116,44 @@ def rental_case_accepted(case):
 
 
 def contract_created(contract):
-    notify_ids([contract.lease.tenant_id, contract.lease.landlord_id], level='ACTION', title='Contrat disponible', message='Un contrat est disponible dans votre espace.', object_type='Contract', object_id=contract.contract_id)
+    notify(contract.lease.tenant, level='ACTION', title='Contrat disponible', message='Votre contrat est disponible dans votre espace et nécessite votre attention.', object_type='Contract', object_id=contract.contract_id)
+    notify(contract.lease.landlord, level='ACTION', title='Contrat disponible', message='Votre contrat est disponible dans votre espace et nécessite votre attention.', object_type='Contract', object_id=contract.contract_id)
 
 
 def contract_uploaded(contract):
-    staff(level='INFO', title='Contrat signé reçu', message='Un contrat signé vient d’être téléversé et doit être vérifié.', object_type='Contract', object_id=contract.contract_id)
+    staff(level='ACTION', title='Contrat signé reçu', message='Un contrat signé vient d’être téléversé et doit être vérifié.', object_type='Contract', object_id=contract.contract_id)
 
 
 def contract_validated(contract):
-    notify_ids([contract.lease.tenant_id, contract.lease.landlord_id], level='SUCCESS', title='Contrat validé', message='Le contrat a été vérifié et validé par Fasthome.', object_type='Contract', object_id=contract.contract_id)
+    notify(contract.lease.tenant, level='SUCCESS', title='Contrat validé', message='Le contrat a été vérifié et validé par Fasthome.', object_type='Contract', object_id=contract.contract_id)
+    notify(contract.lease.landlord, level='SUCCESS', title='Contrat validé', message='Le contrat a été vérifié et validé par Fasthome.', object_type='Contract', object_id=contract.contract_id)
 
 
 def contract_rejected(contract, reason=''):
-    notify_ids([contract.lease.tenant_id, contract.lease.landlord_id], level='ACTION', title='Contrat à corriger', message=f'Le contrat nécessite une correction. {reason}'.strip(), object_type='Contract', object_id=contract.contract_id)
+    notify(contract.lease.tenant, level='ACTION', title='Contrat à corriger', message=f'Le contrat nécessite une correction. {reason}'.strip(), object_type='Contract', object_id=contract.contract_id)
+    notify(contract.lease.landlord, level='ACTION', title='Contrat à corriger', message=f'Le contrat nécessite une correction. {reason}'.strip(), object_type='Contract', object_id=contract.contract_id)
 
 
 def inspection_validated(report):
-    notify_ids([report.lease.tenant_id, report.lease.landlord_id], level='SUCCESS', title='PV validé', message='Le procès-verbal a été validé par Fasthome.', object_type='InspectionReport', object_id=report.report_id)
+    notify(report.lease.tenant, level='SUCCESS', title='PV validé', message='Le procès-verbal d’entrée a été validé par Fasthome.', object_type='InspectionReport', object_id=report.report_id)
+    notify(report.lease.landlord, level='SUCCESS', title='PV validé', message='Le procès-verbal d’entrée a été validé par Fasthome.', object_type='InspectionReport', object_id=report.report_id)
 
 
 def payment_recorded(receipt):
-    notify(receipt.lease.tenant, level='SUCCESS', title='Paiement enregistré', message='Votre paiement a été enregistré dans le système Fasthome.', object_type='PaymentReceipt', object_id=receipt.pk)
-    notify(receipt.lease.landlord, level='INFO', title='Paiement reçu', message='Un paiement concernant votre logement a été enregistré.', object_type='PaymentReceipt', object_id=receipt.pk)
+    installment = receipt.installment
+    remaining = installment.remaining_to_receive()
+    if installment.status == 'PARTIAL':
+        title = 'Paiement partiel enregistré'
+        message = f'Un paiement de {receipt.amount} a été enregistré. Solde restant de l’échéance : {remaining}.'
+    elif installment.status == 'PAID':
+        title = 'Échéance entièrement réglée'
+        message = f'Le paiement de {receipt.amount} a soldé l’échéance. Prochaine échéance créée si nécessaire.'
+    else:
+        title = 'Paiement enregistré'
+        message = f'Un paiement de {receipt.amount} a été enregistré.'
+    notify(installment.lease.tenant, level='SUCCESS', title=title, message=message, object_type='PaymentReceipt', object_id=receipt.pk)
+    notify(installment.lease.landlord, level='INFO', title=title, message=message, object_type='PaymentReceipt', object_id=receipt.pk)
+    staff(level='INFO', title='Paiement enregistré', message=f'Paiement {receipt.payment_id} enregistré pour {installment.lease.lease_id}.', object_type='PaymentReceipt', object_id=receipt.pk)
 
 
 def payment_overdue(installment):
@@ -131,12 +163,19 @@ def payment_overdue(installment):
 
 
 def payout_completed(payout):
-    notify(payout.lease.landlord, level='SUCCESS', title='Versement effectué', message='Le versement concernant votre location a été enregistré.', object_type='LandlordPayout', object_id=payout.pk)
+    notify(payout.lease.landlord, level='SUCCESS', title='Versement effectué', message=f'Le versement de {payout.amount} concernant votre location a été enregistré.', object_type='LandlordPayout', object_id=payout.pk)
+    staff(level='INFO', title='Versement bailleur enregistré', message=f'Le versement {payout.payout_id} a été enregistré.', object_type='LandlordPayout', object_id=payout.pk)
 
 
+def lease_officialized(lease):
+    notify_ids([lease.tenant_id, lease.landlord_id], level='SUCCESS', title='Location officialisée', message=f'La location {lease.lease_id} est maintenant officielle.', object_type='Lease', object_id=lease.lease_id)
+    staff(level='SUCCESS', title='Location officialisée', message=f'La location {lease.lease_id} est maintenant active.', object_type='Lease', object_id=lease.lease_id)
+
+
+# CYCLE DE LOCATION
 def renewal_requested(renewal):
     notify(renewal.lease.landlord, level='ACTION', title='Demande de renouvellement', message=f'Une demande de renouvellement concerne la location {renewal.lease.lease_id}.', object_type='RenewalRequest', object_id=renewal.request_id)
-    staff(level='INFO', title='Nouvelle demande de renouvellement', message=f'Une demande de renouvellement concerne {renewal.lease.lease_id}.', object_type='RenewalRequest', object_id=renewal.request_id)
+    staff(level='ACTION', title='Nouvelle demande de renouvellement', message=f'Une demande de renouvellement concerne {renewal.lease.lease_id}.', object_type='RenewalRequest', object_id=renewal.request_id)
 
 
 def renewal_decided(renewal, approved):
@@ -146,13 +185,9 @@ def renewal_decided(renewal, approved):
 
 def exit_requested(exit_request):
     notify(exit_request.lease.landlord, level='ACTION', title='Demande de sortie', message=f'Une demande de sortie concerne la location {exit_request.lease.lease_id}.', object_type='LeaseExit', object_id=exit_request.exit_id)
-    staff(level='INFO', title='Nouvelle demande de sortie', message=f'Une demande de sortie concerne {exit_request.lease.lease_id}.', object_type='LeaseExit', object_id=exit_request.exit_id)
+    staff(level='ACTION', title='Nouvelle demande de sortie', message=f'Une demande de sortie concerne {exit_request.lease.lease_id}.', object_type='LeaseExit', object_id=exit_request.exit_id)
 
 
 def exit_decided(exit_request, approved):
     notify(exit_request.lease.tenant, level='SUCCESS' if approved else 'ACTION', title='Sortie validée' if approved else 'Sortie refusée', message='Votre demande de sortie a été validée.' if approved else 'Votre demande de sortie a été refusée.', object_type='LeaseExit', object_id=exit_request.exit_id)
     notify(exit_request.lease.landlord, level='INFO', title='Demande de sortie traitée', message='La demande de sortie a été traitée par Fasthome.', object_type='LeaseExit', object_id=exit_request.exit_id)
-
-
-def lease_officialized(lease):
-    notify_ids([lease.tenant_id, lease.landlord_id, *_staff_ids()], level='SUCCESS', title='Location officialisée', message=f'La location {lease.lease_id} est maintenant officielle.', object_type='Lease', object_id=lease.lease_id)
