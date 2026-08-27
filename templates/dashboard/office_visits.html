@@ -1,1 +1,27 @@
-{% extends 'base.html' %}{% block title %}Visites — Fasthome{% endblock %}{% block content %}<main class="container"><h1>📅 Visites</h1><div class="list">{% for v in visits %}<div class="list-item"><h3>{{ v.visit_id }}</h3><p>{{ v.property.property_id }} · {{ v.requested_date }} · {{ v.requested_time_slot }}</p><p>Fasthome : {% if v.fasthome_approved %}✓{% else %}en attente{% endif %} · Bailleur : {% if v.landlord_approved %}✓{% else %}en attente{% endif %}</p><p>Statut : {{ v.get_status_display }}</p>{% if v.status == 'REQUESTED' %}<form method="post" action="{% url 'office_approve_visit' v.visit_id %}">{% csrf_token %}<button class="btn btn-primary" name="action" value="approve">Valider côté Fasthome</button><button class="btn btn-light" name="action" value="refuse">Refuser</button></form>{% endif %}{% if v.status == 'CONFIRMED' %}<form method="post" action="{% url 'office_complete_visit' v.visit_id %}">{% csrf_token %}<button class="btn btn-primary">✓ Visite effectuée</button></form>{% endif %}</div>{% empty %}<p class="muted">Aucune demande.</p>{% endfor %}</div></main>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Visites — Fasthome{% endblock %}
+{% block content %}
+<main class="container office-page visits-page">
+  <div class="office-main">
+    <div class="office-top">
+      <div><span class="office-kicker">Planification opérationnelle</span><h1 class="office-title">Demandes de visite</h1><p class="office-subtitle">Traitez les demandes, contrôlez les deux validations et clôturez les visites effectuées.</p></div>
+      <div class="office-user"><div class="office-avatar">VIS</div><div><strong>Suivi des visites</strong><small>Processus Fasthome</small></div></div>
+    </div>
+    <section class="section-card visit-legend"><div><strong>Lecture rapide</strong><span>Une visite n'est confirmée qu'après validation de Fasthome et du bailleur.</span></div><div class="visit-flow"><span>Demande</span><b>→</b><span>Fasthome</span><b>→</b><span>Bailleur</span><b>→</b><span>Confirmée</span></div></section>
+    <div class="visit-list">
+    {% for v in visits %}
+      <article class="section-card visit-card">
+        <div class="visit-main">
+          <div class="visit-heading"><div><span class="verification-id">{{ v.visit_id }}</span><h2>{{ v.property.property_id }}</h2><p>Demandeur · {{ v.requester.get_full_name|default:v.requester.username }}</p></div><span class="visit-status visit-status-{{ v.status|lower }}">{{ v.get_status_display }}</span></div>
+          <div class="visit-meta"><div><small>Date</small><strong>{{ v.requested_date }}</strong></div><div><small>Créneau</small><strong>{{ v.requested_time_slot|default:'À définir' }}</strong></div><div><small>Demande créée</small><strong>{{ v.created_at|date:'d/m/Y H:i' }}</strong></div></div>
+          <div class="visit-checks"><div class="visit-check {% if v.fasthome_approved %}done{% endif %}"><span>{% if v.fasthome_approved %}✓{% else %}1{% endif %}</span><div><strong>Fasthome</strong><small>{% if v.fasthome_approved %}Validée{% else %}En attente{% endif %}</small></div></div><div class="visit-check {% if v.landlord_approved %}done{% endif %}"><span>{% if v.landlord_approved %}✓{% else %}2{% endif %}</span><div><strong>Bailleur</strong><small>{% if v.landlord_approved %}Validée{% else %}En attente{% endif %}</small></div></div></div>
+        </div>
+        <div class="visit-actions">
+          {% if v.status == 'REQUESTED' %}<form method="post" action="{% url 'office_approve_visit' v.visit_id %}">{% csrf_token %}<button class="btn btn-primary" name="action" value="approve">✓ Valider la demande</button><button class="btn btn-light" name="action" value="refuse">Refuser</button></form>{% elif v.status == 'CONFIRMED' %}<div class="visit-ready">✓ Visite confirmée</div><form method="post" action="{% url 'office_complete_visit' v.visit_id %}">{% csrf_token %}<button class="btn btn-primary">✓ Marquer effectuée</button></form>{% elif v.status == 'COMPLETED' %}<div class="visit-complete">✓ Visite effectuée{% if v.completed_at %}<small>le {{ v.completed_at|date:'d/m/Y H:i' }}</small>{% endif %}</div>{% endif %}
+        </div>
+      </article>
+    {% empty %}<section class="section-card matching-empty"><h2>Aucune demande de visite</h2><p class="muted">La file de visites est à jour.</p></section>{% endfor %}
+    </div>
+  </div>
+</main>
+{% endblock %}
