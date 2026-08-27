@@ -1,25 +1,24 @@
 {% extends 'base.html' %}
 {% block title %}Notifications — Fasthome{% endblock %}
 {% block content %}
-<main class="container">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px">
-    <div><h1 style="margin-bottom:6px">🔔 Notifications</h1><p class="muted" style="margin-top:0">Les événements importants de votre parcours Fasthome.</p></div>
-    {% if unread_count %}
-    <form method="post" action="{% url 'mark_all_notifications_read' %}">{% csrf_token %}<button class="btn btn-light" type="submit">Tout marquer comme lu ({{ unread_count }})</button></form>
-    {% endif %}
-  </div>
-  <div class="list">
-    {% for n in items %}
-    <div class="list-item" style="border-left:4px solid {% if n.level == 'ACTION' %}#c0392b{% elif n.level == 'SUCCESS' %}#2e7d32{% else %}#2471a3{% endif %};{% if not n.is_read %}box-shadow:0 0 0 1px var(--primary);{% endif %}">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="badge">{{ n.get_level_display }}</span>{% if not n.is_read %}<strong style="font-size:.8rem">● Non lue</strong>{% endif %}</div>
-      <h3 style="margin-bottom:6px">{{ n.title }}</h3><p>{{ n.message }}</p>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <small class="muted">{{ n.created_at|date:"d/m/Y à H:i" }}</small>
-        <form class="notification-open-form" method="post" action="{% url 'mark_notification_read' notification_id=n.notification_id %}" data-next="{{ n.action_url }}">{% csrf_token %}<button class="btn btn-outline" type="submit">{% if n.is_read %}Ouvrir{% else %}Voir{% endif %} →</button></form>
+<main class="container" style="padding:18px 10px 45px">
+  <section class="page-hero" style="margin-bottom:20px"><div class="actions"><div><span class="chip" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.18)">CENTRE D'INFORMATION</span><h1 style="color:#fff;margin:13px 0 7px">Vos notifications</h1><p style="margin:0">Les événements importants de votre parcours Fasthome, réunis au même endroit.</p></div><div style="font-size:2.4rem">🔔</div></div></section>
+  <section class="card" style="margin-bottom:18px"><div class="actions"><div><strong>{{ unread_count|default:0 }} notification{{ unread_count|default:0|pluralize }} à traiter</strong><p class="muted" style="margin:3px 0 0">Les messages non lus restent visuellement prioritaires.</p></div><span class="spacer"></span>{% if unread_count %}<form method="post" action="{% url 'mark_all_notifications_read' %}">{% csrf_token %}<button class="btn btn-light" type="submit">✓ Tout marquer comme lu</button></form>{% endif %}</div></section>
+  <section class="grid" style="gap:12px">
+  {% for n in items %}
+    <article class="notification-card {% if not n.is_read %}is-unread{% endif %}">
+      <div class="notification-dot" aria-hidden="true"></div>
+      <div>
+        <div class="actions"><span class="badge">{{ n.get_level_display }}</span>{% if not n.is_read %}<span class="status">● Nouvelle</span>{% endif %}</div>
+        <h3 style="margin:9px 0 5px">{{ n.title }}</h3>
+        <p style="margin:0">{{ n.message }}</p>
+        <div class="actions" style="margin-top:11px"><small class="muted">{{ n.created_at|date:"d/m/Y à H:i" }}</small><span class="spacer"></span><form class="notification-open-form" method="post" action="{% url 'mark_notification_read' notification_id=n.notification_id %}" data-next="{{ n.action_url }}">{% csrf_token %}<button class="btn btn-outline" type="submit">{% if n.is_read %}Ouvrir{% else %}Voir le détail{% endif %} →</button></form></div>
       </div>
-    </div>
-    {% empty %}<div class="list-item"><p class="muted">Aucune notification pour le moment.</p></div>{% endfor %}
-  </div>
+    </article>
+  {% empty %}
+    <div class="empty-state"><div style="font-size:2.2rem">✓</div><h2>Tout est calme</h2><p>Aucune notification pour le moment. Les nouveaux événements apparaîtront ici.</p></div>
+  {% endfor %}
+  </section>
 </main>
 <script>
 document.querySelectorAll('.notification-open-form').forEach(form=>form.addEventListener('submit',async event=>{event.preventDefault();const next=form.dataset.next||'{% url 'notifications' %}';try{await fetch(form.action,{method:'POST',body:new FormData(form),headers:{'X-Requested-With':'XMLHttpRequest'}})}finally{window.location.href=next}}));
