@@ -15,6 +15,17 @@
 <script src="{% static 'js/photo_upload.js' %}" defer></script>
 <script src="{% static 'js/property_draft.js' %}" defer></script>
 <script src="{% static 'js/native_camera.js' %}" defer></script>
+<script>
+/* Optimisation globale du rendu image : les images hors écran sont différées.
+   La première image de chaque galerie reste prioritaire pour éviter un flash vide. */
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('img').forEach((img,index)=>{
+    img.decoding='async';
+    if(!img.hasAttribute('loading')) img.loading='lazy';
+    if(index===0 && !img.hasAttribute('fetchpriority')) img.fetchPriority='high';
+  });
+});
+</script>
 </head>
 <body>
 <nav class="nav">
