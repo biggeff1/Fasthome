@@ -1,1 +1,24 @@
-{% extends 'base.html' %}{% block title %}Notifications — Fasthome{% endblock %}{% block content %}<main class="container"><h1>🔔 Notifications</h1><div class="list">{% for n in items %}<div class="list-item"><span class="badge">{{ n.get_level_display }}</span><h3>{{ n.title }}</h3><p>{{ n.message }}</p><small class="muted">{{ n.created_at }}</small></div>{% empty %}<p class="muted">Aucune notification.</p>{% endfor %}</div></main>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Notifications — Fasthome{% endblock %}
+{% block content %}
+<main class="container">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+    <div><h1 style="margin-bottom:6px">🔔 Notifications</h1><p class="muted" style="margin-top:0">Les événements importants de votre parcours Fasthome.</p></div>
+    {% if unread_count %}
+    <form method="post" action="{% url 'mark_all_notifications_read' %}">{% csrf_token %}<button class="btn btn-light" type="submit">Tout marquer comme lu ({{ unread_count }})</button></form>
+    {% endif %}
+  </div>
+  <div class="list">
+    {% for n in items %}
+    <div class="list-item" style="border-left:4px solid {% if n.level == 'ACTION' %}#c0392b{% elif n.level == 'SUCCESS' %}#2e7d32{% else %}#2471a3{% endif %};{% if not n.is_read %}box-shadow:0 0 0 1px var(--primary);{% endif %}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="badge">{{ n.get_level_display }}</span>{% if not n.is_read %}<strong style="font-size:.8rem">● Non lue</strong>{% endif %}</div>
+      <h3 style="margin-bottom:6px">{{ n.title }}</h3><p>{{ n.message }}</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <small class="muted">{{ n.created_at|date:"d/m/Y à H:i" }}</small>
+        <form method="post" action="{% url 'mark_notification_read' notification_id=n.notification_id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ n.action_url }}"><button class="btn btn-outline" type="submit">{% if n.is_read %}Ouvrir{% else %}Voir{% endif %} →</button></form>
+      </div>
+    </div>
+    {% empty %}<div class="list-item"><p class="muted">Aucune notification pour le moment.</p></div>{% endfor %}
+  </div>
+</main>
+{% endblock %}
