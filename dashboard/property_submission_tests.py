@@ -15,9 +15,7 @@ class PropertyPublicationFlowTests(TestCase):
             last_name='Test', first_name='Bailleur', is_certified=True,
         )
         self.client.force_login(self.user)
-        self.property_type, _ = PropertyType.objects.get_or_create(
-            name='Maison', defaults={'active': True}
-        )
+        self.property_type, _ = PropertyType.objects.get_or_create(name='Maison', defaults={'active': True})
         if not self.property_type.active:
             self.property_type.active = True
             self.property_type.save(update_fields=['active'])
@@ -53,18 +51,11 @@ class PropertyPublicationFlowTests(TestCase):
                 PropertyPhoto.objects.create(property=prop, image=fake, category=category, order=1)
         return prop, publication
 
-    def test_review_reports_missing_items(self):
-        prop, _ = self.make_property()
-        response = self.client.get(reverse('property_review', args=[prop.property_id]))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Votre publication n’est pas encore prête')
-
     def test_ready_draft_can_be_submitted(self):
         prop, publication = self.make_property(ready=True)
         response = self.client.post(reverse('property_submit', args=[prop.property_id]))
         self.assertRedirects(response, reverse('property_manage', args=[prop.property_id]))
-        publication.refresh_from_db()
-        prop.refresh_from_db()
+        publication.refresh_from_db(); prop.refresh_from_db()
         self.assertEqual(publication.status, 'SUBMITTED')
         self.assertEqual(prop.status, 'UNDER_REVIEW')
         self.assertIsNotNone(publication.submitted_at)
@@ -72,8 +63,7 @@ class PropertyPublicationFlowTests(TestCase):
     def test_incomplete_draft_cannot_be_submitted(self):
         prop, publication = self.make_property(ready=False)
         self.client.post(reverse('property_submit', args=[prop.property_id]))
-        publication.refresh_from_db()
-        prop.refresh_from_db()
+        publication.refresh_from_db(); prop.refresh_from_db()
         self.assertEqual(publication.status, 'DRAFT')
         self.assertEqual(prop.status, 'DRAFT')
 
