@@ -15,10 +15,13 @@
       <h3 style="margin-bottom:6px">{{ n.title }}</h3><p>{{ n.message }}</p>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <small class="muted">{{ n.created_at|date:"d/m/Y à H:i" }}</small>
-        <form method="post" action="{% url 'mark_notification_read' notification_id=n.notification_id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ n.action_url }}"><button class="btn btn-outline" type="submit">{% if n.is_read %}Ouvrir{% else %}Voir{% endif %} →</button></form>
+        <form class="notification-open-form" method="post" action="{% url 'mark_notification_read' notification_id=n.notification_id %}" data-next="{{ n.action_url }}">{% csrf_token %}<button class="btn btn-outline" type="submit">{% if n.is_read %}Ouvrir{% else %}Voir{% endif %} →</button></form>
       </div>
     </div>
     {% empty %}<div class="list-item"><p class="muted">Aucune notification pour le moment.</p></div>{% endfor %}
   </div>
 </main>
+<script>
+document.querySelectorAll('.notification-open-form').forEach(form=>form.addEventListener('submit',async event=>{event.preventDefault();const next=form.dataset.next||'{% url 'notifications' %}';try{await fetch(form.action,{method:'POST',body:new FormData(form),headers:{'X-Requested-With':'XMLHttpRequest'}})}finally{window.location.href=next}}));
+</script>
 {% endblock %}
