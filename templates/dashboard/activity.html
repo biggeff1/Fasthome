@@ -1,55 +1,51 @@
 {% extends 'base.html' %}
 {% block title %}Mon activité — Fasthome{% endblock %}
 {% block content %}
-<main class="container">
-  <h1>Mon activité</h1>
-  <section class="section"><div class="actions">
-    <a class="btn btn-primary" href="{% url 'my_properties' %}">🏠 Mes logements</a>
-    <a class="btn btn-light" href="{% url 'favorites' %}">❤️ Mes favoris</a>
-    <a class="btn btn-light" href="{% url 'matching' %}">🔎 Nouvelle recherche</a>
-    <a class="btn btn-light" href="{% url 'notifications' %}">🔔 Notifications</a>
-  </div></section>
+<main class="container" style="padding:18px 10px 45px">
+  <section class="page-hero" style="margin-bottom:20px">
+    <span class="chip" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.18)">MON ESPACE</span>
+    <h1 style="color:#fff;margin:13px 0 7px">Tout votre parcours, au même endroit.</h1>
+    <p style="margin:0">Visites, dossiers, contrats, favoris et logements : retrouvez rapidement ce qui demande votre attention.</p>
+  </section>
+
+  <section class="card" style="margin-bottom:20px">
+    <div class="actions"><div><h2 style="margin:0">Accès rapide</h2><p style="margin:4px 0 0">Les actions les plus utiles.</p></div><span class="spacer"></span><a class="btn btn-primary" href="{% url 'matching' %}">🔎 Nouvelle recherche</a></div>
+    <div class="grid grid-3" style="margin-top:16px">
+      <a class="card" style="padding:16px;text-decoration:none;color:inherit;box-shadow:none" href="{% url 'my_properties' %}"><strong>🏠 Mes logements</strong><p style="margin:5px 0 0">Gérer vos biens.</p></a>
+      <a class="card" style="padding:16px;text-decoration:none;color:inherit;box-shadow:none" href="{% url 'favorites' %}"><strong>❤️ Mes favoris</strong><p style="margin:5px 0 0">Vos logements enregistrés.</p></a>
+      <a class="card" style="padding:16px;text-decoration:none;color:inherit;box-shadow:none" href="{% url 'notifications' %}"><strong>🔔 Notifications</strong><p style="margin:5px 0 0">Vos informations importantes.</p></a>
+    </div>
+  </section>
 
   {% if landlord_visit_requests %}
-  <section class="section">
-    <h2>📅 Demandes de visite à traiter</h2>
-    <p class="muted">Consultez l’état de chaque demande. L’identité du demandeur reste masquée.</p>
-    <div class="grid">
-      {% for v in landlord_visit_requests %}
-      <article class="list-item">
-        <h3>Visite {{ v.visit_id }}</h3>
-        <p><strong>Logement :</strong> {{ v.property.property_id }}</p>
-        <p><strong>Date :</strong> {{ v.requested_date|date:"d/m/Y" }}</p>
-        {% if v.requested_time_slot %}<p><strong>Créneau :</strong> {{ v.requested_time_slot }}</p>{% endif %}
-        <p><strong>Votre validation :</strong> {% if v.landlord_approved %}Acceptée{% else %}En attente{% endif %}</p>
-        <p><strong>Validation Fasthome :</strong> {% if v.fasthome_approved %}Acceptée{% else %}En attente{% endif %}</p>
-        {% if v.status == 'CONFIRMED' %}
-          <p class="success"><strong>✓ Visite confirmée</strong></p>
-          <p class="muted">Les deux validations sont acceptées. La visite est définitivement confirmée par Fasthome.</p>
-        {% elif not v.landlord_approved and not v.fasthome_approved %}
-        <div class="actions">
-          <form method="post" action="{% url 'landlord_visit_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="approve"><button class="btn btn-primary" type="submit">✓ Accepter la visite</button></form>
-          <form method="post" action="{% url 'landlord_visit_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="refuse"><button class="btn btn-light" type="submit">✕ Refuser</button></form>
+  <section style="margin-bottom:22px">
+    <div class="actions"><div><h2 style="margin:0">Demandes de visite</h2><p class="muted" style="margin:4px 0">L'identité du demandeur reste masquée.</p></div></div>
+    <div class="grid" style="margin-top:14px">
+    {% for v in landlord_visit_requests %}
+      <article class="notification-card {% if v.status == 'CONFIRMED' %}is-unread{% endif %}">
+        <div class="notification-dot"></div><div>
+          <div class="actions"><strong>Visite {{ v.visit_id }}</strong><span class="spacer"></span><span class="status">{{ v.get_status_display }}</span></div>
+          <p style="margin:7px 0 3px">{{ v.property.property_id }} · {{ v.requested_date|date:"d/m/Y" }}{% if v.requested_time_slot %} · {{ v.requested_time_slot }}{% endif %}</p>
+          <p class="muted" style="margin:0;font-size:.86rem">Votre validation : {% if v.landlord_approved %}✓ Acceptée{% else %}En attente{% endif %} · Fasthome : {% if v.fasthome_approved %}✓ Acceptée{% else %}En attente{% endif %}</p>
+          {% if v.status == 'CONFIRMED' %}<p class="muted" style="margin:7px 0 0"><strong>✓ Visite confirmée.</strong> Les deux validations sont enregistrées.</p>{% elif not v.landlord_approved %}<div class="actions" style="margin-top:12px"><form method="post" action="{% url 'landlord_visit_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="approve"><button class="btn btn-primary" type="submit">✓ Accepter</button></form><form method="post" action="{% url 'landlord_visit_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="refuse"><button class="btn btn-light" type="submit">✕ Refuser</button></form></div>{% else %}<p class="muted" style="margin:8px 0 0">Votre décision est enregistrée. Fasthome doit encore valider.</p>{% endif %}
         </div>
-        {% elif not v.landlord_approved %}
-        <div class="actions">
-          <form method="post" action="{% url 'landlord_visit_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="approve"><button class="btn btn-primary" type="submit">✓ Accepter la visite</button></form>
-          <form method="post" action="{% url 'landlord_visit_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="refuse"><button class="btn btn-light" type="submit">✕ Refuser</button></form>
-        </div>
-        {% elif not v.fasthome_approved %}
-          <p class="muted">Votre décision est enregistrée. La validation Fasthome est encore en attente.</p>
-        {% endif %}
       </article>
-      {% endfor %}
-    </div>
+    {% endfor %}</div>
   </section>
   {% endif %}
 
-  <section class="section"><h2>🔎 Mes locations</h2><div class="grid">
-    <div class="list-item"><h3>Mes visites</h3>{% for v in visits %}<p><strong>{{ v.visit_id }}</strong> · {{ v.get_status_display }}</p>{% if v.status == 'COMPLETED' %}<form method="post" action="{% url 'tenant_decision' v.visit_id %}"><input type="hidden" name="action" value="take">{% csrf_token %}<button class="btn btn-primary">Prendre le logement</button></form><form method="post" action="{% url 'tenant_decision' v.visit_id %}"><input type="hidden" name="action" value="decline">{% csrf_token %}<button class="btn btn-light">Ne pas le prendre</button></form>{% endif %}{% empty %}<p class="muted">Aucune visite.</p>{% endfor %}</div>
-    <div class="list-item"><h3>Mes dossiers</h3>{% for c in cases %}<p>{{ c.case_id }} · {{ c.get_status_display }}</p>{% empty %}<p class="muted">Aucun dossier.</p>{% endfor %}</div>
-    <div class="list-item"><h3>Contrats actifs</h3>{% for l in leases %}<p><a href="{% url 'lease_detail' l.lease_id %}">{{ l.lease_id }}</a> · {{ l.get_status_display }}</p>{% empty %}<p class="muted">Aucune location.</p>{% endfor %}</div>
+  <section style="margin-bottom:22px"><h2>Mon parcours de location</h2><div class="grid grid-3" style="margin-top:14px">
+    <article class="stat-card"><span class="stat-label">VISITES</span><span class="stat-value">{{ visits|length }}</span><p style="margin:5px 0 0">Demandes et visites enregistrées.</p></article>
+    <article class="stat-card"><span class="stat-label">DOSSIERS</span><span class="stat-value">{{ cases|length }}</span><p style="margin:5px 0 0">Dossiers suivis par Fasthome.</p></article>
+    <article class="stat-card"><span class="stat-label">CONTRATS</span><span class="stat-value">{{ leases|length }}</span><p style="margin:5px 0 0">Locations associées à votre espace.</p></article>
   </div></section>
-  <section class="section"><h2>🏠 Mes logements</h2><p class="muted">La gestion détaillée de vos biens, de leurs publications, des photos et des demandes de visite se trouve dans <a href="{% url 'my_properties' %}">Mes logements</a>.</p><div class="actions" style="justify-content:flex-start"><a class="btn btn-primary" href="{% url 'my_properties' %}">Gérer mes logements</a></div></section>
+
+  <section><div class="grid grid-3">
+    <article class="card"><h3>🔎 Mes visites</h3>{% for v in visits %}<div class="notification-card" style="margin-top:10px;padding:12px;box-shadow:none"><div class="notification-dot"></div><div><strong>{{ v.visit_id }}</strong><p class="muted" style="margin:3px 0">{{ v.get_status_display }}</p>{% if v.status == 'COMPLETED' %}<div class="actions"><form method="post" action="{% url 'tenant_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="take"><button class="btn btn-primary" type="submit">Prendre</button></form><form method="post" action="{% url 'tenant_decision' v.visit_id %}">{% csrf_token %}<input type="hidden" name="action" value="decline"><button class="btn btn-light" type="submit">Ne pas prendre</button></form></div>{% endif %}</div></div>{% empty %}<p class="muted">Aucune visite.</p>{% endfor %}</article>
+    <article class="card"><h3>📁 Mes dossiers</h3>{% for c in cases %}<p><strong>{{ c.case_id }}</strong><br><span class="muted">{{ c.get_status_display }}</span></p>{% empty %}<p class="muted">Aucun dossier.</p>{% endfor %}</article>
+    <article class="card"><h3>📄 Contrats actifs</h3>{% for l in leases %}<p><a href="{% url 'lease_detail' l.lease_id %}"><strong>{{ l.lease_id }}</strong></a><br><span class="muted">{{ l.get_status_display }}</span></p>{% empty %}<p class="muted">Aucune location.</p>{% endfor %}</article>
+  </div></section>
+
+  <section class="card" style="margin-top:20px"><div class="actions"><div><h3 style="margin:0">🏠 Mes logements</h3><p class="muted" style="margin:5px 0 0">Gestion des biens, publications, photos et demandes.</p></div><span class="spacer"></span><a class="btn btn-primary" href="{% url 'my_properties' %}">Gérer mes logements →</a></div></section>
 </main>
 {% endblock %}
