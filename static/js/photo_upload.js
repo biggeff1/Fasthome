@@ -1,36 +1,147 @@
-/* Fasthome — upload photo mobile sans aperçu : 1 photo par zone, stockage temporaire IndexedDB. */
+/* Fasthome — upload mobile robuste : aucun aperçu ni traitement image côté navigateur. */
 (() => {
   'use strict';
-  const MAX_DIMENSION = 1280;
-  const JPEG_QUALITY = 0.68;
   const INPUT_SELECTOR = 'input[type="file"][name^="photos_"]';
   const ZONE_SELECTOR = '[data-photo-zone], .photo-slot';
-  const DB_NAME = 'fasthome-photo-cache-v4';
-  const STORE = 'photos';
-  const preparedKeys = new WeakMap();
-  let dbPromise;
+
   const zoneOf = input => input.closest(ZONE_SELECTOR) || input.parentElement;
   const allInputs = form => [...form.querySelectorAll(INPUT_SELECTOR)];
-  function openDB(){if(dbPromise)return dbPromise;dbPromise=new Promise((resolve,reject)=>{if(!('indexedDB'in window))return reject(new Error('IndexedDB indisponible'));const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('Stockage temporaire indisponible'))});return dbPromise}
-  async function dbPut(k,f){const db=await openDB();return new Promise((res,rej)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).put(f,k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}
-  async function dbGet(k){const db=await openDB();return new Promise((res,rej)=>{const r=db.transaction(STORE,'readonly').objectStore(STORE).get(k);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
-  async function dbDelete(k){if(!k)return;try{const db=await openDB();await new Promise((res,rej)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).delete(k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(_){} }
-  const newKey=()=>`${Date.now()}-${window.crypto&&crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)}`;
-  function styles(){if(document.getElementById('fh-photo-upload-css'))return;const s=document.createElement('style');s.id='fh-photo-upload-css';s.textContent=`
-    .fh-photo-counter{margin-top:10px;color:#18344d;font-size:.85rem;font-weight:800}.fh-photo-processing{margin-top:10px;padding:10px;border-radius:10px;background:#edf5ff;color:#18344d;font-size:.82rem;font-weight:800;text-align:center}.fh-photo-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}.fh-photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.fh-photo-action{border:0;border-radius:12px;padding:13px 8px;background:#edf2f7;color:#18344d;font-weight:800;cursor:pointer;min-height:48px}.fh-photo-upload-status{display:none;margin-top:14px;padding:14px;border-radius:12px;background:#eaf4ff;color:#18344d;font-weight:800;text-align:center}.fh-photo-upload-status.is-visible{display:block}.fh-photo-upload-track{height:9px;margin-top:10px;border-radius:999px;background:#dbe5ee;overflow:hidden}.fh-photo-upload-bar{height:100%;width:0%;border-radius:999px;background:#163a5f;transition:width .15s ease}.fh-photo-upload-percent{display:block;margin-top:7px;font-size:.82rem;font-weight:900}`;document.head.appendChild(s)}
-  async function compress(file){if(!file||!file.type?.startsWith('image/'))return file;let b=null,c=null;try{b=await createImageBitmap(file,{imageOrientation:'from-image'});const w=b.width||1,h=b.height||1,scale=Math.min(1,MAX_DIMENSION/Math.max(w,h));c=document.createElement('canvas');c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));const x=c.getContext('2d',{alpha:false});if(!x)throw Error('Canvas indisponible');x.drawImage(b,0,0,c.width,c.height);b.close();b=null;const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',JPEG_QUALITY));c.width=1;c.height=1;c=null;if(!blob)throw Error('Compression impossible');return new File([blob],`${(file.name||'photo').replace(/\.[^.]+$/,'')||'photo'}.jpg`,{type:'image/jpeg',lastModified:Date.now()})}finally{if(b)try{b.close()}catch(_){}if(c){c.width=1;c.height=1}}}
-  function message(zone,text){let n=zone.querySelector('.fh-photo-counter');if(!n){n=document.createElement('div');n.className='fh-photo-counter';zone.appendChild(n)}n.textContent=text}
-  function busy(zone,text){let n=zone.querySelector('.fh-photo-processing');if(!n){n=document.createElement('div');n.className='fh-photo-processing';zone.appendChild(n)}n.textContent=text}
-  function done(zone){zone.querySelector('.fh-photo-processing')?.remove()}
-  function canSelect(zone){const i=zone?.querySelector('input[name^="photos_"]');if(i&&preparedKeys.has(i)){message(zone,'✓ Une photo est déjà enregistrée pour cette zone');return false}return true}
-  async function prepare(input,file){const zone=zoneOf(input);if(!zone||!file||!canSelect(zone))return;busy(zone,'⏳ Préparation de la photo…');try{const compressed=await compress(file);const key=newKey();await dbPut(key,compressed);preparedKeys.set(input,key);input.value='';message(zone,'✓ Photo prête à être téléversée')}catch(_){input.value='';message(zone,'⚠️ Impossible de préparer la photo. Réessayez.')}finally{done(zone)}}
-  function cameraInput(original,zone){const i=document.createElement('input');i.type='file';i.accept='image/*';i.capture='environment';i.multiple=false;i.className='fh-photo-input';i.addEventListener('change',async()=>{const f=i.files?.[0];if(f)await prepare(original,f);i.value='';i.remove()},{once:true});zone.appendChild(i);return i}
-  function controls(form,input){const zone=zoneOf(input);if(!zone||zone.querySelector('.fh-photo-actions'))return;const a=document.createElement('div');a.className='fh-photo-actions';const cam=document.createElement('button');cam.type='button';cam.className='fh-photo-action';cam.textContent='📷 Appareil photo';cam.onclick=()=>{if(canSelect(zone))cameraInput(input,zone).click()};const pick=document.createElement('button');pick.type='button';pick.className='fh-photo-action';pick.textContent='📁 Choisir un fichier';pick.onclick=()=>{if(canSelect(zone)){input.multiple=false;input.click()}};a.append(cam,pick);input.parentNode.insertBefore(a,input);const label=[...zone.querySelectorAll('label')].find(x=>x.htmlFor===input.id);if(label)label.style.display='none'}
-  function bind(form,input){if(input.dataset.fhPhotoBound==='1'||input.dataset.fhCameraInput==='1')return;input.dataset.fhPhotoBound='1';input.multiple=false;input.removeAttribute('capture');input.accept='image/jpeg,image/png,image/webp,image/heic,image/heif';input.classList.add('fh-photo-input');controls(form,input);input.addEventListener('change',()=>{const f=input.files?.[0];if(f)prepare(input,f)});message(zoneOf(input),'Aucune photo sélectionnée')}
-  function status(form){let s=form.querySelector('.fh-photo-upload-status');if(s)return s;s=document.createElement('div');s.className='fh-photo-upload-status';s.innerHTML='<div class="fh-photo-upload-message"></div><div class="fh-photo-upload-track"><div class="fh-photo-upload-bar"></div></div><span class="fh-photo-upload-percent">0%</span>';form.appendChild(s);return s}
-  async function data(form){const d=new FormData(form);for(const i of allInputs(form))d.delete(i.name);for(const i of allInputs(form)){const k=preparedKeys.get(i);if(!k)continue;const f=await dbGet(k);if(f)d.append(i.name,f,f.name||`${i.name}.jpg`)}return d}
-  async function clear(form){for(const i of allInputs(form)){const k=preparedKeys.get(i);if(k)await dbDelete(k);preparedKeys.delete(i)}}
-  function submit(form){if(form.dataset.fhUploadBound==='1')return;form.dataset.fhUploadBound='1';form.addEventListener('submit',async e=>{const list=allInputs(form).filter(i=>preparedKeys.has(i));if(!list.length)return;e.preventDefault();const s=status(form),m=s.querySelector('.fh-photo-upload-message'),bar=s.querySelector('.fh-photo-upload-bar'),pct=s.querySelector('.fh-photo-upload-percent');s.classList.add('is-visible');m.textContent=`⏳ Téléversement de ${list.length} photo${list.length>1?'s':''}…`;try{const d=await data(form),x=new XMLHttpRequest();x.open(form.method||'POST',form.action||location.href,true);x.setRequestHeader('X-Requested-With','XMLHttpRequest');x.upload.onprogress=e=>{if(!e.lengthComputable)return;const v=Math.round(e.loaded/e.total*100);bar.style.width=`${v}%`;pct.textContent=`${v}%`;m.textContent=v<100?`⏳ Téléversement… ${v}%`:'⏳ Traitement par Fasthome…'};x.onload=async()=>{if(x.status>=200&&x.status<400){bar.style.width='100%';pct.textContent='100%';m.textContent='✓ Téléversement terminé.';await clear(form);location.href=x.responseURL||form.action||location.href}else{m.textContent='⚠️ Le téléversement a échoué. Réessayez.';pct.textContent='Échec'}};x.onerror=()=>{m.textContent='⚠️ Connexion interrompue. Réessayez.';pct.textContent='Échec'};x.send(d)}catch(_){m.textContent='⚠️ Impossible de préparer le téléversement. Réessayez.';pct.textContent='Échec'}})}
-  function init(){styles();document.querySelectorAll('form').forEach(f=>{allInputs(f).forEach(i=>bind(f,i));submit(f)});new MutationObserver(()=>document.querySelectorAll('form').forEach(f=>{allInputs(f).forEach(i=>bind(f,i));submit(f)})).observe(document.body,{childList:true,subtree:true})}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+
+  function styles() {
+    if (document.getElementById('fh-photo-upload-css')) return;
+    const s = document.createElement('style');
+    s.id = 'fh-photo-upload-css';
+    s.textContent = `
+      .fh-photo-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+      .fh-photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+      .fh-photo-action{border:0;border-radius:12px;padding:13px 8px;background:#edf2f7;color:#18344d;font-weight:800;cursor:pointer;min-height:48px}
+      .fh-photo-state{margin-top:10px;color:#18344d;font-size:.85rem;font-weight:800}
+      .fh-photo-upload-status{display:none;margin-top:14px;padding:14px;border-radius:12px;background:#eaf4ff;color:#18344d;font-weight:800;text-align:center}
+      .fh-photo-upload-status.is-visible{display:block}
+      .fh-photo-upload-track{height:9px;margin-top:10px;border-radius:999px;background:#dbe5ee;overflow:hidden}
+      .fh-photo-upload-bar{height:100%;width:0%;border-radius:999px;background:#163a5f;transition:width .15s ease}
+      .fh-photo-upload-percent{display:block;margin-top:7px;font-size:.82rem;font-weight:900}
+    `;
+    document.head.appendChild(s);
+  }
+
+  function state(zone, text) {
+    let n = zone.querySelector('.fh-photo-state');
+    if (!n) { n = document.createElement('div'); n.className = 'fh-photo-state'; zone.appendChild(n); }
+    n.textContent = text;
+  }
+
+  function hasPhoto(input) {
+    return !!(input && input.files && input.files.length);
+  }
+
+  function cameraInput(original, zone) {
+    const i = document.createElement('input');
+    i.type = 'file';
+    i.name = original.name;
+    i.accept = 'image/*';
+    i.capture = 'environment';
+    i.multiple = false;
+    i.className = 'fh-photo-input';
+    i.addEventListener('change', () => {
+      const file = i.files && i.files[0];
+      if (!file) { i.remove(); return; }
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        original.files = dt.files;
+        state(zone, '✓ Photo sélectionnée — prête à être téléversée');
+      } catch (_) {
+        state(zone, '✓ Photo sélectionnée — prête à être téléversée');
+      }
+      i.value = '';
+      i.remove();
+    }, {once:true});
+    zone.appendChild(i);
+    return i;
+  }
+
+  function controls(form, input) {
+    const zone = zoneOf(input);
+    if (!zone || zone.querySelector('.fh-photo-actions')) return;
+    const actions = document.createElement('div');
+    actions.className = 'fh-photo-actions';
+
+    const camera = document.createElement('button');
+    camera.type = 'button';
+    camera.className = 'fh-photo-action';
+    camera.textContent = '📷 Appareil photo';
+    camera.addEventListener('click', () => {
+      if (hasPhoto(input)) { state(zone, '✓ Une photo est déjà sélectionnée pour cette zone'); return; }
+      cameraInput(input, zone).click();
+    });
+
+    const picker = document.createElement('button');
+    picker.type = 'button';
+    picker.className = 'fh-photo-action';
+    picker.textContent = '📁 Choisir un fichier';
+    picker.addEventListener('click', () => {
+      if (hasPhoto(input)) { state(zone, '✓ Une photo est déjà sélectionnée pour cette zone'); return; }
+      input.click();
+    });
+
+    actions.append(camera, picker);
+    input.parentNode.insertBefore(actions, input);
+    const label = [...zone.querySelectorAll('label')].find(x => x.htmlFor === input.id);
+    if (label) label.style.display = 'none';
+  }
+
+  function bind(form, input) {
+    if (input.dataset.fhPhotoBound === '1') return;
+    input.dataset.fhPhotoBound = '1';
+    input.multiple = false;
+    input.removeAttribute('capture');
+    input.accept = 'image/jpeg,image/png,image/webp,image/heic,image/heif';
+    input.classList.add('fh-photo-input');
+    controls(form, input);
+    input.addEventListener('change', () => {
+      if (hasPhoto(input)) state(zoneOf(input), '✓ Photo sélectionnée — prête à être téléversée');
+    });
+    state(zoneOf(input), 'Aucune photo sélectionnée');
+  }
+
+  function createStatus(form) {
+    let status = form.querySelector('.fh-photo-upload-status');
+    if (status) return status;
+    status = document.createElement('div');
+    status.className = 'fh-photo-upload-status';
+    status.innerHTML = '<div class="fh-photo-upload-message"></div><div class="fh-photo-upload-track"><div class="fh-photo-upload-bar"></div></div><span class="fh-photo-upload-percent">0%</span>';
+    form.appendChild(status);
+    return status;
+  }
+
+  function submitProgress(form) {
+    if (form.dataset.fhPhotoSubmitBound === '1') return;
+    form.dataset.fhPhotoSubmitBound = '1';
+    form.addEventListener('submit', () => {
+      const count = allInputs(form).filter(hasPhoto).length;
+      if (!count) return;
+      const status = createStatus(form);
+      status.classList.add('is-visible');
+      status.querySelector('.fh-photo-upload-message').textContent = `⏳ Téléversement de ${count} photo${count > 1 ? 's' : ''}…`;
+      status.querySelector('.fh-photo-upload-percent').textContent = 'Envoi en cours…';
+    });
+  }
+
+  function init() {
+    styles();
+    document.querySelectorAll('form').forEach(form => {
+      allInputs(form).forEach(input => bind(form, input));
+      submitProgress(form);
+    });
+    new MutationObserver(() => {
+      document.querySelectorAll('form').forEach(form => {
+        allInputs(form).forEach(input => bind(form, input));
+        submitProgress(form);
+      });
+    }).observe(document.body, {childList:true, subtree:true});
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
