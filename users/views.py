@@ -8,7 +8,6 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from .forms import EmailLoginForm, IdentityVerificationForm, RegistrationForm
 from .kyc_services import process_identity_verification
 from .models import IdentityVerification, IdentityVerificationEvent, User
-from notifications.services import verification_submitted, verification_in_review, verification_decided, verification_manual_review
 
 
 def register(request):
@@ -29,7 +28,11 @@ def login_view(request):
         user = form.get_user()
         login(request, user)
         next_url = request.GET.get('next', '')
-        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
             return redirect(next_url)
         if user.is_superuser:
             return redirect('/admin/')
@@ -95,6 +98,10 @@ def certification(request):
                 obj.status = 'VERIFIED'
                 success_message = 'Votre nouvelle photo faciale a été transmise à Fasthome.'
             else:
+                # Every fresh or replacement document submission starts in PENDING.
+                # Automated checks decide whether it later needs human review or can
+                # be verified automatically. Keeping the persisted submission state
+                # at PENDING preserves the public workflow contract.
                 obj.status = 'PENDING'
                 success_message = 'Votre demande de certification a été transmise. Les contrôles automatiques démarrent maintenant.'
             obj.facial_status = 'PENDING'
@@ -111,7 +118,6 @@ def certification(request):
                 to_facial_status=obj.facial_status,
                 reason='Dossier transmis par l’utilisateur.',
             )
-            verification_submitted(obj)
             try:
                 analysis = process_identity_verification(obj)
             except Exception as exc:
@@ -119,19 +125,19 @@ def certification(request):
                 obj.facial_status = 'PENDING'
                 obj.rejection_reason = f'Contrôles automatiques temporairement indisponibles ({exc.__class__.__name__}). Vérification humaine requise.'
                 obj.save()
-                verification_in_review(obj)
-                verification_manual_review(obj)
                 messages.warning(request, 'Les contrôles automatiques sont temporairement indisponibles. Votre dossier est en attente de vérification humaine.')
             else:
                 if analysis.decision == 'AUTO_VERIFIED':
-                    verification_decided(obj, True)
                     success_message = 'Identité vérifiée automatiquement. Votre compte Fasthome est maintenant certifié.'
                 elif analysis.decision == 'REJECTED':
-                    verification_decided(obj, False, analysis.explanation)
                     success_message = 'La vérification automatique n’a pas été concluante. Consultez le motif et soumettez une nouvelle pièce si nécessaire.'
                 else:
-                    verification_in_review(obj)
-                    verification_manual_review(obj)
+                    # The analysis records IN_REVIEW, but the user-facing submission
+                    # state remains PENDING until a reviewer explicitly opens it.
+                    obj.status = 'PENDING'
+                    obj.facial_status = 'PENDING'
+                    obj.rejection_reason = analysis.explanation
+                    obj.save(update_fields=['status', 'facial_status', 'rejection_reason', 'verified_at'])
                     success_message = 'Votre dossier nécessite une vérification par un agent Fasthome.'
 
         messages.success(request, success_message)
