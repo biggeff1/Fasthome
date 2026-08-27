@@ -42,24 +42,24 @@ def _ensure_next_installment(lease, from_installment=None):
 
 @login_required
 def favorites(request):
-    return render(request, 'dashboard/favorites.html', {'items': Favorite.objects.filter(user=request.user).select_related('property', 'property__property_type').order_by('-created_at')})
+    items = (Favorite.objects.filter(user=request.user)
+             .select_related('property', 'property__property_type', 'property__owner')
+             .prefetch_related('property__photos')
+             .order_by('-created_at'))
+    return render(request, 'dashboard/favorites.html', {'items': items})
 
 
 @login_required
 @require_POST
 def toggle_favorite(request, property_id):
-    prop = get_object_or_404(Property, property_id=property_id)
+    prop = get_object_or_404(Property.objects.only('pk', 'property_id'), property_id=property_id)
     favorite, created = Favorite.objects.get_or_create(user=request.user, property=prop)
     if not created:
         favorite.delete()
-
     liked = created
-    # Les cartes de la page d'accueil utilisent une requête AJAX : le cœur
-    # doit changer d'état immédiatement, sans recharger ni déplacer la page.
     wants_json = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', '')
     if wants_json:
         return JsonResponse({'success': True, 'liked': liked, 'property_id': prop.property_id})
-
     messages.success(request, 'Logement ajouté aux favoris.' if liked else 'Logement retiré des favoris.')
     return redirect(request.POST.get('next') or request.META.get('HTTP_REFERER') or 'home')
 
@@ -73,20 +73,44 @@ def notifications(request):
 
 @login_required
 def activity(request):
-    return render(request, 'dashboard/activity.html', {'visits': request.user.visit_requests.select_related('property', 'property__property_type').order_by('-created_at')[:20], 'landlord_visit_requests': VisitRequest.objects.filter(property__owner=request.user, status='REQUESTED').select_related('property').order_by('-created_at')[:20], 'cases': request.user.rental_cases_as_tenant.select_related('property').order_by('-created_at')[:20], 'leases': request.user.leases_as_tenant.select_related('property').order_by('-created_at')[:20], 'properties': request.user.properties.select_related('property_type', 'publication').order_by('-created_at')[:20], 'landlord_leases': request.user.leases_as_landlord.select_related('property').order_by('-created_at')[:20]})
+    visits = request.user.visit_requests.select_related('property', 'property__property_type').prefetch_related('property__photos').order_by('-created_at')[:20]
+    landlord_visits = VisitRequest.objects.filter(property__owner=request.user, status='REQUESTED').select_related('property', 'property__property_type').order_by('-created_at')[:20]
+    cases = request.user.rental_cases_as_tenant.select_related('property', 'property__property_type', 'visit').order_by('-created_at')[:20]
+    leases = request.user.leases_as_tenant.select_related('property', 'property__property_type', 'landlord').order_by('-created_at')[:20]
+    properties = request.user.properties.select_related('property_type', 'publication').prefetch_related('photos').order_by('-created_at')[:20]
+    landlord_leases = request.user.leases_as_landlord.select_related('property', 'property__property_type', 'tenant').order_by('-created_at')[:20]
+    return render(request, 'dashboard/activity.html', {
+        'visits': visits, 'landlord_visit_requests': landlord_visits, 'cases': cases,
+        'leases': leases, 'properties': properties, 'landlord_leases': landlord_leases,
+    })
 
 
 @login_required
 def lease_detail(request, lease_id):
-    lease = get_object_or_404(Lease.objects.select_related('property', 'tenant', 'landlord'), lease_id=lease_id)
+    lease = get_object_or_404(Lease.objects.select_related('property', 'property__property_type', 'tenant', 'landlord'), lease_id=lease_id)
     if not (request.user.is_staff or request.user.is_superuser or request.user.pk in {lease.tenant_id, lease.landlord_id}):
         return redirect('activity')
-    return render(request, 'dashboard/lease_detail.html', {'lease': lease, 'contracts': lease.contracts.all(), 'reports': lease.inspection_reports.all(), 'installments': lease.installments.order_by('due_date'), 'receipts': lease.payment_receipts.order_by('-received_at'), 'payouts': lease.landlord_payouts.order_by('-paid_at')})
+    contracts = lease.contracts.all().select_related('lease')
+    reports = lease.inspection_reports.all().select_related('property')
+    installments = lease.installments.all().order_by('due_date')
+    receipts = lease.payment_receipts.all().order_by('-received_at')
+    payouts = lease.landlord_payouts.all().order_by('-paid_at')
+    return render(request, 'dashboard/lease_detail.html', {'lease': lease, 'contracts': contracts, 'reports': reports, 'installments': installments, 'receipts': receipts, 'payouts': payouts})
 
 
 @staff_required
 def office_dashboard(request):
-    return render(request, 'dashboard/office.html', {'pending_publications': Property.objects.filter(publication__status__in=['SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED']).count(), 'pending_verifications': IdentityVerification.objects.filter(status__in=['PENDING', 'IN_REVIEW', 'RETRY']).count(), 'pending_visits': VisitRequest.objects.filter(status='REQUESTED').count(), 'cases': RentalCase.objects.filter(status__in=['OPEN', 'UNDER_REVIEW']).count(), 'pending_contracts': Contract.objects.filter(status__in=['PENDING', 'UPLOADED']).count(), 'pending_reports': InspectionReport.objects.filter(status='DRAFT').count(), 'lifecycle_requests': RenewalRequest.objects.filter(status='REQUESTED').count() + LeaseExit.objects.filter(status='REQUESTED').count(), 'payments': PaymentReceipt.objects.count(), 'payouts': LandlordPayout.objects.count(), 'is_admin': request.user.is_superuser})
+    return render(request, 'dashboard/office.html', {
+        'pending_publications': Property.objects.filter(publication__status__in=['SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED']).count(),
+        'pending_verifications': IdentityVerification.objects.filter(status__in=['PENDING', 'IN_REVIEW', 'RETRY']).count(),
+        'pending_visits': VisitRequest.objects.filter(status='REQUESTED').count(),
+        'cases': RentalCase.objects.filter(status__in=['OPEN', 'UNDER_REVIEW']).count(),
+        'pending_contracts': Contract.objects.filter(status__in=['PENDING', 'UPLOADED']).count(),
+        'pending_reports': InspectionReport.objects.filter(status='DRAFT').count(),
+        'lifecycle_requests': RenewalRequest.objects.filter(status='REQUESTED').count() + LeaseExit.objects.filter(status='REQUESTED').count(),
+        'payments': PaymentReceipt.objects.count(), 'payouts': LandlordPayout.objects.count(),
+        'is_admin': request.user.is_superuser,
+    })
 
 
 @admin_required
@@ -107,8 +131,7 @@ def office_approve_visit(request, visit_id):
             visit.save(update_fields=['fasthome_approved', 'status'])
         elif request.POST.get('action') == 'refuse':
             visit.status = 'REFUSED'; visit.save(update_fields=['status'])
-        else:
-            messages.error(request, 'Action invalide.'); return redirect('office_visits')
+        else: messages.error(request, 'Action invalide.'); return redirect('office_visits')
         Notification.objects.create(recipient=visit.requester, level='INFO', title='Mise à jour de votre demande de visite', message='Votre demande de visite a été mise à jour par Fasthome.', object_type='VisitRequest', object_id=visit.visit_id)
     return redirect('office_visits')
 
@@ -125,11 +148,15 @@ def office_complete_visit(request, visit_id):
 
 
 @staff_required
-def office_visits(request): return render(request, 'dashboard/office_visits.html', {'visits': VisitRequest.objects.select_related('property').order_by('-created_at')})
+def office_visits(request):
+    visits = VisitRequest.objects.select_related('property', 'property__property_type', 'requester').prefetch_related('property__photos').order_by('-created_at')
+    return render(request, 'dashboard/office_visits.html', {'visits': visits})
 
 
 @staff_required
-def office_cases(request): return render(request, 'dashboard/office_cases.html', {'cases': RentalCase.objects.select_related('property', 'tenant', 'visit').order_by('-created_at')})
+def office_cases(request):
+    cases = RentalCase.objects.select_related('property', 'property__property_type', 'tenant', 'visit').order_by('-created_at')
+    return render(request, 'dashboard/office_cases.html', {'cases': cases})
 
 
 @staff_required
@@ -137,31 +164,23 @@ def office_cases(request): return render(request, 'dashboard/office_cases.html',
 def office_accept_case(request, case_id):
     with transaction.atomic():
         case = get_object_or_404(RentalCase.objects.select_for_update().select_related('property', 'tenant', 'visit'), case_id=case_id)
-        if case.status not in {'OPEN', 'UNDER_REVIEW'} or case.visit.status != 'COMPLETED':
-            messages.error(request, 'Ce dossier n’est pas éligible à la contractualisation.')
-            return redirect('office_cases')
-
+        if case.status not in {'OPEN', 'UNDER_REVIEW'} or case.visit.status != 'COMPLETED': messages.error(request, 'Ce dossier n’est pas éligible à la contractualisation.'); return redirect('office_cases')
         property_obj = Property.objects.select_for_update().select_related('owner').get(pk=case.property_id)
         active_lease_exists = Lease.objects.filter(property_id=property_obj.pk, status__in=['PENDING', 'ACTIVE', 'RENEWAL', 'TERMINATION']).exists()
-        if active_lease_exists:
-            messages.error(request, 'Ce logement fait déjà l’objet d’une location en cours de contractualisation ou active.')
-            return redirect('office_cases')
-
-        lease, _ = Lease.objects.select_for_update().get_or_create(
-            rental_case=case,
-            defaults={'property': property_obj, 'tenant': case.tenant, 'landlord': property_obj.owner, 'monthly_rent': property_obj.monthly_rent or Decimal('0'), 'guarantee_amount': property_obj.guarantee_amount, 'status': 'PENDING'},
-        )
+        if active_lease_exists: messages.error(request, 'Ce logement fait déjà l’objet d’une location en cours de contractualisation ou active.'); return redirect('office_cases')
+        lease, _ = Lease.objects.select_for_update().get_or_create(rental_case=case, defaults={'property': property_obj, 'tenant': case.tenant, 'landlord': property_obj.owner, 'monthly_rent': property_obj.monthly_rent or Decimal('0'), 'guarantee_amount': property_obj.guarantee_amount, 'status': 'PENDING'})
         Contract.objects.get_or_create(lease=lease, contract_type='TENANT')
         Contract.objects.get_or_create(lease=lease, contract_type='LANDLORD')
         InspectionReport.objects.get_or_create(lease=lease, property=lease.property, report_type='ENTRY', defaults={'status': 'DRAFT'})
-        case.status = 'CONTRACTING'
-        case.save(update_fields=['status'])
+        case.status = 'CONTRACTING'; case.save(update_fields=['status'])
         Notification.objects.create(recipient=case.tenant, level='ACTION', title='Contrats en préparation', message=f'Les contrats de la location {lease.lease_id} sont en préparation.', object_type='Lease', object_id=lease.lease_id)
     return redirect('office_cases')
 
 
 @staff_required
-def office_contracts(request): return render(request, 'dashboard/office_contracts.html', {'contracts': Contract.objects.select_related('lease', 'lease__property').order_by('-contract_id')})
+def office_contracts(request):
+    contracts = Contract.objects.select_related('lease', 'lease__property', 'lease__property__property_type', 'lease__tenant', 'lease__landlord').order_by('-contract_id')
+    return render(request, 'dashboard/office_contracts.html', {'contracts': contracts})
 
 
 @staff_required
@@ -187,7 +206,9 @@ def office_contract_validate(request, contract_id):
 
 
 @staff_required
-def office_reports(request): return render(request, 'dashboard/office_reports.html', {'reports': InspectionReport.objects.select_related('lease', 'property').order_by('-created_at')})
+def office_reports(request):
+    reports = InspectionReport.objects.select_related('lease', 'lease__property', 'property', 'property__property_type').order_by('-created_at')
+    return render(request, 'dashboard/office_reports.html', {'reports': reports})
 
 
 @staff_required
@@ -220,11 +241,7 @@ def office_receipt(request):
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
             installment = RentInstallment.objects.select_for_update().get(pk=form.cleaned_data['installment'].pk)
-            receipt = form.save(commit=False)
-            receipt.installment = installment
-            receipt.lease = installment.lease
-            receipt.recorded_by = request.user
-            receipt.save()
+            receipt = form.save(commit=False); receipt.installment = installment; receipt.lease = installment.lease; receipt.recorded_by = request.user; receipt.save()
             installment.refresh_from_db()
             if installment.status == 'PAID': _ensure_next_installment(installment.lease, installment)
         return redirect('office_dashboard')
