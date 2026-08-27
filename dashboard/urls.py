@@ -3,6 +3,7 @@ from . import views
 from . import property_views
 from . import contract_views
 from . import publication_views, verification_views, lease_lifecycle_views
+from visits import views as visit_views
 
 urlpatterns = [
     path('', views.activity, name='activity'),
@@ -17,6 +18,10 @@ urlpatterns = [
     path('notifications/<str:notification_id>/read/', views.mark_notification_read, name='mark_notification_read'),
     path('notifications/read-all/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
     path('notifications/unread-count/', views.notification_unread_count, name='notification_unread_count'),
+    path('visits/<str:visit_id>/landlord-decision/', visit_views.landlord_visit_decision, name='landlord_visit_decision'),
+    path('visits/<str:visit_id>/fasthome-decision/', visit_views.fasthome_visit_decision, name='fasthome_visit_decision'),
+    path('visits/<str:visit_id>/complete/', visit_views.mark_visit_completed, name='mark_visit_completed'),
+    path('visits/<str:visit_id>/tenant-decision/', visit_views.tenant_decision, name='tenant_decision'),
     path('leases/<str:lease_id>/', views.lease_detail, name='lease_detail'),
     path('leases/<str:lease_id>/requests/', lease_lifecycle_views.lease_requests, name='lease_requests'),
     path('leases/<str:lease_id>/renew/', lease_lifecycle_views.request_renewal, name='request_renewal'),
