@@ -46,6 +46,7 @@ TEMPLATES = [{
         'django.template.context_processors.request',
         'django.contrib.auth.context_processors.auth',
         'django.contrib.messages.context_processors.messages',
+        'dashboard.context_processors.notification_context',
     ]},
 }]
 WSGI_APPLICATION = 'config.wsgi.application'
@@ -104,8 +105,6 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(50 * 1024 * 1024)))
 FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('FILE_UPLOAD_MAX_MEMORY_SIZE', str(10 * 1024 * 1024)))
 
-# GitHub Codespaces serves the project through a dynamic *.app.github.dev
-# origin. Also trust the local HTTPS origin used by the development server.
 CSRF_TRUSTED_ORIGINS = [
     'https://*.app.github.dev',
     'https://localhost:8000',
@@ -126,6 +125,8 @@ else:
     SECURE_SSL_REDIRECT = os.getenv('DJANGO_SECURE_SSL_REDIRECT', '1') == '1'
     SECURE_HSTS_SECONDS = int(os.getenv('DJANGO_HSTS_SECONDS', '31536000'))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_HSTS_SECONDS = int(os.getenv('DJANGO_HSTS_SECONDS', '31536000'))
     SECURE_HSTS_PRELOAD = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
