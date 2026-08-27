@@ -5,8 +5,9 @@ from django.core.files.base import ContentFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 
-MAX_PER_ZONE = 5
-MAX_TOTAL = 40
+# A publication can contain as many declared zones as needed.
+# The only upload limit is one photo for each zone/piece.
+MAX_PER_ZONE = 1
 MAX_DIMENSION = 1600
 WEBP_QUALITY = 74
 MAX_IMAGE_BYTES = 1_000_000
@@ -38,35 +39,37 @@ def _compress(uploaded):
 
 
 def save_photos(prop, request, post):
-    """Save up to five photos per zone and forty photos per property."""
+    """Save one photo maximum for each declared zone, with no global cap."""
     from . import views
+
     uploads_by_slot = []
-    total_new = 0
     for slot_key, label, category, room_number in views._photo_slots(post):
         files = request.FILES.getlist(f'photos_{slot_key}')
         if len(files) > MAX_PER_ZONE:
-            raise ValidationError(f'{label} : maximum {MAX_PER_ZONE} photos.')
+            raise ValidationError(f'{label} : maximum {MAX_PER_ZONE} photo.')
         if files:
             uploads_by_slot.append((label, category, room_number, files))
-            total_new += len(files)
-    if not total_new:
-        return
-    existing_total = prop.photos.count()
-    if existing_total + total_new > MAX_TOTAL:
-        raise ValidationError(f'Maximum {MAX_TOTAL} photos par logement.')
+
     for label, category, room_number, files in uploads_by_slot:
         existing_slot = prop.photos.filter(category=category, order=room_number).count()
         if existing_slot + len(files) > MAX_PER_ZONE:
-            raise ValidationError(f'{label} : il reste seulement {MAX_PER_ZONE - existing_slot} emplacement(s) photo.')
+            raise ValidationError(
+                f'{label} : il reste seulement {MAX_PER_ZONE - existing_slot} emplacement photo.'
+            )
+
+    for _label, category, room_number, files in uploads_by_slot:
         for image in files:
             optimized = _compress(image)
-            prop.photos.create(image=optimized, category=category, order=room_number, is_primary=(existing_total == 0))
-            existing_total += 1
+            prop.photos.create(
+                image=optimized,
+                category=category,
+                order=room_number,
+                is_primary=not prop.photos.exists(),
+            )
 
 
 def install():
     """Install the photo policy in the existing publication workflow."""
     from . import views
     views.PHOTO_MAX_PER_ROOM = MAX_PER_ZONE
-    views.PHOTO_MAX_TOTAL = MAX_TOTAL
     views._save_photos = save_photos
