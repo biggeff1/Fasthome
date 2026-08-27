@@ -33,8 +33,8 @@ class ReceiptForm(forms.Form):
 class PayoutForm(forms.Form):
     lease = forms.ModelChoiceField(queryset=Lease.objects.select_related('property').all())
     installment = forms.ModelChoiceField(queryset=RentInstallment.objects.select_related('lease').all())
-    amount = forms.DecimalField(min_value=Decimal('0.01'), max_digits=14, decimal_places=2)
-    paid_at = forms.DateTimeField(initial=timezone.now)
+    amount = forms.DecimalField(min_value=Decimal('0.01'), max_digits=14, decimal_places=2, help_text='Le montant doit correspondre à 100 % de l’échéance. Fasthome ne fractionne pas le versement.')
+    paid_at = forms.DateTimeField(initial=timezone.now, help_text='Le versement doit être effectué au plus tard à la date d’échéance.')
     reference = forms.CharField(required=False, max_length=100)
 
     def clean(self):
@@ -42,11 +42,14 @@ class PayoutForm(forms.Form):
         lease = cleaned.get('lease')
         installment = cleaned.get('installment')
         amount = cleaned.get('amount')
+        paid_at = cleaned.get('paid_at')
         if lease and installment and installment.lease_id != lease.id:
             raise forms.ValidationError('La location et l’échéance ne correspondent pas.')
-        if installment and amount:
-            received = sum((p.amount for p in PaymentReceipt.objects.filter(installment=installment)), Decimal('0'))
-            already_paid = sum((p.amount for p in LandlordPayout.objects.filter(installment=installment)), Decimal('0'))
-            if already_paid + amount > received:
-                raise forms.ValidationError('Le versement au bailleur ne peut pas dépasser les montants réellement reçus par Fasthome.')
+        if installment:
+            if amount is not None and amount != installment.amount_due:
+                raise forms.ValidationError('Fasthome doit verser au bailleur 100 % du montant de l’échéance, en une seule fois.')
+            if paid_at and paid_at.date() > installment.due_date:
+                raise forms.ValidationError('Le versement au bailleur doit être effectué au plus tard à la date d’échéance.')
+            if LandlordPayout.objects.filter(installment=installment).exists():
+                raise forms.ValidationError('Cette échéance a déjà été versée au bailleur. Aucun second versement n’est autorisé.')
         return cleaned
