@@ -16,6 +16,7 @@ from contracts.models import Contract
 from inspections.models import InspectionReport
 from payments.models import PaymentReceipt, LandlordPayout, RentInstallment
 from notifications.models import Notification
+from notifications.services import contract_created, contract_uploaded, contract_validated, inspection_validated, payment_recorded, payout_completed, lease_officialized, rental_case_accepted
 from users.models import IdentityVerification, User
 from .office_forms import ReceiptForm, PayoutForm
 
@@ -192,11 +193,13 @@ def office_accept_case(request, case_id):
         active_lease_exists = Lease.objects.filter(property_id=property_obj.pk, status__in=['PENDING', 'ACTIVE', 'RENEWAL', 'TERMINATION']).exists()
         if active_lease_exists: messages.error(request, 'Ce logement fait déjà l’objet d’une location en cours de contractualisation ou active.'); return redirect('office_cases')
         lease, _ = Lease.objects.select_for_update().get_or_create(rental_case=case, defaults={'property': property_obj, 'tenant': case.tenant, 'landlord': property_obj.owner, 'monthly_rent': property_obj.monthly_rent or Decimal('0'), 'guarantee_amount': property_obj.guarantee_amount, 'status': 'PENDING'})
-        Contract.objects.get_or_create(lease=lease, contract_type='TENANT')
-        Contract.objects.get_or_create(lease=lease, contract_type='LANDLORD')
+        tenant_contract, tenant_created = Contract.objects.get_or_create(lease=lease, contract_type='TENANT')
+        landlord_contract, landlord_created = Contract.objects.get_or_create(lease=lease, contract_type='LANDLORD')
+        if tenant_created: contract_created(tenant_contract)
+        if landlord_created: contract_created(landlord_contract)
         InspectionReport.objects.get_or_create(lease=lease, property=lease.property, report_type='ENTRY', defaults={'status': 'DRAFT'})
         case.status = 'CONTRACTING'; case.save(update_fields=['status'])
-        Notification.objects.create(recipient=case.tenant, level='ACTION', title='Contrats en préparation', message=f'Les contrats de la location {lease.lease_id} sont en préparation.', object_type='Lease', object_id=lease.lease_id)
+        rental_case_accepted(case)
     return redirect('office_cases')
 
 
@@ -215,6 +218,7 @@ def office_contract_upload(request, contract_id):
         contract = Contract.objects.select_for_update().get(pk=contract.pk)
         if contract.status not in {'PENDING', 'REJECTED'}: messages.error(request, 'Ce contrat ne peut plus être téléversé.'); return redirect('office_contracts')
         contract.signed_document = request.FILES['signed_document']; contract.status = 'UPLOADED'; contract.uploaded_at = timezone.now(); contract.uploaded_by = request.user; contract.save()
+        contract_uploaded(contract)
     return redirect('office_contracts')
 
 
@@ -225,6 +229,7 @@ def office_contract_validate(request, contract_id):
         contract = get_object_or_404(Contract.objects.select_for_update(), contract_id=contract_id)
         if contract.status != 'UPLOADED' or not contract.signed_document or not contract.uploaded_by_id: messages.error(request, 'Ce contrat ne peut pas être validé.'); return redirect('office_contracts')
         contract.status = 'VALIDATED'; contract.signed_at = timezone.now(); contract.save(update_fields=['status', 'signed_at'])
+        contract_validated(contract)
     return redirect('office_contracts')
 
 
@@ -241,6 +246,7 @@ def office_report_validate(request, report_id):
         report = get_object_or_404(InspectionReport.objects.select_for_update(), report_id=report_id)
         if report.status != 'DRAFT': messages.error(request, 'Ce PV n’est plus en brouillon.'); return redirect('office_reports')
         report.status = 'VALIDATED'; report.save(update_fields=['status'])
+        inspection_validated(report)
     return redirect('office_reports')
 
 
@@ -253,7 +259,7 @@ def office_officialize_lease(request, lease_id):
         contracts = list(lease.contracts.all()); reports = list(lease.inspection_reports.filter(report_type='ENTRY'))
         if len([c for c in contracts if c.status == 'VALIDATED']) != 2 or not any(r.status == 'VALIDATED' for r in reports): messages.error(request, 'Les deux contrats et le PV d’entrée doivent être validés.'); return redirect('office_dashboard')
         property_obj = Property.objects.select_for_update().get(pk=lease.property_id); lease.status = 'ACTIVE'; lease.save(update_fields=['status']); property_obj.status = 'RENTED'; property_obj.save(update_fields=['status', 'updated_at']); _ensure_next_installment(lease)
-        Notification.objects.create(recipient=lease.tenant, level='SUCCESS', title='Location officielle', message=f'Votre location {lease.lease_id} est maintenant officielle.', object_type='Lease', object_id=lease.lease_id)
+        lease_officialized(lease)
     return redirect('office_dashboard')
 
 
@@ -266,6 +272,7 @@ def office_receipt(request):
             installment = RentInstallment.objects.select_for_update().get(pk=form.cleaned_data['installment'].pk)
             receipt = form.save(commit=False); receipt.installment = installment; receipt.lease = installment.lease; receipt.recorded_by = request.user; receipt.save()
             installment.refresh_from_db()
+            payment_recorded(receipt)
             if installment.status == 'PAID': _ensure_next_installment(installment.lease, installment)
         return redirect('office_dashboard')
     return render(request, 'dashboard/office_receipt.html', {'form': form})
@@ -275,5 +282,8 @@ def office_receipt(request):
 @require_POST
 def office_payout(request):
     form = PayoutForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid(): form.save(commit=True); return redirect('office_dashboard')
+    if request.method == 'POST' and form.is_valid():
+        payout = form.save(commit=True)
+        payout_completed(payout)
+        return redirect('office_dashboard')
     return render(request, 'dashboard/office_payout.html', {'form': form})
