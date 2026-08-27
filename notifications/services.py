@@ -39,18 +39,19 @@ def visit_requested(visit):
 
 
 def visit_landlord_approved(visit):
-    notify(visit.requester, level='INFO', title='Bailleur favorable à la visite', message='Le bailleur a accepté votre demande. Fasthome doit maintenant effectuer sa validation.', object_type='VisitRequest', object_id=visit.visit_id)
+    # Une acceptation du bailleur reste interne tant que Fasthome n'a pas validé.
     staff(level='ACTION', title='Validation du bailleur à traiter', message='Le bailleur a accepté cette demande. Votre validation Fasthome est maintenant nécessaire.', object_type='VisitRequest', object_id=visit.visit_id)
 
 
 def visit_landlord_refused(visit):
-    notify(visit.requester, level='ACTION', title='Demande de visite refusée', message='Le bailleur a refusé votre demande de visite.', object_type='VisitRequest', object_id=visit.visit_id)
+    # Un refus du bailleur reste interne à Fasthome.
     staff(level='INFO', title='Demande de visite refusée par le bailleur', message='Le bailleur a refusé cette demande de visite.', object_type='VisitRequest', object_id=visit.visit_id)
 
 
 def visit_fasthome_approved(visit):
-    notify(visit.requester, level='INFO', title='Validation Fasthome reçue', message='Fasthome a accepté la demande. La confirmation dépend des validations requises.', object_type='VisitRequest', object_id=visit.visit_id)
-    notify(visit.property.owner, level='INFO', title='Validation Fasthome reçue', message='Fasthome a accepté la demande. La confirmation dépend des validations requises.', object_type='VisitRequest', object_id=visit.visit_id)
+    # Si Fasthome accepte en premier, aucune notification n'est envoyée.
+    # Si le bailleur accepte ensuite, visit_confirmed() notifie les trois acteurs.
+    return None
 
 
 def visit_fasthome_refused(visit):
@@ -144,25 +145,25 @@ def payment_recorded(receipt):
     remaining = installment.remaining_to_receive()
     if installment.status == 'PARTIAL':
         title = 'Paiement partiel enregistré'
-        message = f'Un paiement de {receipt.amount} a été enregistré. Solde restant de l’échéance : {remaining}.'
+        message = f'Un paiement de {receipt.amount} a été enregistré auprès de Fasthome. Solde restant : {remaining}.'
     elif installment.status == 'PAID':
         title = 'Échéance entièrement réglée'
-        message = f'Le paiement de {receipt.amount} a soldé l’échéance. Prochaine échéance créée si nécessaire.'
+        message = f'Le paiement de {receipt.amount} a soldé votre échéance auprès de Fasthome.'
     else:
         title = 'Paiement enregistré'
-        message = f'Un paiement de {receipt.amount} a été enregistré.'
+        message = f'Un paiement de {receipt.amount} a été enregistré auprès de Fasthome.'
+    # Flux 1 : locataire -> Fasthome. Seuls le locataire et Fasthome sont concernés.
     notify(installment.lease.tenant, level='SUCCESS', title=title, message=message, object_type='PaymentReceipt', object_id=receipt.pk)
-    notify(installment.lease.landlord, level='INFO', title=title, message=message, object_type='PaymentReceipt', object_id=receipt.pk)
-    staff(level='INFO', title='Paiement enregistré', message=f'Paiement {receipt.payment_id} enregistré pour {installment.lease.lease_id}.', object_type='PaymentReceipt', object_id=receipt.pk)
+    staff(level='INFO', title='Paiement locataire enregistré', message=f'Paiement {receipt.payment_id} enregistré pour {installment.lease.lease_id}.', object_type='PaymentReceipt', object_id=receipt.pk)
 
 
 def payment_overdue(installment):
     notify(installment.lease.tenant, level='ACTION', title='Échéance de loyer dépassée', message='Une échéance de loyer n’a pas encore été régularisée.', object_type='RentInstallment', object_id=installment.pk)
-    notify(installment.lease.landlord, level='INFO', title='Échéance non régularisée', message='Une échéance de loyer de votre logement n’a pas encore été régularisée.', object_type='RentInstallment', object_id=installment.pk)
     staff(level='ACTION', title='Échéance de loyer en retard', message='Une échéance de loyer nécessite un suivi.', object_type='RentInstallment', object_id=installment.pk)
 
 
 def payout_completed(payout):
+    # Flux 2 : Fasthome -> bailleur. Le bailleur reçoit le versement ; Fasthome conserve la trace interne.
     notify(payout.lease.landlord, level='SUCCESS', title='Versement effectué', message=f'Le versement de {payout.amount} concernant votre location a été enregistré.', object_type='LandlordPayout', object_id=payout.pk)
     staff(level='INFO', title='Versement bailleur enregistré', message=f'Le versement {payout.payout_id} a été enregistré.', object_type='LandlordPayout', object_id=payout.pk)
 
