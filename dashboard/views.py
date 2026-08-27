@@ -66,9 +66,32 @@ def toggle_favorite(request, property_id):
 
 @login_required
 def notifications(request):
-    items = request.user.notifications.order_by('-created_at')[:100]
-    request.user.notifications.filter(is_read=False).update(is_read=True)
-    return render(request, 'dashboard/notifications.html', {'items': items})
+    qs = request.user.notifications.all().order_by('-created_at')
+    unread_count = qs.filter(is_read=False).count()
+    items = list(qs[:100])
+    return render(request, 'dashboard/notifications.html', {'items': items, 'unread_count': unread_count})
+
+
+@login_required
+@require_POST
+def mark_notification_read(request, notification_id):
+    notification = get_object_or_404(Notification, notification_id=notification_id, recipient=request.user)
+    if not notification.is_read:
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+    return JsonResponse({'success': True, 'unread_count': request.user.notifications.filter(is_read=False).count()})
+
+
+@login_required
+@require_POST
+def mark_all_notifications_read(request):
+    updated = request.user.notifications.filter(is_read=False).update(is_read=True)
+    return JsonResponse({'success': True, 'updated': updated, 'unread_count': 0})
+
+
+@login_required
+def notification_unread_count(request):
+    return JsonResponse({'success': True, 'unread_count': request.user.notifications.filter(is_read=False).count()})
 
 
 @login_required
