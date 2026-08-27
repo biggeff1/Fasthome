@@ -1,13 +1,12 @@
-/* Fasthome — upload photo robuste mobile : 1 photo par zone, stockage temporaire IndexedDB, mémoire minimale. */
+/* Fasthome — upload photo mobile robuste : 1 photo par zone, stockage IndexedDB et aperçus ultra-légers. */
 (() => {
   'use strict';
-
   const MAX_DIMENSION = 1280;
+  const THUMB_DIMENSION = 240;
   const JPEG_QUALITY = 0.68;
-  const THUMB_DIMENSION = 320;
   const INPUT_SELECTOR = 'input[type="file"][name^="photos_"]';
   const ZONE_SELECTOR = '[data-photo-zone], .photo-slot';
-  const DB_NAME = 'fasthome-photo-cache-v2';
+  const DB_NAME = 'fasthome-photo-cache-v3';
   const STORE = 'photos';
   const preparedKeys = new WeakMap();
   let dbPromise;
@@ -19,28 +18,24 @@
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
       if (!('indexedDB' in window)) return reject(new Error('IndexedDB indisponible'));
-      const request = indexedDB.open(DB_NAME, 1);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error || new Error('Impossible d’ouvrir le cache photo'));
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('Cache photo indisponible'));
     });
     return dbPromise;
   }
 
-  async function putPhoto(key, file) {
+  async function dbPut(key, file) {
     const db = await openDB();
-    await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite');
       tx.objectStore(STORE).put(file, key);
       tx.oncomplete = resolve;
       tx.onerror = () => reject(tx.error || new Error('Stockage photo impossible'));
     });
   }
-
-  async function getPhoto(key) {
+  async function dbGet(key) {
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
@@ -48,8 +43,7 @@
       req.onerror = () => reject(req.error || new Error('Lecture photo impossible'));
     });
   }
-
-  async function deletePhoto(key) {
+  async function dbDelete(key) {
     if (!key) return;
     try {
       const db = await openDB();
@@ -62,12 +56,8 @@
     } catch (_) {}
   }
 
-  async function clearFormCache(form) {
-    for (const input of allInputs(form)) {
-      const key = preparedKeys.get(input);
-      if (key) await deletePhoto(key);
-      preparedKeys.delete(input);
-    }
+  function newKey() {
+    return `${Date.now()}-${(crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))}`;
   }
 
   function styles() {
@@ -94,52 +84,30 @@
     document.head.appendChild(style);
   }
 
-  function updatePreview(zone, file) {
-    if (!zone) return;
-    let counter = zone.querySelector('.fh-photo-counter');
-    let grid = zone.querySelector('.fh-photo-preview');
-    if (!counter) { counter = document.createElement('div'); counter.className = 'fh-photo-counter'; zone.appendChild(counter); }
-    if (!grid) { grid = document.createElement('div'); grid.className = 'fh-photo-preview'; zone.appendChild(grid); }
-    grid.replaceChildren();
-    counter.textContent = file ? '✓ Photo prête à envoyer' : 'Aucune photo sélectionnée';
-    if (!file) return;
-
-    const item = document.createElement('div');
-    item.className = 'fh-photo-item';
-    const img = document.createElement('img');
-    img.alt = file.name || 'Photo sélectionnée';
-    const url = URL.createObjectURL(file);
-    img.src = url;
-    img.onload = () => { URL.revokeObjectURL(url); img.src = img.src; };
-    const name = document.createElement('span');
-    name.className = 'fh-photo-name';
-    name.textContent = file.name || 'Photo';
-    item.append(img, name);
-    grid.appendChild(item);
-  }
-
-  function canSelect(zone) {
-    if (!zone) return false;
-    const input = zone.querySelector('input[name^="photos_"]');
-    if (input && (preparedKeys.has(input) || input.files.length)) {
-      alert('Cette pièce/zone possède déjà sa photo. Une seule photo est autorisée par zone.');
-      return false;
+  async function makeThumbnail(file) {
+    let bitmap = null, canvas = null;
+    try {
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const scale = Math.min(1, THUMB_DIMENSION / Math.max(bitmap.width || 1, bitmap.height || 1));
+      canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round((bitmap.width || 1) * scale));
+      canvas.height = Math.max(1, Math.round((bitmap.height || 1) * scale));
+      const ctx = canvas.getContext('2d', { alpha: false });
+      if (!ctx) throw new Error('Canvas indisponible');
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close(); bitmap = null;
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.62));
+      canvas.width = 1; canvas.height = 1; canvas = null;
+      return blob ? new File([blob], 'aperçu.jpg', { type: 'image/jpeg' }) : file;
+    } finally {
+      if (bitmap) { try { bitmap.close(); } catch (_) {} }
+      if (canvas) { canvas.width = 1; canvas.height = 1; }
     }
-    return true;
   }
-
-  function processingMessage(zone, text) {
-    let node = zone.querySelector('.fh-photo-processing');
-    if (!node) { node = document.createElement('div'); node.className = 'fh-photo-processing'; zone.appendChild(node); }
-    node.textContent = text;
-    return node;
-  }
-  function removeProcessing(zone) { zone.querySelector('.fh-photo-processing')?.remove(); }
 
   async function compressImage(file) {
     if (!file || !file.type || !file.type.startsWith('image/')) return file;
-    let bitmap = null;
-    let canvas = null;
+    let bitmap = null, canvas = null;
     try {
       bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
       const sw = bitmap.width || 1, sh = bitmap.height || 1;
@@ -162,6 +130,46 @@
     }
   }
 
+  async function storePrepared(input, compressed) {
+    const key = newKey();
+    await dbPut(key, compressed);
+    preparedKeys.set(input, key);
+    return key;
+  }
+
+  async function showPreview(zone, file) {
+    if (!zone) return;
+    let counter = zone.querySelector('.fh-photo-counter');
+    let grid = zone.querySelector('.fh-photo-preview');
+    if (!counter) { counter = document.createElement('div'); counter.className = 'fh-photo-counter'; zone.appendChild(counter); }
+    if (!grid) { grid = document.createElement('div'); grid.className = 'fh-photo-preview'; zone.appendChild(grid); }
+    grid.replaceChildren();
+    counter.textContent = file ? '✓ Photo prête à envoyer' : 'Aucune photo sélectionnée';
+    if (!file) return;
+    const thumb = await makeThumbnail(file);
+    const item = document.createElement('div'); item.className = 'fh-photo-item';
+    const img = document.createElement('img'); img.alt = file.name || 'Photo sélectionnée';
+    const url = URL.createObjectURL(thumb); img.src = url;
+    img.onload = () => URL.revokeObjectURL(url);
+    const name = document.createElement('span'); name.className = 'fh-photo-name'; name.textContent = file.name || 'Photo';
+    item.append(img, name); grid.appendChild(item);
+  }
+
+  function canSelect(zone) {
+    const input = zone?.querySelector('input[name^="photos_"]');
+    if (input && (preparedKeys.has(input) || input.files.length)) {
+      alert('Cette pièce/zone possède déjà sa photo. Une seule photo est autorisée par zone.');
+      return false;
+    }
+    return true;
+  }
+  function processingMessage(zone, text) {
+    let node = zone.querySelector('.fh-photo-processing');
+    if (!node) { node = document.createElement('div'); node.className = 'fh-photo-processing'; zone.appendChild(node); }
+    node.textContent = text; return node;
+  }
+  function removeProcessing(zone) { zone.querySelector('.fh-photo-processing')?.remove(); }
+
   async function acceptFile(input) {
     const zone = zoneOf(input);
     if (!zone || !input.files.length) return;
@@ -170,19 +178,16 @@
     processingMessage(zone, '⏳ Préparation de la photo…');
     try {
       const compressed = await compressImage(original);
-      const key = `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`;
-      await putPhoto(key, compressed);
-      // Le fichier original disparaît immédiatement du champ natif et n'est jamais conservé dans le DOM.
+      const key = await storePrepared(input, compressed);
+      // Aucun original n'est conservé dans le DOM après cette ligne.
       input.value = '';
-      preparedKeys.set(input, key);
-      updatePreview(zone, compressed);
-      // Libérer la référence locale dès que l'aperçu est créé.
-    } catch (error) {
+      await showPreview(zone, compressed);
+      // La référence locale au fichier compressé disparaît à la fin de la fonction.
+      void key;
+    } catch (_) {
       input.value = '';
       alert('Impossible de préparer cette photo. Essayez une photo à la fois.');
-    } finally {
-      removeProcessing(zone);
-    }
+    } finally { removeProcessing(zone); }
   }
 
   function createCameraInput(originalInput, zone) {
@@ -195,20 +200,15 @@
       processingMessage(zone, '⏳ Préparation de la photo…');
       try {
         const compressed = await compressImage(input.files[0]);
-        const key = `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`;
-        await putPhoto(key, compressed);
+        await storePrepared(originalInput, compressed);
         input.value = '';
-        preparedKeys.set(originalInput, key);
-        updatePreview(zone, compressed);
+        await showPreview(zone, compressed);
       } catch (_) {
+        input.value = '';
         alert('Impossible de préparer cette photo. Essayez une photo à la fois.');
-      } finally {
-        input.remove();
-        removeProcessing(zone);
-      }
+      } finally { input.remove(); removeProcessing(zone); }
     });
-    zone.appendChild(input);
-    return input;
+    zone.appendChild(input); return input;
   }
 
   function addControls(form, input) {
@@ -227,10 +227,9 @@
   function bindInput(form, input) {
     if (input.dataset.fhPhotoBound === '1' || input.dataset.fhCameraInput === '1') return;
     input.dataset.fhPhotoBound = '1'; input.multiple = false;
-    input.accept = 'image/jpeg,image/png,image/webp,image/heic,image/heif';
-    input.removeAttribute('capture'); input.classList.add('fh-photo-input');
+    input.accept = 'image/jpeg,image/png,image/webp,image/heic,image/heif'; input.removeAttribute('capture'); input.classList.add('fh-photo-input');
     addControls(form, input); input.addEventListener('change', () => acceptFile(input));
-    updatePreview(zoneOf(input), null);
+    showPreview(zoneOf(input), null);
   }
 
   function createUploadStatus(form) {
@@ -247,50 +246,41 @@
     for (const input of allInputs(form)) {
       const key = preparedKeys.get(input);
       if (!key) continue;
-      const file = await getPhoto(key);
+      const file = await dbGet(key);
       if (file) uploadForm.append(input.name, file, file.name || `${input.name}.jpg`);
     }
     return uploadForm;
+  }
+
+  async function clearFormCache(form) {
+    for (const input of allInputs(form)) {
+      const key = preparedKeys.get(input);
+      if (key) await dbDelete(key);
+      preparedKeys.delete(input);
+    }
   }
 
   function addSubmitProgress(form) {
     if (form.dataset.fhUploadProgressBound === '1') return;
     form.dataset.fhUploadProgressBound = '1';
     form.addEventListener('submit', async event => {
-      const inputs = allInputs(form);
-      const photoInputs = inputs.filter(input => preparedKeys.has(input));
-      if (!photoInputs.length) return;
+      const photos = allInputs(form).filter(input => preparedKeys.has(input));
+      if (!photos.length) return;
       event.preventDefault();
-      const status = createUploadStatus(form);
-      const message = status.querySelector('.fh-photo-upload-message');
-      const bar = status.querySelector('.fh-photo-upload-bar');
-      const percent = status.querySelector('.fh-photo-upload-percent');
-      status.classList.add('is-visible'); bar.style.width = '0%'; percent.textContent = '0%';
+      const status = createUploadStatus(form), message = status.querySelector('.fh-photo-upload-message'), bar = status.querySelector('.fh-photo-upload-bar'), percent = status.querySelector('.fh-photo-upload-percent');
+      status.classList.add('is-visible'); bar.style.width = '0%'; percent.textContent = '0%'; message.textContent = `⏳ Téléversement de ${photos.length} photo${photos.length > 1 ? 's' : ''}…`;
       try {
         const uploadForm = await buildUploadForm(form);
-        const xhr = new XMLHttpRequest();
-        xhr.open(form.method || 'POST', form.action || window.location.href, true);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.upload.addEventListener('progress', e => {
-          if (!e.lengthComputable) return;
-          const value = Math.min(100, Math.round(e.loaded / e.total * 100));
-          bar.style.width = `${value}%`; percent.textContent = `${value}%`;
-          message.textContent = value < 100 ? `⏳ Téléversement des photos… ${value}%` : '⏳ Photos envoyées, traitement par Fasthome…';
-        });
+        const xhr = new XMLHttpRequest(); xhr.open(form.method || 'POST', form.action || window.location.href, true); xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.upload.addEventListener('progress', e => { if (!e.lengthComputable) return; const value = Math.min(100, Math.round(e.loaded / e.total * 100)); bar.style.width = `${value}%`; percent.textContent = `${value}%`; message.textContent = value < 100 ? `⏳ Téléversement des photos… ${value}%` : '⏳ Photos envoyées, traitement par Fasthome…'; });
         xhr.addEventListener('load', async () => {
-          if (xhr.status >= 200 && xhr.status < 400) {
-            bar.style.width = '100%'; percent.textContent = '100%'; message.textContent = '✓ Photos téléversées. Ouverture de l’étape suivante…';
-            await clearFormCache(form);
-            setTimeout(() => { window.location.href = xhr.responseURL || form.action || window.location.href; }, 250);
-          } else { message.textContent = '⚠️ Le téléversement a échoué. Réessayez.'; percent.textContent = 'Échec'; }
+          if (xhr.status >= 200 && xhr.status < 400) { bar.style.width = '100%'; percent.textContent = '100%'; message.textContent = '✓ Photos téléversées. Ouverture de l’étape suivante…'; await clearFormCache(form); setTimeout(() => { window.location.href = xhr.responseURL || form.action || window.location.href; }, 250); }
+          else { message.textContent = '⚠️ Le téléversement a échoué. Réessayez.'; percent.textContent = 'Échec'; }
         });
         xhr.addEventListener('error', () => { message.textContent = '⚠️ Impossible d’envoyer les photos. Vérifiez la connexion.'; percent.textContent = 'Échec'; });
         xhr.addEventListener('abort', () => { message.textContent = '⚠️ Téléversement interrompu.'; percent.textContent = 'Arrêté'; });
         xhr.send(uploadForm);
-      } catch (_) {
-        message.textContent = '⚠️ Impossible de préparer les photos. Réessayez une photo à la fois.';
-        percent.textContent = 'Échec';
-      }
+      } catch (_) { message.textContent = '⚠️ Impossible de préparer les photos. Réessayez une photo à la fois.'; percent.textContent = 'Échec'; }
     });
   }
 
@@ -300,7 +290,6 @@
     const scan = () => allInputs(form).forEach(input => bindInput(form, input));
     scan(); new MutationObserver(scan).observe(form, { childList: true, subtree: true });
   }
-
   function init() { document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(install); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
