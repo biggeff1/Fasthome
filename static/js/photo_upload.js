@@ -1,4 +1,4 @@
-/* Fasthome — upload photo mobile robuste. */
+/* Fasthome — upload photo mobile robuste avec aperçu et progression réelle. */
 (() => {
   'use strict';
 
@@ -86,8 +86,11 @@
       .fh-photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
       .fh-photo-action{border:0;border-radius:12px;padding:13px 8px;background:#edf2f7;color:#18344d;font-weight:800;cursor:pointer}
       .fh-photo-action:active{transform:scale(.98)}
-      .fh-photo-upload-status{display:none;margin-top:12px;padding:12px;border-radius:12px;background:#eaf4ff;color:#18344d;font-weight:800;text-align:center}
+      .fh-photo-upload-status{display:none;margin-top:14px;padding:14px;border-radius:12px;background:#eaf4ff;color:#18344d;font-weight:800;text-align:center}
       .fh-photo-upload-status.is-visible{display:block}
+      .fh-photo-upload-track{height:9px;margin-top:10px;border-radius:999px;background:#dbe5ee;overflow:hidden}
+      .fh-photo-upload-bar{height:100%;width:0%;border-radius:999px;background:#163a5f;transition:width .15s ease}
+      .fh-photo-upload-percent{display:block;margin-top:7px;font-size:.82rem;font-weight:900}
     `;
     document.head.appendChild(style);
   }
@@ -110,6 +113,7 @@
       }
 
       if (filesInZone(zone).length > MAX_PHOTOS_PER_ZONE) {
+        input.value = '';
         input.remove();
         alert(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour cette zone.`);
         return;
@@ -147,8 +151,7 @@
     picker.textContent = '📁 Choisir un fichier';
 
     camera.addEventListener('click', () => {
-      const count = filesInZone(zone).length;
-      if (count >= MAX_PHOTOS_PER_ZONE) {
+      if (filesInZone(zone).length >= MAX_PHOTOS_PER_ZONE) {
         alert(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour cette zone.`);
         return;
       }
@@ -162,8 +165,7 @@
     });
 
     picker.addEventListener('click', () => {
-      const count = filesInZone(zone).length;
-      if (count >= MAX_PHOTOS_PER_ZONE) {
+      if (filesInZone(zone).length >= MAX_PHOTOS_PER_ZONE) {
         alert(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour cette zone.`);
         return;
       }
@@ -218,20 +220,105 @@
     updatePreview(zoneOf(input));
   }
 
-  function addSubmitStatus(form) {
-    if (form.dataset.fhUploadStatusBound === '1') return;
-    form.dataset.fhUploadStatusBound = '1';
+  function createUploadStatus(form) {
+    let status = form.querySelector('.fh-photo-upload-status');
+    if (status) return status;
 
-    const status = document.createElement('div');
+    status = document.createElement('div');
     status.className = 'fh-photo-upload-status';
-    status.textContent = '⏳ Téléversement des photos en cours… Ne fermez pas cette page.';
-    form.appendChild(status);
 
-    form.addEventListener('submit', () => {
+    const message = document.createElement('div');
+    message.className = 'fh-photo-upload-message';
+    message.textContent = '⏳ Préparation du téléversement…';
+
+    const track = document.createElement('div');
+    track.className = 'fh-photo-upload-track';
+
+    const bar = document.createElement('div');
+    bar.className = 'fh-photo-upload-bar';
+    track.appendChild(bar);
+
+    const percent = document.createElement('span');
+    percent.className = 'fh-photo-upload-percent';
+    percent.textContent = '0%';
+
+    status.append(message, track, percent);
+    form.appendChild(status);
+    return status;
+  }
+
+  function addSubmitProgress(form) {
+    if (form.dataset.fhUploadProgressBound === '1') return;
+    form.dataset.fhUploadProgressBound = '1';
+
+    form.addEventListener('submit', (event) => {
       const count = totalSelected(form);
-      if (count > 0) {
-        status.textContent = `⏳ Téléversement de ${count} photo${count > 1 ? 's' : ''} en cours…`;
-        status.classList.add('is-visible');
+      if (!count) return;
+
+      event.preventDefault();
+
+      const status = createUploadStatus(form);
+      const message = status.querySelector('.fh-photo-upload-message');
+      const bar = status.querySelector('.fh-photo-upload-bar');
+      const percent = status.querySelector('.fh-photo-upload-percent');
+
+      status.classList.add('is-visible');
+      message.textContent = `⏳ Téléversement de ${count} photo${count > 1 ? 's' : ''}…`;
+      bar.style.width = '0%';
+      percent.textContent = '0%';
+
+      const xhr = new XMLHttpRequest();
+      xhr.open(form.method || 'POST', form.action || window.location.href, true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (!e.lengthComputable) return;
+        const value = Math.min(100, Math.round((e.loaded / e.total) * 100));
+        bar.style.width = `${value}%`;
+        percent.textContent = `${value}%`;
+        message.textContent = value < 100
+          ? `⏳ Téléversement des photos… ${value}%`
+          : '⏳ Photos envoyées, traitement par le serveur…';
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 400) {
+          bar.style.width = '100%';
+          percent.textContent = '100%';
+          message.textContent = '✓ Photos téléversées. Ouverture de l’étape suivante…';
+
+          // Django peut répondre par une redirection. XHR suit cette redirection
+          // et responseURL correspond alors à la page finale.
+          setTimeout(() => {
+            window.location.href = xhr.responseURL || form.action || window.location.href;
+          }, 250);
+          return;
+        }
+
+        message.textContent = '⚠️ Le téléversement a échoué. Vérifiez votre connexion puis réessayez.';
+        bar.style.width = '0%';
+        percent.textContent = 'Échec';
+      });
+
+      xhr.addEventListener('error', () => {
+        message.textContent = '⚠️ Impossible d’envoyer les photos. Vérifiez votre connexion.';
+        bar.style.width = '0%';
+        percent.textContent = 'Échec';
+      });
+
+      xhr.addEventListener('abort', () => {
+        message.textContent = '⚠️ Téléversement interrompu.';
+        bar.style.width = '0%';
+        percent.textContent = 'Arrêté';
+      });
+
+      try {
+        xhr.send(new FormData(form));
+      } catch (error) {
+        console.error('Fasthome photo upload:', error);
+        message.textContent = '⚠️ Impossible de préparer les photos.';
+        bar.style.width = '0%';
+        percent.textContent = 'Échec';
       }
     });
   }
@@ -241,7 +328,7 @@
     form.dataset.fhNativePhotosInstalled = '1';
 
     styles();
-    addSubmitStatus(form);
+    addSubmitProgress(form);
 
     const scan = () => {
       allPhotoInputs(form).forEach((input) => bindInput(form, input));
