@@ -1,1 +1,53 @@
-{% extends 'base.html' %}{% block title %}Demander une visite{% endblock %}{% block content %}<main class="container"><div class="form"><h1>Demander une visite</h1><p>{{ property.property_type }} — {{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p><form method="post">{% csrf_token %}<div class="field"><label>Date souhaitée</label><input type="date" name="requested_date" required></div><div class="field"><label>Créneau</label><select name="requested_time_slot"><option>Matin</option><option>Après-midi</option><option>Soir</option></select></div><p class="muted">La demande doit être validée par Fasthome et le bailleur. L'identité du demandeur n'est pas communiquée au bailleur à cette étape.</p><button class="btn btn-primary" type="submit">Envoyer la demande</button></form></div></main>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Demander une visite — Fasthome{% endblock %}
+{% block content %}
+<main class="container" style="max-width:760px;padding:18px 10px 40px">
+  <section class="page-hero" style="margin-bottom:18px">
+    <span class="chip" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.18)">PARCOURS VISITE</span>
+    <h1 style="color:#fff;margin:14px 0 8px">Planifier une visite</h1>
+    <p style="margin:0">Choisissez le moment qui vous convient. Fasthome coordonne ensuite la demande avec les parties concernées.</p>
+  </section>
+
+  <section class="card" style="padding:22px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+      <div style="width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:var(--surface2);font-size:1.25rem">🏠</div>
+      <div><strong>{{ property.property_type }}</strong><p class="muted" style="margin:3px 0 0">{{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p></div>
+    </div>
+
+    <div class="stepper" aria-label="Étapes de la demande" style="margin-bottom:22px">
+      <div class="step active">01<br><span>Date</span></div><div class="step">02<br><span>Créneau</span></div><div class="step">03<br><span>Validation</span></div><div class="step">04<br><span>Visite</span></div>
+    </div>
+
+    <form method="post" class="visit-request-form">
+      {% csrf_token %}
+      <div class="field">
+        <label for="requested-date">Date souhaitée</label>
+        <p class="muted" style="margin:0 0 7px;font-size:.82rem">Choisissez une date à partir d'aujourd'hui.</p>
+        <input id="requested-date" type="date" name="requested_date" required>
+      </div>
+      <div class="field">
+        <label for="requested-slot">Créneau souhaité</label>
+        <select id="requested-slot" name="requested_time_slot" required>
+          <option value="Matin">☀️ Matin</option>
+          <option value="Après-midi">🌤️ Après-midi</option>
+          <option value="Soir">🌙 Soir</option>
+        </select>
+      </div>
+
+      <div class="notification-card" style="grid-template-columns:auto 1fr;margin:2px 0;padding:14px">
+        <div class="notification-dot" aria-hidden="true"></div>
+        <div><strong>Votre demande reste confidentielle</strong><p style="margin:4px 0 0;font-size:.82rem">Elle doit être validée par Fasthome et le bailleur. À cette étape, votre identité n'est pas communiquée au bailleur.</p></div>
+      </div>
+
+      <div class="sticky-actions actions" style="margin-top:4px">
+        <a class="btn btn-light" href="javascript:history.back()">Retour</a>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" type="submit">📅 Envoyer ma demande</button>
+      </div>
+    </form>
+  </section>
+</main>
+<script>
+(function(){const d=document.getElementById('requested-date');if(d){const n=new Date();d.min=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');}const f=document.querySelector('.visit-request-form');if(f)f.addEventListener('submit',function(){const b=f.querySelector('button[type=submit]');if(b){b.disabled=true;b.textContent='Traitement…';}})})();
+</script>
+{% endblock %}
