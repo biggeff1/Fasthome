@@ -1,9 +1,9 @@
-/* Fasthome — upload photo mobile robuste avec aperçu et progression réelle. */
+/* Fasthome — upload photo mobile robuste : 1 photo par pièce/zone. */
 (() => {
   'use strict';
 
   const MAX_PHOTOS_TOTAL = 40;
-  const MAX_PHOTOS_PER_ZONE = 5;
+  const MAX_PHOTOS_PER_ZONE = 1;
   const INPUT_SELECTOR = 'input[type="file"][name^="photos_"]';
   const ZONE_SELECTOR = '[data-photo-zone], .photo-slot';
 
@@ -47,7 +47,7 @@
 
     const files = filesInZone(zone);
     counter.textContent = files.length
-      ? `✓ ${files.length}/${MAX_PHOTOS_PER_ZONE} photo${files.length > 1 ? 's' : ''} prête${files.length > 1 ? 's' : ''} à envoyer`
+      ? '✓ 1/1 photo prête à envoyer'
       : 'Aucune photo sélectionnée';
 
     files.forEach((file) => {
@@ -77,8 +77,8 @@
     const style = document.createElement('style');
     style.id = 'fh-photo-upload-css';
     style.textContent = `
-      .fh-photo-preview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
-      .fh-photo-item{position:relative;aspect-ratio:1/1;overflow:hidden;border-radius:12px;background:#eef2f6;border:1px solid #dce3ea}
+      .fh-photo-preview{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:8px;margin-top:12px}
+      .fh-photo-item{position:relative;aspect-ratio:16/10;overflow:hidden;border-radius:12px;background:#eef2f6;border:1px solid #dce3ea}
       .fh-photo-item img{width:100%;height:100%;object-fit:cover;display:block}
       .fh-photo-name{position:absolute;left:4px;right:4px;bottom:4px;padding:4px 5px;border-radius:7px;background:rgba(0,0,0,.62);color:#fff;font-size:10px;line-height:1.15;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
       .fh-photo-counter{margin-top:10px;color:#18344d;font-size:.85rem;font-weight:800}
@@ -93,6 +93,20 @@
       .fh-photo-upload-percent{display:block;margin-top:7px;font-size:.82rem;font-weight:900}
     `;
     document.head.appendChild(style);
+  }
+
+  function canSelectInZone(form, zone) {
+    if (filesInZone(zone).length >= MAX_PHOTOS_PER_ZONE) {
+      alert('Cette pièce/zone a déjà une photo. Une seule photo est autorisée.');
+      return false;
+    }
+
+    if (totalSelected(form) >= MAX_PHOTOS_TOTAL) {
+      alert(`Maximum ${MAX_PHOTOS_TOTAL} photos pour ce logement.`);
+      return false;
+    }
+
+    return true;
   }
 
   function makeCameraInput(form, originalInput, zone) {
@@ -115,7 +129,7 @@
       if (filesInZone(zone).length > MAX_PHOTOS_PER_ZONE) {
         input.value = '';
         input.remove();
-        alert(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour cette zone.`);
+        alert('Cette pièce/zone ne peut contenir qu’une seule photo.');
         return;
       }
 
@@ -148,31 +162,16 @@
     const picker = document.createElement('button');
     picker.type = 'button';
     picker.className = 'fh-photo-action';
-    picker.textContent = '📁 Choisir un fichier';
+    picker.textContent = '📁 Choisir une photo';
 
     camera.addEventListener('click', () => {
-      if (filesInZone(zone).length >= MAX_PHOTOS_PER_ZONE) {
-        alert(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour cette zone.`);
-        return;
-      }
-      if (totalSelected(form) >= MAX_PHOTOS_TOTAL) {
-        alert(`Maximum ${MAX_PHOTOS_TOTAL} photos pour ce logement.`);
-        return;
-      }
-
+      if (!canSelectInZone(form, zone)) return;
       const cameraInput = makeCameraInput(form, input, zone);
       cameraInput.click();
     });
 
     picker.addEventListener('click', () => {
-      if (filesInZone(zone).length >= MAX_PHOTOS_PER_ZONE) {
-        alert(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour cette zone.`);
-        return;
-      }
-      if (totalSelected(form) >= MAX_PHOTOS_TOTAL) {
-        alert(`Maximum ${MAX_PHOTOS_TOTAL} photos pour ce logement.`);
-        return;
-      }
+      if (!canSelectInZone(form, zone)) return;
       input.click();
     });
 
@@ -189,7 +188,8 @@
     if (input.dataset.fhPhotoBound === '1') return;
     input.dataset.fhPhotoBound = '1';
 
-    input.multiple = true;
+    // Une seule photo peut être sélectionnée dans chaque pièce/zone.
+    input.multiple = false;
     input.accept = 'image/jpeg,image/png,image/webp';
     input.removeAttribute('capture');
     input.classList.add('fh-photo-input');
@@ -203,7 +203,7 @@
       if (files.length > MAX_PHOTOS_PER_ZONE) {
         input.value = '';
         updatePreview(zone);
-        alert(`Maximum ${MAX_PHOTOS_PER_ZONE} photos pour cette zone. Sélectionnez-en au maximum ${MAX_PHOTOS_PER_ZONE}.`);
+        alert('Une seule photo est autorisée pour cette pièce/zone.');
         return;
       }
 
@@ -287,8 +287,6 @@
           percent.textContent = '100%';
           message.textContent = '✓ Photos téléversées. Ouverture de l’étape suivante…';
 
-          // Django peut répondre par une redirection. XHR suit cette redirection
-          // et responseURL correspond alors à la page finale.
           setTimeout(() => {
             window.location.href = xhr.responseURL || form.action || window.location.href;
           }, 250);
