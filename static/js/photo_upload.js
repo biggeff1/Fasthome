@@ -1,295 +1,36 @@
-/* Fasthome — upload photo mobile robuste : 1 photo par zone, stockage IndexedDB et aperçus ultra-légers. */
+/* Fasthome — upload photo mobile sans aperçu : 1 photo par zone, stockage temporaire IndexedDB. */
 (() => {
   'use strict';
   const MAX_DIMENSION = 1280;
-  const THUMB_DIMENSION = 240;
   const JPEG_QUALITY = 0.68;
   const INPUT_SELECTOR = 'input[type="file"][name^="photos_"]';
   const ZONE_SELECTOR = '[data-photo-zone], .photo-slot';
-  const DB_NAME = 'fasthome-photo-cache-v3';
+  const DB_NAME = 'fasthome-photo-cache-v4';
   const STORE = 'photos';
   const preparedKeys = new WeakMap();
   let dbPromise;
-
   const zoneOf = input => input.closest(ZONE_SELECTOR) || input.parentElement;
   const allInputs = form => [...form.querySelectorAll(INPUT_SELECTOR)];
-
-  function openDB() {
-    if (dbPromise) return dbPromise;
-    dbPromise = new Promise((resolve, reject) => {
-      if (!('indexedDB' in window)) return reject(new Error('IndexedDB indisponible'));
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE); };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error || new Error('Cache photo indisponible'));
-    });
-    return dbPromise;
-  }
-
-  async function dbPut(key, file) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(file, key);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error || new Error('Stockage photo impossible'));
-    });
-  }
-  async function dbGet(key) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error || new Error('Lecture photo impossible'));
-    });
-  }
-  async function dbDelete(key) {
-    if (!key) return;
-    try {
-      const db = await openDB();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).delete(key);
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch (_) {}
-  }
-
-  function newKey() {
-    return `${Date.now()}-${(crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))}`;
-  }
-
-  function styles() {
-    if (document.getElementById('fh-photo-upload-css')) return;
-    const style = document.createElement('style');
-    style.id = 'fh-photo-upload-css';
-    style.textContent = `
-      .fh-photo-preview{display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px}
-      .fh-photo-item{position:relative;aspect-ratio:4/3;overflow:hidden;border-radius:12px;background:#eef2f6;border:1px solid #dce3ea}
-      .fh-photo-item img{width:100%;height:100%;object-fit:cover;display:block}
-      .fh-photo-name{position:absolute;left:4px;right:4px;bottom:4px;padding:4px 6px;border-radius:7px;background:rgba(0,0,0,.65);color:#fff;font-size:10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-      .fh-photo-counter{margin-top:10px;color:#18344d;font-size:.85rem;font-weight:800}
-      .fh-photo-processing{margin-top:10px;padding:10px;border-radius:10px;background:#edf5ff;color:#18344d;font-size:.82rem;font-weight:800;text-align:center}
-      .fh-photo-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
-      .fh-photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
-      .fh-photo-action{border:0;border-radius:12px;padding:13px 8px;background:#edf2f7;color:#18344d;font-weight:800;cursor:pointer;min-height:48px}
-      .fh-photo-action:active{transform:scale(.98)}
-      .fh-photo-upload-status{display:none;margin-top:14px;padding:14px;border-radius:12px;background:#eaf4ff;color:#18344d;font-weight:800;text-align:center}
-      .fh-photo-upload-status.is-visible{display:block}
-      .fh-photo-upload-track{height:9px;margin-top:10px;border-radius:999px;background:#dbe5ee;overflow:hidden}
-      .fh-photo-upload-bar{height:100%;width:0%;border-radius:999px;background:#163a5f;transition:width .15s ease}
-      .fh-photo-upload-percent{display:block;margin-top:7px;font-size:.82rem;font-weight:900}
-    `;
-    document.head.appendChild(style);
-  }
-
-  async function makeThumbnail(file) {
-    let bitmap = null, canvas = null;
-    try {
-      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-      const scale = Math.min(1, THUMB_DIMENSION / Math.max(bitmap.width || 1, bitmap.height || 1));
-      canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round((bitmap.width || 1) * scale));
-      canvas.height = Math.max(1, Math.round((bitmap.height || 1) * scale));
-      const ctx = canvas.getContext('2d', { alpha: false });
-      if (!ctx) throw new Error('Canvas indisponible');
-      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      bitmap.close(); bitmap = null;
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.62));
-      canvas.width = 1; canvas.height = 1; canvas = null;
-      return blob ? new File([blob], 'aperçu.jpg', { type: 'image/jpeg' }) : file;
-    } finally {
-      if (bitmap) { try { bitmap.close(); } catch (_) {} }
-      if (canvas) { canvas.width = 1; canvas.height = 1; }
-    }
-  }
-
-  async function compressImage(file) {
-    if (!file || !file.type || !file.type.startsWith('image/')) return file;
-    let bitmap = null, canvas = null;
-    try {
-      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-      const sw = bitmap.width || 1, sh = bitmap.height || 1;
-      const scale = Math.min(1, MAX_DIMENSION / Math.max(sw, sh));
-      canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(sw * scale));
-      canvas.height = Math.max(1, Math.round(sh * scale));
-      const ctx = canvas.getContext('2d', { alpha: false });
-      if (!ctx) throw new Error('Canvas indisponible');
-      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      bitmap.close(); bitmap = null;
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
-      canvas.width = 1; canvas.height = 1; canvas = null;
-      if (!blob) throw new Error('Compression impossible');
-      const stem = (file.name || 'photo').replace(/\.[^.]+$/, '') || 'photo';
-      return new File([blob], `${stem}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
-    } finally {
-      if (bitmap) { try { bitmap.close(); } catch (_) {} }
-      if (canvas) { canvas.width = 1; canvas.height = 1; }
-    }
-  }
-
-  async function storePrepared(input, compressed) {
-    const key = newKey();
-    await dbPut(key, compressed);
-    preparedKeys.set(input, key);
-    return key;
-  }
-
-  async function showPreview(zone, file) {
-    if (!zone) return;
-    let counter = zone.querySelector('.fh-photo-counter');
-    let grid = zone.querySelector('.fh-photo-preview');
-    if (!counter) { counter = document.createElement('div'); counter.className = 'fh-photo-counter'; zone.appendChild(counter); }
-    if (!grid) { grid = document.createElement('div'); grid.className = 'fh-photo-preview'; zone.appendChild(grid); }
-    grid.replaceChildren();
-    counter.textContent = file ? '✓ Photo prête à envoyer' : 'Aucune photo sélectionnée';
-    if (!file) return;
-    const thumb = await makeThumbnail(file);
-    const item = document.createElement('div'); item.className = 'fh-photo-item';
-    const img = document.createElement('img'); img.alt = file.name || 'Photo sélectionnée';
-    const url = URL.createObjectURL(thumb); img.src = url;
-    img.onload = () => URL.revokeObjectURL(url);
-    const name = document.createElement('span'); name.className = 'fh-photo-name'; name.textContent = file.name || 'Photo';
-    item.append(img, name); grid.appendChild(item);
-  }
-
-  function canSelect(zone) {
-    const input = zone?.querySelector('input[name^="photos_"]');
-    if (input && (preparedKeys.has(input) || input.files.length)) {
-      alert('Cette pièce/zone possède déjà sa photo. Une seule photo est autorisée par zone.');
-      return false;
-    }
-    return true;
-  }
-  function processingMessage(zone, text) {
-    let node = zone.querySelector('.fh-photo-processing');
-    if (!node) { node = document.createElement('div'); node.className = 'fh-photo-processing'; zone.appendChild(node); }
-    node.textContent = text; return node;
-  }
-  function removeProcessing(zone) { zone.querySelector('.fh-photo-processing')?.remove(); }
-
-  async function acceptFile(input) {
-    const zone = zoneOf(input);
-    if (!zone || !input.files.length) return;
-    if (!canSelect(zone)) { input.value = ''; return; }
-    const original = input.files[0];
-    processingMessage(zone, '⏳ Préparation de la photo…');
-    try {
-      const compressed = await compressImage(original);
-      const key = await storePrepared(input, compressed);
-      // Aucun original n'est conservé dans le DOM après cette ligne.
-      input.value = '';
-      await showPreview(zone, compressed);
-      // La référence locale au fichier compressé disparaît à la fin de la fonction.
-      void key;
-    } catch (_) {
-      input.value = '';
-      alert('Impossible de préparer cette photo. Essayez une photo à la fois.');
-    } finally { removeProcessing(zone); }
-  }
-
-  function createCameraInput(originalInput, zone) {
-    const input = document.createElement('input');
-    input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment'; input.multiple = false;
-    input.className = 'fh-photo-input'; input.dataset.fhCameraInput = '1';
-    input.addEventListener('change', async () => {
-      if (!input.files.length) { input.remove(); return; }
-      if (!canSelect(zone)) { input.value = ''; input.remove(); return; }
-      processingMessage(zone, '⏳ Préparation de la photo…');
-      try {
-        const compressed = await compressImage(input.files[0]);
-        await storePrepared(originalInput, compressed);
-        input.value = '';
-        await showPreview(zone, compressed);
-      } catch (_) {
-        input.value = '';
-        alert('Impossible de préparer cette photo. Essayez une photo à la fois.');
-      } finally { input.remove(); removeProcessing(zone); }
-    });
-    zone.appendChild(input); return input;
-  }
-
-  function addControls(form, input) {
-    const zone = zoneOf(input);
-    if (!zone || zone.querySelector('.fh-photo-actions')) return;
-    const actions = document.createElement('div'); actions.className = 'fh-photo-actions';
-    const camera = document.createElement('button'); camera.type = 'button'; camera.className = 'fh-photo-action'; camera.textContent = '📷 Appareil photo';
-    camera.addEventListener('click', () => { if (canSelect(zone)) createCameraInput(input, zone).click(); });
-    const picker = document.createElement('button'); picker.type = 'button'; picker.className = 'fh-photo-action'; picker.textContent = '📁 Choisir un fichier';
-    picker.addEventListener('click', () => { if (canSelect(zone)) { input.multiple = false; input.click(); } });
-    actions.append(camera, picker); input.parentNode.insertBefore(actions, input);
-    const oldLabel = [...zone.querySelectorAll('label')].find(label => label.htmlFor === input.id);
-    if (oldLabel) oldLabel.style.display = 'none';
-  }
-
-  function bindInput(form, input) {
-    if (input.dataset.fhPhotoBound === '1' || input.dataset.fhCameraInput === '1') return;
-    input.dataset.fhPhotoBound = '1'; input.multiple = false;
-    input.accept = 'image/jpeg,image/png,image/webp,image/heic,image/heif'; input.removeAttribute('capture'); input.classList.add('fh-photo-input');
-    addControls(form, input); input.addEventListener('change', () => acceptFile(input));
-    showPreview(zoneOf(input), null);
-  }
-
-  function createUploadStatus(form) {
-    let status = form.querySelector('.fh-photo-upload-status');
-    if (status) return status;
-    status = document.createElement('div'); status.className = 'fh-photo-upload-status';
-    status.innerHTML = '<div class="fh-photo-upload-message"></div><div class="fh-photo-upload-track"><div class="fh-photo-upload-bar"></div></div><span class="fh-photo-upload-percent">0%</span>';
-    form.appendChild(status); return status;
-  }
-
-  async function buildUploadForm(form) {
-    const uploadForm = new FormData(form);
-    for (const input of allInputs(form)) uploadForm.delete(input.name);
-    for (const input of allInputs(form)) {
-      const key = preparedKeys.get(input);
-      if (!key) continue;
-      const file = await dbGet(key);
-      if (file) uploadForm.append(input.name, file, file.name || `${input.name}.jpg`);
-    }
-    return uploadForm;
-  }
-
-  async function clearFormCache(form) {
-    for (const input of allInputs(form)) {
-      const key = preparedKeys.get(input);
-      if (key) await dbDelete(key);
-      preparedKeys.delete(input);
-    }
-  }
-
-  function addSubmitProgress(form) {
-    if (form.dataset.fhUploadProgressBound === '1') return;
-    form.dataset.fhUploadProgressBound = '1';
-    form.addEventListener('submit', async event => {
-      const photos = allInputs(form).filter(input => preparedKeys.has(input));
-      if (!photos.length) return;
-      event.preventDefault();
-      const status = createUploadStatus(form), message = status.querySelector('.fh-photo-upload-message'), bar = status.querySelector('.fh-photo-upload-bar'), percent = status.querySelector('.fh-photo-upload-percent');
-      status.classList.add('is-visible'); bar.style.width = '0%'; percent.textContent = '0%'; message.textContent = `⏳ Téléversement de ${photos.length} photo${photos.length > 1 ? 's' : ''}…`;
-      try {
-        const uploadForm = await buildUploadForm(form);
-        const xhr = new XMLHttpRequest(); xhr.open(form.method || 'POST', form.action || window.location.href, true); xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.upload.addEventListener('progress', e => { if (!e.lengthComputable) return; const value = Math.min(100, Math.round(e.loaded / e.total * 100)); bar.style.width = `${value}%`; percent.textContent = `${value}%`; message.textContent = value < 100 ? `⏳ Téléversement des photos… ${value}%` : '⏳ Photos envoyées, traitement par Fasthome…'; });
-        xhr.addEventListener('load', async () => {
-          if (xhr.status >= 200 && xhr.status < 400) { bar.style.width = '100%'; percent.textContent = '100%'; message.textContent = '✓ Photos téléversées. Ouverture de l’étape suivante…'; await clearFormCache(form); setTimeout(() => { window.location.href = xhr.responseURL || form.action || window.location.href; }, 250); }
-          else { message.textContent = '⚠️ Le téléversement a échoué. Réessayez.'; percent.textContent = 'Échec'; }
-        });
-        xhr.addEventListener('error', () => { message.textContent = '⚠️ Impossible d’envoyer les photos. Vérifiez la connexion.'; percent.textContent = 'Échec'; });
-        xhr.addEventListener('abort', () => { message.textContent = '⚠️ Téléversement interrompu.'; percent.textContent = 'Arrêté'; });
-        xhr.send(uploadForm);
-      } catch (_) { message.textContent = '⚠️ Impossible de préparer les photos. Réessayez une photo à la fois.'; percent.textContent = 'Échec'; }
-    });
-  }
-
-  function install(form) {
-    if (form.dataset.fhNativePhotosInstalled === '1') return;
-    form.dataset.fhNativePhotosInstalled = '1'; styles(); addSubmitProgress(form);
-    const scan = () => allInputs(form).forEach(input => bindInput(form, input));
-    scan(); new MutationObserver(scan).observe(form, { childList: true, subtree: true });
-  }
-  function init() { document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(install); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+  function openDB(){if(dbPromise)return dbPromise;dbPromise=new Promise((resolve,reject)=>{if(!('indexedDB'in window))return reject(new Error('IndexedDB indisponible'));const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('Stockage temporaire indisponible'))});return dbPromise}
+  async function dbPut(k,f){const db=await openDB();return new Promise((res,rej)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).put(f,k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}
+  async function dbGet(k){const db=await openDB();return new Promise((res,rej)=>{const r=db.transaction(STORE,'readonly').objectStore(STORE).get(k);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
+  async function dbDelete(k){if(!k)return;try{const db=await openDB();await new Promise((res,rej)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).delete(k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(_){} }
+  const newKey=()=>`${Date.now()}-${window.crypto&&crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)}`;
+  function styles(){if(document.getElementById('fh-photo-upload-css'))return;const s=document.createElement('style');s.id='fh-photo-upload-css';s.textContent=`
+    .fh-photo-counter{margin-top:10px;color:#18344d;font-size:.85rem;font-weight:800}.fh-photo-processing{margin-top:10px;padding:10px;border-radius:10px;background:#edf5ff;color:#18344d;font-size:.82rem;font-weight:800;text-align:center}.fh-photo-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}.fh-photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.fh-photo-action{border:0;border-radius:12px;padding:13px 8px;background:#edf2f7;color:#18344d;font-weight:800;cursor:pointer;min-height:48px}.fh-photo-upload-status{display:none;margin-top:14px;padding:14px;border-radius:12px;background:#eaf4ff;color:#18344d;font-weight:800;text-align:center}.fh-photo-upload-status.is-visible{display:block}.fh-photo-upload-track{height:9px;margin-top:10px;border-radius:999px;background:#dbe5ee;overflow:hidden}.fh-photo-upload-bar{height:100%;width:0%;border-radius:999px;background:#163a5f;transition:width .15s ease}.fh-photo-upload-percent{display:block;margin-top:7px;font-size:.82rem;font-weight:900}`;document.head.appendChild(s)}
+  async function compress(file){if(!file||!file.type?.startsWith('image/'))return file;let b=null,c=null;try{b=await createImageBitmap(file,{imageOrientation:'from-image'});const w=b.width||1,h=b.height||1,scale=Math.min(1,MAX_DIMENSION/Math.max(w,h));c=document.createElement('canvas');c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));const x=c.getContext('2d',{alpha:false});if(!x)throw Error('Canvas indisponible');x.drawImage(b,0,0,c.width,c.height);b.close();b=null;const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',JPEG_QUALITY));c.width=1;c.height=1;c=null;if(!blob)throw Error('Compression impossible');return new File([blob],`${(file.name||'photo').replace(/\.[^.]+$/,'')||'photo'}.jpg`,{type:'image/jpeg',lastModified:Date.now()})}finally{if(b)try{b.close()}catch(_){}if(c){c.width=1;c.height=1}}}
+  function message(zone,text){let n=zone.querySelector('.fh-photo-counter');if(!n){n=document.createElement('div');n.className='fh-photo-counter';zone.appendChild(n)}n.textContent=text}
+  function busy(zone,text){let n=zone.querySelector('.fh-photo-processing');if(!n){n=document.createElement('div');n.className='fh-photo-processing';zone.appendChild(n)}n.textContent=text}
+  function done(zone){zone.querySelector('.fh-photo-processing')?.remove()}
+  function canSelect(zone){const i=zone?.querySelector('input[name^="photos_"]');if(i&&preparedKeys.has(i)){message(zone,'✓ Une photo est déjà enregistrée pour cette zone');return false}return true}
+  async function prepare(input,file){const zone=zoneOf(input);if(!zone||!file||!canSelect(zone))return;busy(zone,'⏳ Préparation de la photo…');try{const compressed=await compress(file);const key=newKey();await dbPut(key,compressed);preparedKeys.set(input,key);input.value='';message(zone,'✓ Photo prête à être téléversée')}catch(_){input.value='';message(zone,'⚠️ Impossible de préparer la photo. Réessayez.')}finally{done(zone)}}
+  function cameraInput(original,zone){const i=document.createElement('input');i.type='file';i.accept='image/*';i.capture='environment';i.multiple=false;i.className='fh-photo-input';i.addEventListener('change',async()=>{const f=i.files?.[0];if(f)await prepare(original,f);i.value='';i.remove()},{once:true});zone.appendChild(i);return i}
+  function controls(form,input){const zone=zoneOf(input);if(!zone||zone.querySelector('.fh-photo-actions'))return;const a=document.createElement('div');a.className='fh-photo-actions';const cam=document.createElement('button');cam.type='button';cam.className='fh-photo-action';cam.textContent='📷 Appareil photo';cam.onclick=()=>{if(canSelect(zone))cameraInput(input,zone).click()};const pick=document.createElement('button');pick.type='button';pick.className='fh-photo-action';pick.textContent='📁 Choisir un fichier';pick.onclick=()=>{if(canSelect(zone)){input.multiple=false;input.click()}};a.append(cam,pick);input.parentNode.insertBefore(a,input);const label=[...zone.querySelectorAll('label')].find(x=>x.htmlFor===input.id);if(label)label.style.display='none'}
+  function bind(form,input){if(input.dataset.fhPhotoBound==='1'||input.dataset.fhCameraInput==='1')return;input.dataset.fhPhotoBound='1';input.multiple=false;input.removeAttribute('capture');input.accept='image/jpeg,image/png,image/webp,image/heic,image/heif';input.classList.add('fh-photo-input');controls(form,input);input.addEventListener('change',()=>{const f=input.files?.[0];if(f)prepare(input,f)});message(zoneOf(input),'Aucune photo sélectionnée')}
+  function status(form){let s=form.querySelector('.fh-photo-upload-status');if(s)return s;s=document.createElement('div');s.className='fh-photo-upload-status';s.innerHTML='<div class="fh-photo-upload-message"></div><div class="fh-photo-upload-track"><div class="fh-photo-upload-bar"></div></div><span class="fh-photo-upload-percent">0%</span>';form.appendChild(s);return s}
+  async function data(form){const d=new FormData(form);for(const i of allInputs(form))d.delete(i.name);for(const i of allInputs(form)){const k=preparedKeys.get(i);if(!k)continue;const f=await dbGet(k);if(f)d.append(i.name,f,f.name||`${i.name}.jpg`)}return d}
+  async function clear(form){for(const i of allInputs(form)){const k=preparedKeys.get(i);if(k)await dbDelete(k);preparedKeys.delete(i)}}
+  function submit(form){if(form.dataset.fhUploadBound==='1')return;form.dataset.fhUploadBound='1';form.addEventListener('submit',async e=>{const list=allInputs(form).filter(i=>preparedKeys.has(i));if(!list.length)return;e.preventDefault();const s=status(form),m=s.querySelector('.fh-photo-upload-message'),bar=s.querySelector('.fh-photo-upload-bar'),pct=s.querySelector('.fh-photo-upload-percent');s.classList.add('is-visible');m.textContent=`⏳ Téléversement de ${list.length} photo${list.length>1?'s':''}…`;try{const d=await data(form),x=new XMLHttpRequest();x.open(form.method||'POST',form.action||location.href,true);x.setRequestHeader('X-Requested-With','XMLHttpRequest');x.upload.onprogress=e=>{if(!e.lengthComputable)return;const v=Math.round(e.loaded/e.total*100);bar.style.width=`${v}%`;pct.textContent=`${v}%`;m.textContent=v<100?`⏳ Téléversement… ${v}%`:'⏳ Traitement par Fasthome…'};x.onload=async()=>{if(x.status>=200&&x.status<400){bar.style.width='100%';pct.textContent='100%';m.textContent='✓ Téléversement terminé.';await clear(form);location.href=x.responseURL||form.action||location.href}else{m.textContent='⚠️ Le téléversement a échoué. Réessayez.';pct.textContent='Échec'}};x.onerror=()=>{m.textContent='⚠️ Connexion interrompue. Réessayez.';pct.textContent='Échec'};x.send(d)}catch(_){m.textContent='⚠️ Impossible de préparer le téléversement. Réessayez.';pct.textContent='Échec'}})}
+  function init(){styles();document.querySelectorAll('form').forEach(f=>{allInputs(f).forEach(i=>bind(f,i));submit(f)});new MutationObserver(()=>document.querySelectorAll('form').forEach(f=>{allInputs(f).forEach(i=>bind(f,i));submit(f)})).observe(document.body,{childList:true,subtree:true})}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
