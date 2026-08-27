@@ -8,9 +8,6 @@ from .photo_optimization import save_photos as optimized_save_photos
 
 
 class PropertyDynamicPhotoUploadTests(TestCase):
-    # Valid 1x1 RGBA PNG generated with Pillow. The previous fixture had a
-    # corrupted IDAT checksum and failed once the upload path started decoding
-    # every image for optimization.
     PNG_1X1 = (
         b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
         b'\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff\xff\x7f\x00\t\xfb\x03\xfd*\x86\xe3\x8a'
@@ -90,42 +87,29 @@ class PropertyDynamicPhotoUploadTests(TestCase):
             optimized_save_photos(self.property, request, post)
         self.assertEqual(PropertyPhoto.objects.filter(property=self.property).count(), 0)
 
-    def test_total_photo_limit_is_fifty(self):
-        for i in range(49):
+    def test_no_global_photo_limit_for_many_declared_zones(self):
+        self.property.bedroom_count = 41
+        self.property.save(update_fields=['bedroom_count'])
+
+        for number in range(1, 42):
             PropertyPhoto.objects.create(
                 property=self.property,
-                image=self.upload(f'existing-{i}.png'),
+                image=self.upload(f'bedroom-{number}.png'),
                 category='BEDROOM',
-                order=i + 1,
+                order=number,
             )
 
-        request = self.request_with_files({'photos_exterior': [self.upload('extra.png')]})
+        request = self.request_with_files({'photos_exterior': [self.upload('exterior.png')]})
         post = {
-            'bedroom_count': '1',
+            'bedroom_count': '41',
             'living_room_count': '0',
             'bathroom_count': '0',
             'toilet_count': '0',
             'has_kitchen': 'no',
         }
+
         optimized_save_photos(self.property, request, post)
-        self.assertEqual(PropertyPhoto.objects.filter(property=self.property).count(), 50)
 
-    def test_total_photo_limit_rejects_fifty_first_photo(self):
-        for i in range(50):
-            PropertyPhoto.objects.create(
-                property=self.property,
-                image=self.upload(f'existing-{i}.png'),
-                category='BEDROOM',
-                order=i + 1,
-            )
-
-        request = self.request_with_files({'photos_exterior': [self.upload('extra.png')]})
-        post = {
-            'bedroom_count': '1',
-            'living_room_count': '0',
-            'bathroom_count': '0',
-            'toilet_count': '0',
-            'has_kitchen': 'no',
-        }
-        with self.assertRaisesMessage(ValidationError, 'Maximum 50 photos par logement.'):
-            optimized_save_photos(self.property, request, post)
+        self.assertEqual(self.property.photos.count(), 42)
+        self.assertEqual(self.property.photos.filter(category='EXTERIOR', order=1).count(), 1)
+        self.assertEqual(self.property.photos.filter(category='BEDROOM').count(), 41)
