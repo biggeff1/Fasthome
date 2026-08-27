@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from notifications.models import Notification
+from notifications.services import publication_submitted
 from properties.models import Property, PropertyPublication
 from visits.models import VisitRequest
 
@@ -23,7 +23,6 @@ def _publication_checklist(property_obj, publication):
         missing.append(('loyer', 'Le loyer mensuel doit être renseigné.'))
     if property_obj.max_occupants < 1:
         missing.append(('capacite', 'La capacité maximale doit être supérieure à zéro.'))
-
     photos = property_obj.photos.all()
     if not photos.filter(category='EXTERIOR').exists():
         missing.append(('photos', 'Ajoutez au moins une photo de l’extérieur.'))
@@ -41,25 +40,18 @@ def _publication_checklist(property_obj, publication):
     for category, label in required_categories:
         if not photos.filter(category=category).exists():
             missing.append((f'photo_{category.lower()}', f'Ajoutez au moins une photo pour chaque {label}.'))
-
     declaration = getattr(publication, 'declaration', None)
     consent = getattr(publication, 'collaboration_consent', None)
     if not declaration or not declaration.accepted_at:
         missing.append(('declaration', 'La déclaration du propriétaire doit être entièrement acceptée.'))
     if not consent or not consent.accepted_at:
         missing.append(('consentement', 'Les conditions de collaboration avec Fasthome doivent être entièrement acceptées.'))
-
     return missing
 
 
 @login_required
 def my_properties(request):
-    properties = (
-        Property.objects.filter(owner=request.user)
-        .select_related('property_type', 'publication')
-        .prefetch_related('photos')
-        .order_by('-updated_at', '-created_at')
-    )
+    properties = (Property.objects.filter(owner=request.user).select_related('property_type', 'publication').prefetch_related('photos').order_by('-updated_at', '-created_at'))
     counts = {
         'all': properties.count(),
         'available': properties.filter(status='AVAILABLE').count(),
@@ -72,21 +64,11 @@ def my_properties(request):
 
 @login_required
 def property_manage(request, property_id):
-    property_obj = get_object_or_404(
-        Property.objects.filter(owner=request.user).select_related('property_type', 'publication').prefetch_related('photos', 'features'),
-        property_id=property_id,
-    )
+    property_obj = get_object_or_404(Property.objects.filter(owner=request.user).select_related('property_type', 'publication').prefetch_related('photos', 'features'), property_id=property_id)
     publication = getattr(property_obj, 'publication', None)
     visit_requests = VisitRequest.objects.filter(property=property_obj).order_by('-created_at')[:10]
     checklist = _publication_checklist(property_obj, publication) if publication else [('publication', 'La publication n’existe pas encore.')]
-    return render(request, 'dashboard/property_manage.html', {
-        'property': property_obj,
-        'publication': publication,
-        'photos': property_obj.photos.all().order_by('order', 'id'),
-        'visit_requests': visit_requests,
-        'checklist': checklist,
-        'ready_for_submission': not checklist and publication and publication.status in {'DRAFT', 'CORRECTION_REQUIRED'},
-    })
+    return render(request, 'dashboard/property_manage.html', {'property': property_obj, 'publication': publication, 'photos': property_obj.photos.all().order_by('order', 'id'), 'visit_requests': visit_requests, 'checklist': checklist, 'ready_for_submission': not checklist and publication and publication.status in {'DRAFT', 'CORRECTION_REQUIRED'}})
 
 
 @login_required
@@ -94,12 +76,7 @@ def property_review(request, property_id):
     property_obj = get_object_or_404(Property.objects.filter(owner=request.user).select_related('property_type', 'publication'), property_id=property_id)
     publication = get_object_or_404(PropertyPublication, property=property_obj)
     checklist = _publication_checklist(property_obj, publication)
-    return render(request, 'dashboard/property_review.html', {
-        'property': property_obj,
-        'publication': publication,
-        'checklist': checklist,
-        'ready_for_submission': not checklist and publication.status in {'DRAFT', 'CORRECTION_REQUIRED'},
-    })
+    return render(request, 'dashboard/property_review.html', {'property': property_obj, 'publication': publication, 'checklist': checklist, 'ready_for_submission': not checklist and publication.status in {'DRAFT', 'CORRECTION_REQUIRED'}})
 
 
 @login_required
@@ -122,7 +99,7 @@ def property_submit(request, property_id):
         publication.save(update_fields=['status', 'submitted_at', 'correction_message', 'updated_at'])
         property_obj.status = 'UNDER_REVIEW'
         property_obj.save(update_fields=['status', 'updated_at'])
-        Notification.objects.create(recipient=property_obj.owner, level='SUCCESS', title='Publication envoyée', message=f'La publication {publication.publication_id} a été envoyée à Fasthome pour vérification.', object_type='PropertyPublication', object_id=publication.publication_id)
+        publication_submitted(publication)
     messages.success(request, 'Votre publication est maintenant en cours de vérification par Fasthome.')
     return redirect('property_manage', property_id=property_id)
 
