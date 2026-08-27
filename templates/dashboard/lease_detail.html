@@ -1,54 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}Location {{ lease.lease_id }} — Fasthome{% endblock %}
 {% block content %}
-<main class="container">
-  <div class="form">
-    <h1>{{ lease.lease_id }}</h1>
-    <p class="badge">{{ lease.get_status_display }}</p>
-
-    <div class="row">
-      <div><h3>Logement</h3><p>{{ lease.property.property_id }} · {{ lease.property.property_type }}</p></div>
-      <div><h3>Loyer mensuel</h3><p><strong>{{ lease.monthly_rent }} FC</strong></p></div>
-    </div>
-
-    <section class="section">
-      <h2>📄 Contrats</h2>
-      {% for c in contracts %}
-        <div class="list-item"><strong>{{ c.get_contract_type_display }}</strong> · {{ c.contract_id }} · {{ c.get_status_display }}</div>
-      {% empty %}<p class="muted">Contrats en préparation.</p>{% endfor %}
-    </section>
-
-    <section class="section">
-      <h2>📋 PV</h2>
-      {% for r in reports %}
-        <div class="list-item">{{ r.report_id }} · {{ r.get_report_type_display }} · {{ r.get_status_display }}</div>
-      {% empty %}<p class="muted">Aucun PV.</p>{% endfor %}
-    </section>
-
-    <section class="section">
-      <h2>💰 Échéances et loyers reçus</h2>
-      {% for i in installments %}
-        <div class="list-item">
-          <strong>Échéance {{ i.due_date }}</strong> · {{ i.amount_due }} FC · {{ i.get_status_display }}<br>
-          <span class="muted">Reçu : {{ i.total_received }} FC · Reste à recevoir : {{ i.remaining_to_receive }} FC</span>
-          {% for p in i.payments.all %}
-            <div>Reçu {{ p.payment_id }} · {{ p.amount }} FC · {{ p.received_at }}{% if p.reference %} · Réf. {{ p.reference }}{% endif %}</div>
-          {% endfor %}
-        </div>
-      {% empty %}<p class="muted">Aucune échéance enregistrée.</p>{% endfor %}
-    </section>
-
-    <section class="section">
-      <h2>💸 Versements au bailleur</h2>
-      {% for i in installments %}
-        <div class="list-item">
-          Échéance {{ i.due_date }} · Reçu : {{ i.total_received }} FC · Versé : {{ i.total_paid_to_landlord }} FC · Disponible à verser : {{ i.remaining_to_pay_out }} FC
-        </div>
-      {% endfor %}
-      {% for p in payouts %}
-        <div class="list-item">{{ p.amount }} FC · {{ p.paid_at }} · {{ p.payout_id }}{% if p.reference %} · Réf. {{ p.reference }}{% endif %}</div>
-      {% empty %}<p class="muted">Aucun versement enregistré.</p>{% endfor %}
-    </section>
-  </div>
+<main class="container" style="padding:18px 10px 45px">
+<section class="page-hero" style="margin-bottom:20px"><span class="chip" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.18)">DOSSIER DE LOCATION</span><div class="actions" style="margin-top:12px"><div><h1 style="color:#fff;margin:0">{{ lease.lease_id }}</h1><p style="margin:6px 0 0">{{ lease.property.property_type }} · {{ lease.property.property_id }}</p></div><span class="status" style="background:rgba(255,255,255,.12);color:#fff">{{ lease.get_status_display }}</span></div></section>
+<section class="grid grid-3" style="margin-bottom:20px"><article class="stat-card"><span class="stat-label">LOYER MENSUEL</span><span class="stat-value" style="font-size:1.45rem">{{ lease.monthly_rent }} FC</span><p>Montant de référence de la location.</p></article><article class="stat-card"><span class="stat-label">ÉCHÉANCES</span><span class="stat-value">{{ installments|length }}</span><p>Échéances enregistrées dans le dossier.</p></article><article class="stat-card"><span class="stat-label">DOCUMENTS</span><span class="stat-value">{{ contracts|length|add:reports|length }}</span><p>Contrats et PV associés.</p></article></section>
+<section class="card" style="margin-bottom:18px"><h2>📄 Contrats</h2>{% for c in contracts %}<div class="notification-card" style="margin-top:10px;padding:14px;box-shadow:none"><div class="notification-dot"></div><div><div class="actions"><strong>{{ c.get_contract_type_display }}</strong><span class="spacer"></span><span class="status">{{ c.get_status_display }}</span></div><p class="muted" style="margin:4px 0 0">{{ c.contract_id }}</p></div></div>{% empty %}<div class="empty-state"><h3>Contrats en préparation</h3><p>Les documents apparaîtront ici dès leur création.</p></div>{% endfor %}</section>
+<section class="card" style="margin-bottom:18px"><h2>📋 Procès-verbaux</h2>{% for r in reports %}<div class="notification-card" style="margin-top:10px;padding:14px;box-shadow:none"><div class="notification-dot"></div><div><div class="actions"><strong>{{ r.get_report_type_display }}</strong><span class="spacer"></span><span class="status">{{ r.get_status_display }}</span></div><p class="muted" style="margin:4px 0 0">{{ r.report_id }}</p></div></div>{% empty %}<p class="muted">Aucun PV enregistré.</p>{% endfor %}</section>
+<section class="card" style="margin-bottom:18px"><div class="actions"><div><h2 style="margin:0">💰 Échéances & paiements reçus</h2><p class="muted" style="margin:4px 0">Suivez séparément ce que le locataire a versé à Fasthome.</p></div></div>{% for i in installments %}<article class="payment-row" style="margin-top:12px"><div class="actions"><strong>Échéance · {{ i.due_date }}</strong><span class="spacer"></span><span class="status">{{ i.get_status_display }}</span></div><div class="grid grid-3" style="margin-top:10px"><div><small class="muted">DÛ</small><br><strong>{{ i.amount_due }} FC</strong></div><div><small class="muted">REÇU</small><br><strong>{{ i.total_received }} FC</strong></div><div><small class="muted">RESTE</small><br><strong>{{ i.remaining_to_receive }} FC</strong></div></div>{% for p in i.payments.all %}<div class="list-item" style="margin-top:9px"><strong>{{ p.amount }} FC</strong> · reçu {{ p.payment_id }} · {{ p.received_at }}{% if p.reference %} · Réf. {{ p.reference }}{% endif %}</div>{% endfor %}</article>{% empty %}<p class="muted">Aucune échéance enregistrée.</p>{% endfor %}</section>
+<section class="card"><div class="actions"><div><h2 style="margin:0">💸 Versements au bailleur</h2><p class="muted" style="margin:4px 0">Flux séparé entre Fasthome et le bailleur.</p></div></div>{% for i in installments %}<div class="payment-row" style="margin-top:12px"><strong>Échéance {{ i.due_date }}</strong><div class="grid grid-3" style="margin-top:9px"><div><small class="muted">REÇU</small><br>{{ i.total_received }} FC</div><div><small class="muted">VERSÉ</small><br>{{ i.total_paid_to_landlord }} FC</div><div><small class="muted">À VERSER</small><br><strong>{{ i.remaining_to_pay_out }} FC</strong></div></div></div>{% endfor %}{% for p in payouts %}<div class="list-item" style="margin-top:9px"><strong>{{ p.amount }} FC</strong> · {{ p.paid_at }} · {{ p.payout_id }}{% if p.reference %} · Réf. {{ p.reference }}{% endif %}</div>{% empty %}<p class="muted" style="margin-top:12px">Aucun versement enregistré.</p>{% endfor %}</section>
 </main>
 {% endblock %}
