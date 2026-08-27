@@ -5,6 +5,7 @@ from django.db import transaction
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 
+from notifications.services import verification_submitted, verification_in_review, verification_decided
 from .forms import EmailLoginForm, IdentityVerificationForm, RegistrationForm
 from .kyc_services import process_identity_verification
 from .models import IdentityVerification, IdentityVerificationEvent, User
@@ -96,49 +97,78 @@ def certification(request):
                 obj.document_file = locked.document_file
                 obj.document_type = locked.document_type
                 obj.status = 'VERIFIED'
+                obj.facial_status = 'PENDING'
                 success_message = 'Votre nouvelle photo faciale a été transmise à Fasthome.'
+                obj.rejection_reason = ''
+                obj.verified_at = None
+                obj.save()
+                IdentityVerificationEvent.objects.create(
+                    verification=obj,
+                    actor=request.user,
+                    event_type='SUBMITTED',
+                    from_status=locked.status,
+                    to_status=obj.status,
+                    from_facial_status=locked.facial_status,
+                    to_facial_status=obj.facial_status,
+                    reason='Nouvelle photo faciale transmise par l’utilisateur.',
+                )
+                try:
+                    analysis = process_identity_verification(obj)
+                except Exception:
+                    pass
+                else:
+                    if analysis.decision == 'AUTO_VERIFIED':
+                        obj.facial_status = 'VERIFIED'
+                        obj.verified_at = timezone.now()
+                        obj.save(update_fields=['facial_status', 'verified_at'])
+                continue_processing = False
             else:
                 # Every fresh or replacement document submission starts in PENDING.
-                # Automated checks decide whether it later needs human review or can
-                # be verified automatically. Keeping the persisted submission state
-                # at PENDING preserves the public workflow contract.
-                obj.status = 'PENDING'
-                success_message = 'Votre demande de certification a été transmise. Les contrôles automatiques démarrent maintenant.'
-            obj.facial_status = 'PENDING'
-            obj.verified_at = None
-            obj.rejection_reason = ''
-            obj.save()
-            IdentityVerificationEvent.objects.create(
-                verification=obj,
-                actor=request.user,
-                event_type='SUBMITTED',
-                from_status=locked.status if locked else '',
-                to_status=obj.status,
-                from_facial_status=locked.facial_status if locked else '',
-                to_facial_status=obj.facial_status,
-                reason='Dossier transmis par l’utilisateur.',
-            )
-            try:
-                analysis = process_identity_verification(obj)
-            except Exception as exc:
+                # Automated checks are allowed to produce an analysis, but the
+                # user-facing state remains PENDING until an explicit reviewer step.
+                old_status = locked.status if locked else ''
+                old_face = locked.facial_status if locked else ''
                 obj.status = 'PENDING'
                 obj.facial_status = 'PENDING'
-                obj.rejection_reason = f'Contrôles automatiques temporairement indisponibles ({exc.__class__.__name__}). Vérification humaine requise.'
+                obj.verified_at = None
+                obj.rejection_reason = ''
                 obj.save()
-                messages.warning(request, 'Les contrôles automatiques sont temporairement indisponibles. Votre dossier est en attente de vérification humaine.')
-            else:
-                if analysis.decision == 'AUTO_VERIFIED':
-                    success_message = 'Identité vérifiée automatiquement. Votre compte Fasthome est maintenant certifié.'
-                elif analysis.decision == 'REJECTED':
-                    success_message = 'La vérification automatique n’a pas été concluante. Consultez le motif et soumettez une nouvelle pièce si nécessaire.'
-                else:
-                    # The analysis records IN_REVIEW, but the user-facing submission
-                    # state remains PENDING until a reviewer explicitly opens it.
+                IdentityVerificationEvent.objects.create(
+                    verification=obj,
+                    actor=request.user,
+                    event_type='SUBMITTED',
+                    from_status=old_status,
+                    to_status=obj.status,
+                    from_facial_status=old_face,
+                    to_facial_status=obj.facial_status,
+                    reason='Dossier transmis par l’utilisateur.',
+                )
+                verification_submitted(obj)
+                success_message = 'Votre demande de certification a été transmise. Les contrôles démarrent maintenant.'
+                try:
+                    analysis = process_identity_verification(obj)
+                except Exception as exc:
                     obj.status = 'PENDING'
                     obj.facial_status = 'PENDING'
-                    obj.rejection_reason = analysis.explanation
+                    obj.rejection_reason = f'Contrôles automatiques temporairement indisponibles ({exc.__class__.__name__}). Vérification humaine requise.'
                     obj.save(update_fields=['status', 'facial_status', 'rejection_reason', 'verified_at'])
-                    success_message = 'Votre dossier nécessite une vérification par un agent Fasthome.'
+                    verification_in_review(obj)
+                    messages.warning(request, 'Les contrôles automatiques sont temporairement indisponibles. Votre dossier est en attente de vérification humaine.')
+                else:
+                    if analysis.decision == 'AUTO_VERIFIED':
+                        success_message = 'Identité vérifiée automatiquement. Votre compte Fasthome est maintenant certifié.'
+                        verification_decided(obj, True)
+                    elif analysis.decision == 'REJECTED':
+                        success_message = 'La vérification automatique n’a pas été concluante. Consultez le motif et soumettez une nouvelle pièce si nécessaire.'
+                        verification_decided(obj, False, reason=analysis.explanation)
+                    else:
+                        obj.status = 'PENDING'
+                        obj.facial_status = 'PENDING'
+                        obj.rejection_reason = analysis.explanation
+                        obj.save(update_fields=['status', 'facial_status', 'rejection_reason', 'verified_at'])
+                        verification_in_review(obj)
+                        success_message = 'Votre dossier nécessite une vérification par un agent Fasthome.'
+                continue_processing = False
 
         messages.success(request, success_message)
         return redirect('certification')
