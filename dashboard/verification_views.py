@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from notifications.models import Notification
+from notifications.services import verification_in_review, verification_decided
 from users.models import IdentityVerification, IdentityVerificationEvent
 
 
@@ -115,17 +115,6 @@ def office_verification_decision(request, verification_id):
             reason=reason or message,
             metadata={'action': action},
         )
-        Notification.objects.create(
-            recipient=verification.user,
-            level='SUCCESS' if verification.user.is_certified else 'ACTION',
-            title='Mise à jour de votre certification',
-            message=(
-                'Votre identité est maintenant certifiée.'
-                if verification.user.is_certified
-                else 'Votre dossier de certification a été mis à jour. Consultez votre espace pour connaître la prochaine étape.'
-            ),
-            object_type='IdentityVerification',
-            object_id=str(verification.pk),
-        )
+        verification_decided(verification, verification.user.is_certified, reason=reason)
     messages.success(request, message)
     return redirect('office_verifications')
