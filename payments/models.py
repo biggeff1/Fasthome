@@ -29,7 +29,7 @@ class RentInstallment(models.Model):
         return max(self.amount_due - self.total_received(), Decimal('0'))
 
     def remaining_to_pay_out(self):
-        return max(self.total_received() - self.total_paid_to_landlord(), Decimal('0'))
+        return max(self.amount_due - self.total_paid_to_landlord(), Decimal('0'))
 
     def refresh_payment_status(self):
         total = self.total_received()
@@ -116,15 +116,23 @@ class LandlordPayout(models.Model):
             raise ValidationError({'amount': 'Le montant versé doit être supérieur à zéro.'})
         if self.installment_id and self.lease_id and self.installment.lease_id != self.lease_id:
             raise ValidationError({'installment': 'L’échéance sélectionnée n’appartient pas à cette location.'})
+
+        installment = self.installment if self.installment_id else None
+        if installment:
+            # Flux indépendant : locataire -> Fasthome et Fasthome -> bailleur.
+            # Fasthome doit verser l'échéance complète en une seule fois,
+            # même si le locataire a payé Fasthome en plusieurs tranches.
+            if self.amount != installment.amount_due:
+                raise ValidationError({'amount': 'Fasthome doit verser au bailleur le montant total de l’échéance en une seule fois.'})
+            if self.paid_at and self.paid_at.date() > installment.due_date:
+                raise ValidationError({'paid_at': 'Le versement au bailleur doit être effectué au plus tard à la date d’échéance.'})
+
         if self.pk:
             original = type(self).objects.only('amount', 'lease_id', 'installment_id').get(pk=self.pk)
             if self.lease_id != original.lease_id or self.installment_id != original.installment_id:
                 raise ValidationError({'installment': 'Un versement existant ne peut pas être déplacé vers une autre location ou échéance.'})
-            existing_total = self.installment.total_paid_to_landlord() - original.amount
-        else:
-            existing_total = self.installment.total_paid_to_landlord() if self.installment_id else Decimal('0')
-        if self.installment_id and self.amount + existing_total > self.installment.total_received():
-            raise ValidationError({'amount': 'Le versement dépasse le montant réellement reçu par Fasthome.'})
+        elif installment and installment.payouts.exists():
+            raise ValidationError({'installment': 'Cette échéance a déjà été versée au bailleur. Fasthome ne fractionne pas le versement.'})
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
