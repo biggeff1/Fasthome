@@ -18,6 +18,7 @@ urlpatterns = [
     path('notifications/<str:notification_id>/read/', views.mark_notification_read, name='mark_notification_read'),
     path('notifications/read-all/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
     path('notifications/unread-count/', views.notification_unread_count, name='notification_unread_count'),
+    path('visits/', views.visits_page, name='visits'),
     path('visits/<str:visit_id>/landlord-decision/', visit_views.landlord_visit_decision, name='landlord_visit_decision'),
     path('visits/<str:visit_id>/fasthome-decision/', visit_views.fasthome_visit_decision, name='fasthome_visit_decision'),
     path('visits/<str:visit_id>/complete/', visit_views.mark_visit_completed, name='mark_visit_completed'),
