@@ -2,112 +2,103 @@
 {% block title %}{{ property.property_type }} — Fasthome{% endblock %}
 {% block content %}
 <style>
-.property-detail{max-width:980px;padding-top:14px}.property-gallery{position:relative;border-radius:18px;overflow:hidden;background:#e9edf2}.property-gallery-track{display:flex;width:100%;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scrollbar-width:none}.property-gallery-track::-webkit-scrollbar{display:none}.property-slide{position:relative;min-width:100%;aspect-ratio:16/9;scroll-snap-align:start;background:#e9edf2;display:flex;align-items:center;justify-content:center}.property-slide img{width:100%;height:100%;object-fit:cover;display:block}.property-slide-label{position:absolute;left:12px;bottom:12px;padding:7px 11px;border-radius:9px;background:rgba(0,0,0,.68);color:#fff;font-size:.8rem;font-weight:700;backdrop-filter:blur(4px)}.property-gallery-nav{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;pointer-events:none;padding:0 10px}.property-gallery-nav button{pointer-events:auto;width:38px;height:38px;border:0;border-radius:50%;background:rgba(255,255,255,.9);color:#18344d;font-size:1.25rem;cursor:pointer;box-shadow:0 2px 9px rgba(0,0,0,.16)}.property-gallery-counter{position:absolute;right:12px;bottom:12px;padding:5px 8px;border-radius:999px;background:rgba(0,0,0,.65);color:#fff;font-size:.7rem;font-weight:700}.property-gallery-dots{display:flex;justify-content:center;gap:5px;padding:8px;background:#fff}.property-gallery-dot{width:6px;height:6px;border:0;border-radius:50%;background:#c9d0d8;padding:0}.property-gallery-dot.active{background:#163a5f;transform:scale(1.25)}.property-detail-card{margin-top:12px}.property-detail-body{padding:18px}.property-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.property-title-row h1{margin:6px 0 3px;font-size:clamp(1.65rem,4vw,2.5rem);line-height:1.1}.property-location{margin:0 0 12px;color:#5b6673}.property-id{font-size:.78rem}.property-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}.property-summary-item{padding:11px;background:#f6f8fa;border-radius:12px;text-align:center}.property-summary-item strong{display:block;font-size:1rem}.property-summary-item span{display:block;margin-top:2px;color:#64707d;font-size:.72rem}.property-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}.property-info{padding:15px;background:#f8fafc;border:1px solid #edf0f3;border-radius:14px}.property-info h2{margin:0 0 9px;font-size:1rem}.property-info p{margin:0;color:#53606d;line-height:1.6}.property-location-box{margin-top:12px;padding:15px;border-radius:14px;background:#f8fafc}.property-location-box p{margin:0;line-height:1.5}.property-rent{margin-top:12px;padding:14px 15px;border-radius:14px;background:#edf4fa}.property-rent p{margin:0}.property-actions{display:flex;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-top:16px}.property-actions form{margin:0}.property-visit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;flex:1 1 100%;padding:13px;border-radius:14px;background:#f7f9fb;border:1px solid #e7ebef}.visit-field{display:grid;gap:5px}.visit-field label{font-size:.76rem;font-weight:800;color:#263747}.visit-hint{margin:0;color:#64707d;font-size:.7rem;line-height:1.35}.visit-date-wrap{position:relative}.visit-date-wrap::before{content:'📅';position:absolute;left:12px;top:50%;transform:translateY(-50%);z-index:1;pointer-events:none}.property-visit input{width:100%;min-height:46px;padding:10px 11px;border:1px solid #bfc9d3;border-radius:10px;background:#fff;color:#18212b;font:inherit}.property-visit input[type=date]{padding-left:40px;color-scheme:light}.property-visit input[type=date]:invalid{color:#64707d}.visit-time-range{display:grid;grid-template-columns:1fr 1fr;gap:8px}.visit-time-field{position:relative}.visit-time-field::before{content:'🕐';position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:1;pointer-events:none;font-size:.9rem}.visit-time-field input[type=time]{padding-left:36px;color-scheme:light}.visit-time-field input[type=time]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.8}.visit-time-help{margin:0;color:#64707d;font-size:.68rem;line-height:1.35}.property-visit button{grid-column:1/-1;min-height:46px}.share-button{min-height:44px;cursor:pointer}.share-button:disabled{opacity:.7;cursor:wait}
-@media(max-width:767px){.property-detail{padding:8px 10px 18px}.property-gallery{border-radius:14px}.property-slide{aspect-ratio:1.12/1}.property-slide-label{left:9px;bottom:9px;font-size:.72rem;padding:6px 9px}.property-gallery-nav{padding:0 7px}.property-gallery-nav button{width:34px;height:34px;font-size:1.05rem}.property-gallery-counter{right:9px;bottom:9px}.property-gallery-dots{padding:6px}.property-detail-card{border-radius:14px}.property-detail-body{padding:12px}.property-title-row{display:block}.property-title-row h1{font-size:1.45rem}.property-location{font-size:.86rem;margin-bottom:9px}.property-summary{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:10px 0}.property-summary-item{padding:8px 4px;border-radius:9px}.property-summary-item strong{font-size:.84rem}.property-summary-item span{font-size:.62rem}.property-info-grid{grid-template-columns:1fr;gap:8px}.property-info{padding:11px}.property-info h2{font-size:.9rem}.property-info p,.property-location-box p,.property-rent p{font-size:.78rem}.property-actions{gap:6px}.property-actions>.btn,.property-actions form>.btn{flex:1 1 auto;min-height:42px;font-size:.76rem}.property-visit{grid-template-columns:1fr;gap:8px;padding:10px}.visit-time-range{grid-template-columns:1fr 1fr;gap:7px}.property-visit button{grid-column:auto}.visit-time-field input[type=time]{padding-left:34px}.share-button{width:100%}}
+.detail-shell{max-width:1120px;margin:auto;padding:24px 0 110px}.detail-hero{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.85fr);gap:18px;align-items:start}.gallery{position:relative;overflow:hidden;border-radius:24px;background:#0b2239;box-shadow:0 20px 55px rgba(11,34,57,.16)}.gallery-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}.gallery-track::-webkit-scrollbar{display:none}.slide{position:relative;min-width:100%;aspect-ratio:4/3;scroll-snap-align:start;background:#14202b}.slide img{width:100%;height:100%;display:block;object-fit:cover}.slide-caption{position:absolute;left:16px;bottom:16px;padding:7px 11px;border-radius:999px;background:rgba(0,0,0,.62);color:#fff;font-size:.76rem;font-weight:800;backdrop-filter:blur(8px)}.gallery-count{position:absolute;right:14px;top:14px;padding:7px 10px;border-radius:999px;background:rgba(0,0,0,.62);color:#fff;font-size:.74rem;font-weight:850}.gallery-nav{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 12px;pointer-events:none}.gallery-nav button{pointer-events:auto;width:42px;height:42px;border:0;border-radius:50%;background:rgba(255,255,255,.92);color:#0b2239;font-size:1.45rem;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.18)}.gallery-dots{display:flex;justify-content:center;gap:5px;padding:9px;background:var(--surface)}.gallery-dot{width:7px;height:7px;border:0;padding:0;border-radius:50%;background:#cbd4dd}.gallery-dot.active{background:#0b2239;transform:scale(1.3)}.summary-card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:22px;box-shadow:0 14px 40px rgba(11,34,57,.08);position:sticky;top:82px}.status-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.verified{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:#eaf5ee;color:#247344;font-size:.72rem;font-weight:900}.ref{color:var(--muted);font-size:.72rem}.summary-card h1{font-size:clamp(1.8rem,3.5vw,2.65rem);line-height:1.05;margin:14px 0 8px;letter-spacing:-.03em}.location{margin:0;color:var(--muted);font-weight:650;line-height:1.45}.summary-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:20px 0}.metric{padding:13px;border:1px solid var(--border);background:var(--surface2);border-radius:15px}.metric strong{display:block;font-size:1.08rem}.metric span{display:block;color:var(--muted);font-size:.72rem;margin-top:3px}.rent-box{padding:15px;border-radius:17px;background:linear-gradient(135deg,#edf4fa,#f7f9fb);border:1px solid #dbe6ef}.rent-box small{display:block;color:var(--muted);font-size:.7rem;font-weight:750}.rent-box strong{display:block;margin-top:4px;font-size:1rem}.actions{display:grid;gap:8px;margin-top:14px}.btn-wide{width:100%;min-height:46px}.info-section{margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:22px}.section-heading{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:14px}.section-heading h2{margin:0;font-size:1.18rem}.section-heading p{margin:3px 0 0;color:var(--muted);font-size:.78rem}.info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.info-card{padding:15px;border:1px solid var(--border);border-radius:16px;background:var(--surface2)}.info-card h3{margin:0 0 7px;font-size:.88rem}.info-card p{margin:0;color:var(--muted);font-size:.82rem;line-height:1.55}.feature-list{display:flex;flex-wrap:wrap;gap:7px}.feature{padding:8px 10px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);font-size:.75rem;font-weight:750}.visit-card{margin-top:18px;background:linear-gradient(145deg,#0b2239,#164b7a);color:#fff;border-radius:22px;padding:22px;box-shadow:0 18px 45px rgba(11,34,57,.2)}.visit-card h2{margin:0 0 5px;font-size:1.25rem}.visit-card>p{margin:0 0 16px;color:rgba(255,255,255,.76);font-size:.8rem}.visit-form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.visit-field{display:grid;gap:6px}.visit-field.full{grid-column:1/-1}.visit-field label{font-size:.73rem;font-weight:850;color:rgba(255,255,255,.9)}.visit-field input{width:100%;min-height:46px;padding:10px 12px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:#fff;color:#152331;font:inherit}.time-range{display:grid;grid-template-columns:1fr 1fr;gap:8px}.visit-form button{min-height:48px;border:0;background:#fff;color:#0b2239;border-radius:12px;font-weight:900;cursor:pointer}.login-note{padding:15px;border-radius:15px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.86);font-size:.8rem}.privacy-note{margin-top:12px;padding:13px 15px;border:1px dashed var(--border);border-radius:15px;color:var(--muted);font-size:.74rem;line-height:1.5}
+@media(max-width:850px){.detail-shell{width:min(100% - 20px,1120px);padding-top:14px}.detail-hero{grid-template-columns:1fr}.summary-card{position:static}.info-grid{grid-template-columns:1fr}.gallery{border-radius:19px}}
+@media(max-width:560px){.detail-shell{padding-bottom:105px}.slide{aspect-ratio:1.08/1}.gallery-nav button{width:36px;height:36px}.summary-card{padding:16px;border-radius:19px}.summary-card h1{font-size:1.65rem}.summary-grid{gap:6px;margin:14px 0}.metric{padding:10px}.metric strong{font-size:.95rem}.metric span{font-size:.66rem}.info-section,.visit-card{padding:16px;border-radius:18px}.visit-form{grid-template-columns:1fr}.visit-field.full{grid-column:auto}.section-heading h2{font-size:1rem}.info-card p{font-size:.77rem}}
 </style>
 
-<main class="container property-detail">
-  <section class="property-gallery" aria-label="Photos du logement">
-    <div class="property-gallery-track" id="propertyGalleryTrack">
-      {% for photo in property_photos %}
-        <figure class="property-slide" id="photo-{{ forloop.counter }}">
-          <img src="{{ photo.image.url }}" alt="{{ property.property_type }} — {% if photo.category == 'EXTERIOR' %}Extérieur{% elif photo.category == 'LIVING_ROOM' %}Salon {{ photo.order }}{% elif photo.category == 'BEDROOM' %}Chambre {{ photo.order }}{% elif photo.category == 'KITCHEN' %}Cuisine{% elif photo.category == 'BATHROOM' %}Salle de bain {{ photo.order }}{% elif photo.category == 'TOILET' %}Toilette {{ photo.order }}{% elif photo.category == 'PARKING' %}Parking / Garage{% elif photo.category == 'GARDEN' %}Jardin{% else %}Autre{% endif %}">
-          <figcaption class="property-slide-label">{% if photo.category == 'EXTERIOR' %}Extérieur{% elif photo.category == 'LIVING_ROOM' %}Salon {{ photo.order }}{% elif photo.category == 'BEDROOM' %}Chambre {{ photo.order }}{% elif photo.category == 'KITCHEN' %}Cuisine{% elif photo.category == 'BATHROOM' %}Salle de bain {{ photo.order }}{% elif photo.category == 'TOILET' %}Toilette {{ photo.order }}{% elif photo.category == 'PARKING' %}Parking / Garage{% elif photo.category == 'GARDEN' %}Jardin{% else %}Autre{% endif %}</figcaption>
+<main class="detail-shell">
+  <div class="detail-hero">
+    <section class="gallery" aria-label="Galerie photos du logement">
+      <div class="gallery-track" id="galleryTrack">
+        {% for photo in property_photos %}
+        <figure class="slide">
+          <img src="{{ photo.image.url }}" alt="{{ property.property_type }} — {{ photo.category|default:'Photo du logement' }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+          <figcaption class="slide-caption">{% if photo.category == 'EXTERIOR' %}Extérieur{% elif photo.category == 'LIVING_ROOM' %}Salon {{ photo.order }}{% elif photo.category == 'BEDROOM' %}Chambre {{ photo.order }}{% elif photo.category == 'KITCHEN' %}Cuisine{% elif photo.category == 'BATHROOM' %}Salle de bain {{ photo.order }}{% elif photo.category == 'TOILET' %}Toilette {{ photo.order }}{% elif photo.category == 'PARKING' %}Parking / Garage{% elif photo.category == 'GARDEN' %}Jardin{% else %}Photo du logement{% endif %}</figcaption>
         </figure>
-      {% empty %}
-        <figure class="property-slide"><span>Photo du logement</span></figure>
-      {% endfor %}
+        {% empty %}
+        <figure class="slide"><div style="color:#fff;font-weight:800">Photo du logement</div></figure>
+        {% endfor %}
+      </div>
+      {% if property_photos|length > 1 %}
+      <div class="gallery-count" id="galleryCount">1 / {{ property_photos|length }}</div>
+      <div class="gallery-nav"><button type="button" id="galleryPrev" aria-label="Photo précédente">‹</button><button type="button" id="galleryNext" aria-label="Photo suivante">›</button></div>
+      <div class="gallery-dots" id="galleryDots">{% for photo in property_photos %}<button type="button" class="gallery-dot{% if forloop.first %} active{% endif %}" data-index="{{ forloop.counter0 }}" aria-label="Photo {{ forloop.counter }}"></button>{% endfor %}</div>
+      {% endif %}
+    </section>
+
+    <aside class="summary-card">
+      <div class="status-line"><span class="verified">✓ Vérifié et disponible</span><span class="ref">{{ property.property_id }}</span></div>
+      <h1>{{ property.property_type }}</h1>
+      <p class="location">📍 {{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p>
+
+      <div class="summary-grid">
+        <div class="metric"><strong>{{ property.bedroom_count }}</strong><span>Chambre{{ property.bedroom_count|pluralize }}</span></div>
+        <div class="metric"><strong>{{ property.living_room_count }}</strong><span>Salon{{ property.living_room_count|pluralize }}</span></div>
+        <div class="metric"><strong>{{ property.bathroom_count }}</strong><span>Salle{{ property.bathroom_count|pluralize }} de bain</span></div>
+        <div class="metric"><strong>{{ property.toilet_count }}</strong><span>Toilette{{ property.toilet_count|pluralize }}</span></div>
+      </div>
+
+      <div class="rent-box"><small>LOYER</small><strong>Montant communiqué selon le parcours Fasthome</strong></div>
+      <div class="actions">
+        <button class="btn btn-light btn-wide" type="button" id="shareProperty">↗ Partager le logement</button>
+        {% if not request.user.is_authenticated %}<a class="btn btn-primary btn-wide" href="{% url 'login' %}?next={{ request.path|urlencode }}">Se connecter pour demander une visite</a>{% endif %}
+      </div>
+    </aside>
+  </div>
+
+  <section class="info-section">
+    <div class="section-heading"><div><h2>À propos de ce logement</h2><p>Les informations communiquées par le propriétaire et vérifiées dans le parcours Fasthome.</p></div></div>
+    <div class="info-grid">
+      <article class="info-card"><h3>🏠 Composition</h3><p>{{ property.bedroom_count }} chambre{{ property.bedroom_count|pluralize }} · {{ property.living_room_count }} salon{{ property.living_room_count|pluralize }}{% if property.has_kitchen %} · Cuisine{% endif %}</p></article>
+      <article class="info-card"><h3>✨ Confort</h3><p>{% if property.furnished %}Logement meublé{% else %}Logement non meublé{% endif %} · {{ property.floor_type|default:'Sol non renseigné' }} · {{ property.ceiling_type|default:'Plafond non renseigné' }}</p></article>
+      <article class="info-card"><h3>💧 Eau</h3><p>{{ property.water_source|default:'Source d’eau non renseignée' }}{% if property.water_days_per_week != None %} · disponibilité annoncée {{ property.water_days_per_week }}/7 jours{% endif %}</p></article>
+      <article class="info-card"><h3>⚡ Électricité</h3><p>{{ property.electricity_source|default:'Source d’électricité non renseignée' }}{% if property.electricity_days_per_week != None %} · disponibilité annoncée {{ property.electricity_days_per_week }}/7 jours{% endif %}</p></article>
+      <article class="info-card"><h3>👥 Capacité</h3><p>Jusqu’à {{ property.max_occupants }} occupant{{ property.max_occupants|pluralize }}.</p></article>
+      <article class="info-card"><h3>📍 Localisation</h3><p>{{ property.province }} · {{ property.city_or_territory }}{% if property.administrative_subdivision %} · {{ property.administrative_subdivision }}{% endif %}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p></article>
     </div>
-    {% if property_photos|length > 1 %}
-      <div class="property-gallery-nav"><button type="button" id="galleryPrev" aria-label="Photo précédente">‹</button><button type="button" id="galleryNext" aria-label="Photo suivante">›</button></div>
-      <div class="property-gallery-counter" id="galleryCounter">1 / {{ property_photos|length }}</div>
-      <div class="property-gallery-dots" id="galleryDots">{% for photo in property_photos %}<button class="property-gallery-dot{% if forloop.first %} active{% endif %}" type="button" data-index="{{ forloop.counter0 }}" aria-label="Aller à la photo {{ forloop.counter }}"></button>{% endfor %}</div>
-    {% endif %}
+    <div class="privacy-note">🔒 L’adresse exacte et les coordonnées directes du propriétaire restent protégées. Fasthome organise la suite du parcours.</div>
   </section>
 
-  <section class="card property-detail-card">
-    <div class="property-detail-body">
-      <div class="property-title-row"><div><span class="badge">✓ Vérifié et disponible</span><h1>{{ property.property_type }}</h1><p class="property-location">📍 {{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p><p class="muted property-id">Référence : {{ property.property_id }}</p></div></div>
-      <div class="property-summary"><div class="property-summary-item"><strong>{{ property.bedroom_count }}</strong><span>chambre{{ property.bedroom_count|pluralize }}</span></div><div class="property-summary-item"><strong>{{ property.living_room_count }}</strong><span>salon{{ property.living_room_count|pluralize }}</span></div><div class="property-summary-item"><strong>{{ property.bathroom_count }}</strong><span>salle{{ property.bathroom_count|pluralize }} de bain</span></div><div class="property-summary-item"><strong>{{ property.toilet_count }}</strong><span>toilette{{ property.toilet_count|pluralize }}</span></div></div>
-      <div class="property-info-grid"><div class="property-info"><h2>Composition</h2><p>{{ property.bedroom_count }} chambre{{ property.bedroom_count|pluralize }} · {{ property.living_room_count }} salon{{ property.living_room_count|pluralize }}{% if property.has_kitchen %} · Cuisine{% endif %}</p></div><div class="property-info"><h2>Confort</h2><p>{{ property.floor_type|default:'Sol non renseigné' }} · {{ property.ceiling_type|default:'Plafond non renseigné' }} · {% if property.furnished %}Meublé{% else %}Non meublé{% endif %}</p></div><div class="property-info"><h2>Eau et électricité</h2><p>{{ property.water_source|default:'Source d’eau non renseignée' }} · {{ property.electricity_source|default:'Source d’électricité non renseignée' }}</p></div><div class="property-info"><h2>Capacité</h2><p>Jusqu’à {{ property.max_occupants }} occupant{{ property.max_occupants|pluralize }}</p></div></div>
-      <div class="property-location-box"><p><strong>📍 Localisation :</strong> {{ property.province }} · {{ property.city_or_territory }}{% if property.administrative_subdivision %} · {{ property.administrative_subdivision }}{% endif %}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p></div>
-      <div class="property-rent"><p><strong>💰 Loyer</strong><br>Montant communiqué selon le parcours Fasthome.</p></div>
-      <div class="property-actions">
-        <button class="btn btn-light share-button" id="shareProperty" type="button">↗ Partager</button>
-        {% if request.user.is_authenticated %}
-          <form method="post" action="{% url 'request_visit' property.property_id %}" class="property-visit" id="visitForm">
-            {% csrf_token %}
-            <div class="visit-field"><label for="requested_date">Date de visite</label><p class="visit-hint">Choisissez le jour où vous souhaitez visiter ce logement.</p><div class="visit-date-wrap"><input id="requested_date" name="requested_date" type="date" required aria-label="Date souhaitée pour la visite"></div></div>
-            <div class="visit-field">
-              <label>Créneau souhaité <span class="muted">(facultatif)</span></label>
-              <p class="visit-time-help">Touchez l’horloge pour choisir directement l’heure.</p>
-              <div class="visit-time-range">
-                <div class="visit-time-field"><input id="requested_time_start" type="time" aria-label="Heure de début" aria-describedby="visitTimeHelp" step="900"></div>
-                <div class="visit-time-field"><input id="requested_time_end" type="time" aria-label="Heure de fin" step="900"></div>
-              </div>
-              <input id="requested_time_slot" name="requested_time_slot" type="hidden" value="">
-            </div>
-            <button class="btn btn-primary" type="submit">📅 Demander une visite</button>
-          </form>
-        {% else %}
-          <a class="btn btn-primary" href="{% url 'login' %}?next={{ request.path|urlencode }}">Se connecter pour demander une visite</a>
-        {% endif %}
-      </div>
+  {% if property.features.all %}
+  <section class="info-section">
+    <div class="section-heading"><div><h2>Équipements et sécurité</h2><p>Les caractéristiques déclarées pour ce logement.</p></div></div>
+    <div class="feature-list">
+      {% for feature in property.features.all %}<span class="feature">✓ {{ feature.key|capfirst }}</span>{% empty %}<span class="feature">Aucun équipement supplémentaire renseigné</span>{% endfor %}
     </div>
+  </section>
+  {% endif %}
+
+  <section class="visit-card">
+    <h2>Organiser une visite</h2>
+    <p>Choisissez une date et, si vous le souhaitez, un créneau. La demande passe par Fasthome.</p>
+    {% if request.user.is_authenticated %}
+      <form method="post" action="{% url 'request_visit' property.property_id %}" class="visit-form" id="visitForm">
+        {% csrf_token %}
+        <div class="visit-field"><label for="requested_date">Date souhaitée</label><input id="requested_date" name="requested_date" type="date" required></div>
+        <div class="visit-field"><label>Créneau facultatif</label><div class="time-range"><input id="requested_time_start" type="time" step="900" aria-label="Début du créneau"><input id="requested_time_end" type="time" step="900" aria-label="Fin du créneau"></div></div>
+        <input id="requested_time_slot" name="requested_time_slot" type="hidden" value="">
+        <div class="visit-field full"><button type="submit">📅 Envoyer ma demande de visite</button></div>
+      </form>
+    {% else %}
+      <div class="login-note">Vous devez être connecté et certifié pour envoyer une demande de visite.</div>
+    {% endif %}
   </section>
 </main>
 
 <script>
 (function(){
-  const track=document.getElementById('propertyGalleryTrack');
+  const track=document.getElementById('galleryTrack');
   if(track){
-    const slides=track.querySelectorAll('.property-slide');
-    const counter=document.getElementById('galleryCounter');
-    const dots=[...document.querySelectorAll('.property-gallery-dot')];
-    let index=0;
-    function goTo(i){index=(i+slides.length)%slides.length;track.scrollTo({left:track.clientWidth*index,behavior:'smooth'});if(counter)counter.textContent=(index+1)+' / '+slides.length;dots.forEach((d,n)=>d.classList.toggle('active',n===index));}
-    const prev=document.getElementById('galleryPrev');const next=document.getElementById('galleryNext');
-    if(prev)prev.addEventListener('click',()=>goTo(index-1));if(next)next.addEventListener('click',()=>goTo(index+1));dots.forEach(d=>d.addEventListener('click',()=>goTo(Number(d.dataset.index))));
-    track.addEventListener('scroll',()=>{const i=Math.round(track.scrollLeft/track.clientWidth);if(i!==index){index=i;if(counter)counter.textContent=(index+1)+' / '+slides.length;dots.forEach((d,n)=>d.classList.toggle('active',n===index));}});
+    const slides=[...track.querySelectorAll('.slide')], dots=[...document.querySelectorAll('.gallery-dot')], count=document.getElementById('galleryCount'); let index=0;
+    const update=i=>{index=(i+slides.length)%slides.length;track.scrollTo({left:index*track.clientWidth,behavior:'smooth'});if(count)count.textContent=(index+1)+' / '+slides.length;dots.forEach((d,n)=>d.classList.toggle('active',n===index));};
+    const prev=document.getElementById('galleryPrev'), next=document.getElementById('galleryNext'); if(prev)prev.onclick=()=>update(index-1);if(next)next.onclick=()=>update(index+1);dots.forEach(d=>d.onclick=()=>update(Number(d.dataset.index)));
+    track.addEventListener('scroll',()=>{const i=Math.round(track.scrollLeft/track.clientWidth);if(i!==index){index=i;if(count)count.textContent=(index+1)+' / '+slides.length;dots.forEach((d,n)=>d.classList.toggle('active',n===index));}});
   }
-
-  const date=document.getElementById('requested_date');
-  if(date){const now=new Date();const y=now.getFullYear();const m=String(now.getMonth()+1).padStart(2,'0');const d=String(now.getDate()).padStart(2,'0');date.min=`${y}-${m}-${d}`;}
-
-  const visitForm=document.getElementById('visitForm');
-  const start=document.getElementById('requested_time_start');
-  const end=document.getElementById('requested_time_end');
-  const hiddenSlot=document.getElementById('requested_time_slot');
-  if(visitForm&&start&&end&&hiddenSlot){
-    visitForm.addEventListener('submit',function(){
-      if(start.value&&end.value){hiddenSlot.value=start.value+' – '+end.value;}
-      else if(start.value){hiddenSlot.value='À partir de '+start.value;}
-      else if(end.value){hiddenSlot.value="Jusqu'à "+end.value;}
-      else{hiddenSlot.value='';}
-    });
-  }
-
-  const shareButton=document.getElementById('shareProperty');
-  if(shareButton){
-    shareButton.addEventListener('click',async function(){
-      const shareData={title:document.title,text:'Découvrez ce logement sur Fasthome.',url:window.location.href};
-      shareButton.disabled=true;
-      try{
-        if(navigator.share){
-          await navigator.share(shareData);
-        }else if(navigator.clipboard){
-          await navigator.clipboard.writeText(window.location.href);
-          shareButton.textContent='✓ Lien copié';
-          setTimeout(()=>{shareButton.textContent='↗ Partager';shareButton.disabled=false;},1800);
-          return;
-        }else{
-          window.prompt('Copiez le lien du logement :',window.location.href);
-        }
-      }catch(error){
-        if(error&&error.name!=='AbortError'&&navigator.clipboard){try{await navigator.clipboard.writeText(window.location.href);shareButton.textContent='✓ Lien copié';setTimeout(()=>shareButton.textContent='↗ Partager',1800);}catch(e){}}
-      }finally{shareButton.disabled=false;}
-    });
-  }
+  const date=document.getElementById('requested_date'); if(date){const n=new Date();date.min=n.toISOString().slice(0,10);}
+  const form=document.getElementById('visitForm'), start=document.getElementById('requested_time_start'), end=document.getElementById('requested_time_end'), hidden=document.getElementById('requested_time_slot');
+  if(form&&start&&end&&hidden){form.addEventListener('submit',()=>{hidden.value=start.value&&end.value?start.value+' – '+end.value:start.value?'À partir de '+start.value:end.value?"Jusqu'à "+end.value:'';});}
+  const share=document.getElementById('shareProperty'); if(share){share.addEventListener('click',async()=>{const data={title:document.title,text:'Découvrez ce logement sur Fasthome',url:location.href};try{if(navigator.share)await navigator.share(data);else{await navigator.clipboard.writeText(location.href);share.textContent='✓ Lien copié';setTimeout(()=>share.textContent='↗ Partager le logement',1800);}}catch(e){}});}
 })();
 </script>
 {% endblock %}
