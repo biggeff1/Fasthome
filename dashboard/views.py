@@ -77,6 +77,23 @@ def notifications(request):
 
 
 @login_required
+@require_POST
+def mark_notification_read(request, notification_id):
+    notification = get_object_or_404(Notification, notification_id=notification_id, recipient=request.user)
+    if not notification.is_read:
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+    return JsonResponse({'success': True, 'unread_count': request.user.notifications.filter(is_read=False).count()})
+
+
+@login_required
+@require_POST
+def mark_all_notifications_read(request):
+    updated = request.user.notifications.filter(is_read=False).update(is_read=True)
+    return JsonResponse({'success': True, 'updated': updated, 'unread_count': 0})
+
+
+@login_required
 def notification_unread_count(request):
     return JsonResponse({'success': True, 'unread_count': request.user.notifications.filter(is_read=False).count()})
 
@@ -92,22 +109,6 @@ def activity(request):
     return render(request, 'dashboard/activity.html', {
         'visits': visits, 'landlord_visit_requests': landlord_visits, 'cases': cases,
         'leases': leases, 'properties': properties, 'landlord_leases': landlord_leases,
-    })
-
-
-@login_required
-def visits_page(request):
-    visits = (request.user.visit_requests
-              .select_related('property', 'property__property_type')
-              .prefetch_related('property__photos')
-              .order_by('-created_at')[:50])
-    landlord_visits = (VisitRequest.objects.filter(property__owner=request.user)
-                       .select_related('property', 'property__property_type')
-                       .prefetch_related('property__photos')
-                       .order_by('-created_at')[:50])
-    return render(request, 'dashboard/visits.html', {
-        'visits': visits,
-        'landlord_visit_requests': landlord_visits,
     })
 
 
@@ -184,24 +185,112 @@ def office_visits(request):
 
 
 @staff_required
-@require_POST
-def office_approve_visit(request, visit_id):
-    return redirect('office_visits')
+def office_cases(request):
+    cases = RentalCase.objects.select_related('property', 'property__property_type', 'tenant', 'visit').order_by('-created_at')
+    return render(request, 'dashboard/office_cases.html', {'cases': cases})
 
 
 @staff_required
 @require_POST
-def office_complete_visit(request, visit_id):
-    return redirect('office_visits')
+def office_accept_case(request, case_id):
+    with transaction.atomic():
+        case = get_object_or_404(RentalCase.objects.select_for_update().select_related('property', 'tenant', 'visit'), case_id=case_id)
+        if case.status not in {'OPEN', 'UNDER_REVIEW'} or case.visit.status != 'COMPLETED': messages.error(request, 'Ce dossier n’est pas éligible à la contractualisation.'); return redirect('office_cases')
+        property_obj = Property.objects.select_for_update().select_related('owner').get(pk=case.property_id)
+        active_lease_exists = Lease.objects.filter(property_id=property_obj.pk, status__in=['PENDING', 'ACTIVE', 'RENEWAL', 'TERMINATION']).exists()
+        if active_lease_exists: messages.error(request, 'Ce logement fait déjà l’objet d’une location en cours de contractualisation ou active.'); return redirect('office_cases')
+        lease, _ = Lease.objects.select_for_update().get_or_create(rental_case=case, defaults={'property': property_obj, 'tenant': case.tenant, 'landlord': property_obj.owner, 'monthly_rent': property_obj.monthly_rent or Decimal('0'), 'guarantee_amount': property_obj.guarantee_amount, 'status': 'PENDING'})
+        tenant_contract, tenant_created = Contract.objects.get_or_create(lease=lease, contract_type='TENANT')
+        landlord_contract, landlord_created = Contract.objects.get_or_create(lease=lease, contract_type='LANDLORD')
+        if tenant_created: contract_created(tenant_contract)
+        if landlord_created: contract_created(landlord_contract)
+        InspectionReport.objects.get_or_create(lease=lease, property=lease.property, report_type='ENTRY', defaults={'status': 'DRAFT'})
+        case.status = 'CONTRACTING'; case.save(update_fields=['status'])
+        rental_case_accepted(case)
+    return redirect('office_cases')
+
+
+@staff_required
+def office_contracts(request):
+    contracts = Contract.objects.select_related('lease', 'lease__property', 'lease__property__property_type', 'lease__tenant', 'lease__landlord').order_by('-contract_id')
+    return render(request, 'dashboard/office_contracts.html', {'contracts': contracts})
 
 
 @staff_required
 @require_POST
-def office_approve_visit(request, visit_id):
-    return redirect('office_visits')
+def office_contract_upload(request, contract_id):
+    contract = get_object_or_404(Contract, contract_id=contract_id)
+    if not request.FILES.get('signed_document'): messages.error(request, 'Aucun document signé fourni.'); return redirect('office_contracts')
+    with transaction.atomic():
+        contract = Contract.objects.select_for_update().get(pk=contract.pk)
+        if contract.status not in {'PENDING', 'REJECTED'}: messages.error(request, 'Ce contrat ne peut plus être téléversé.'); return redirect('office_contracts')
+        contract.signed_document = request.FILES['signed_document']; contract.status = 'UPLOADED'; contract.uploaded_at = timezone.now(); contract.uploaded_by = request.user; contract.save()
+        contract_uploaded(contract)
+    return redirect('office_contracts')
 
 
 @staff_required
 @require_POST
-def office_complete_visit(request, visit_id):
-    return redirect('office_visits')
+def office_contract_validate(request, contract_id):
+    with transaction.atomic():
+        contract = get_object_or_404(Contract.objects.select_for_update(), contract_id=contract_id)
+        if contract.status != 'UPLOADED' or not contract.signed_document or not contract.uploaded_by_id: messages.error(request, 'Ce contrat ne peut pas être validé.'); return redirect('office_contracts')
+        contract.status = 'VALIDATED'; contract.signed_at = timezone.now(); contract.save(update_fields=['status', 'signed_at'])
+        contract_validated(contract)
+    return redirect('office_contracts')
+
+
+@staff_required
+def office_reports(request):
+    reports = InspectionReport.objects.select_related('lease', 'lease__property', 'property', 'property__property_type').order_by('-created_at')
+    return render(request, 'dashboard/office_reports.html', {'reports': reports})
+
+
+@staff_required
+@require_POST
+def office_report_validate(request, report_id):
+    with transaction.atomic():
+        report = get_object_or_404(InspectionReport.objects.select_for_update(), report_id=report_id)
+        if report.status != 'DRAFT': messages.error(request, 'Ce PV n’est plus en brouillon.'); return redirect('office_reports')
+        report.status = 'VALIDATED'; report.save(update_fields=['status'])
+        inspection_validated(report)
+    return redirect('office_reports')
+
+
+@staff_required
+@require_POST
+def office_officialize_lease(request, lease_id):
+    with transaction.atomic():
+        lease = get_object_or_404(Lease.objects.select_for_update().select_related('rental_case'), lease_id=lease_id)
+        if lease.status != 'PENDING': messages.error(request, 'Cette location n’est plus en attente.'); return redirect('office_dashboard')
+        contracts = list(lease.contracts.all()); reports = list(lease.inspection_reports.filter(report_type='ENTRY'))
+        if len([c for c in contracts if c.status == 'VALIDATED']) != 2 or not any(r.status == 'VALIDATED' for r in reports): messages.error(request, 'Les deux contrats et le PV d’entrée doivent être validés.'); return redirect('office_dashboard')
+        property_obj = Property.objects.select_for_update().get(pk=lease.property_id); lease.status = 'ACTIVE'; lease.save(update_fields=['status']); property_obj.status = 'RENTED'; property_obj.save(update_fields=['status', 'updated_at']); _ensure_next_installment(lease)
+        lease_officialized(lease)
+    return redirect('office_dashboard')
+
+
+@staff_required
+@require_POST
+def office_receipt(request):
+    form = ReceiptForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        with transaction.atomic():
+            installment = RentInstallment.objects.select_for_update().get(pk=form.cleaned_data['installment'].pk)
+            receipt = form.save(commit=False); receipt.installment = installment; receipt.lease = installment.lease; receipt.recorded_by = request.user; receipt.save()
+            installment.refresh_from_db()
+            payment_recorded(receipt)
+            if installment.status == 'PAID': _ensure_next_installment(installment.lease, installment)
+        return redirect('office_dashboard')
+    return render(request, 'dashboard/office_receipt.html', {'form': form})
+
+
+@staff_required
+@require_POST
+def office_payout(request):
+    form = PayoutForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        payout = form.save(commit=True)
+        payout_completed(payout)
+        return redirect('office_dashboard')
+    return render(request, 'dashboard/office_payout.html', {'form': form})
