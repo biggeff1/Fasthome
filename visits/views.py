@@ -3,9 +3,9 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods
 
 from leasing.models import RentalCase
 from notifications.services import (
@@ -24,20 +24,31 @@ def _staff_required(request):
 
 
 @login_required
-@require_POST
+@require_http_methods(['GET', 'POST'])
 def request_visit(request, property_id):
+    prop = get_object_or_404(Property, property_id=property_id, status='AVAILABLE')
+
+    if request.method == 'GET':
+        return render(request, 'visits/request_visit.html', {
+            'property': prop,
+            'today': timezone.localdate(),
+        })
+
     if not request.user.is_certified:
         messages.error(request, 'Un compte certifié est nécessaire pour demander une visite.')
         return redirect('property_detail', property_id=property_id)
+
     requested_date = request.POST.get('requested_date', '').strip()
     try:
         parsed_date = date.fromisoformat(requested_date)
     except ValueError:
         messages.error(request, 'La date de visite est invalide.')
-        return redirect('property_detail', property_id=property_id)
+        return redirect('request_visit', property_id=property_id)
+
     if parsed_date < timezone.localdate():
-        messages.error(request, 'La date de visite doit être dans le futur.')
-        return redirect('property_detail', property_id=property_id)
+        messages.error(request, 'La date de visite doit être aujourd’hui ou dans le futur.')
+        return redirect('request_visit', property_id=property_id)
+
     with transaction.atomic():
         requester = get_user_model().objects.select_for_update().get(pk=request.user.pk)
         prop = get_object_or_404(Property.objects.select_for_update(), property_id=property_id, status='AVAILABLE')
@@ -51,14 +62,19 @@ def request_visit(request, property_id):
         if VisitRequest.objects.filter(property=prop, requester=requester, status__in=['REQUESTED', 'CONFIRMED']).exists():
             messages.error(request, 'Vous avez déjà une demande de visite active pour ce logement.')
             return redirect('property_detail', property_id=property_id)
-        visit = VisitRequest.objects.create(property=prop, requester=requester, requested_date=parsed_date, requested_time_slot=request.POST.get('requested_time_slot', '').strip()[:80])
+        visit = VisitRequest.objects.create(
+            property=prop,
+            requester=requester,
+            requested_date=parsed_date,
+            requested_time_slot=request.POST.get('requested_time_slot', '').strip()[:80],
+        )
         visit_requested(visit)
         messages.success(request, f'Demande {visit.visit_id} envoyée à Fasthome et au bailleur.')
     return redirect('property_detail', property_id=prop.property_id)
 
 
 @login_required
-@require_POST
+@require_http_methods(['POST'])
 def fasthome_visit_decision(request, visit_id):
     if not _staff_required(request):
         messages.error(request, 'Accès réservé aux intervenants Fasthome autorisés.')
@@ -86,7 +102,7 @@ def fasthome_visit_decision(request, visit_id):
 
 
 @login_required
-@require_POST
+@require_http_methods(['POST'])
 def landlord_visit_decision(request, visit_id):
     with transaction.atomic():
         visit = get_object_or_404(VisitRequest.objects.select_for_update().select_related('property', 'requester'), visit_id=visit_id, property__owner=request.user)
@@ -114,7 +130,7 @@ def landlord_visit_decision(request, visit_id):
 
 
 @login_required
-@require_POST
+@require_http_methods(['POST'])
 def mark_visit_completed(request, visit_id):
     if not _staff_required(request):
         messages.error(request, 'Seuls les intervenants Fasthome autorisés peuvent clôturer une visite.')
@@ -130,7 +146,7 @@ def mark_visit_completed(request, visit_id):
 
 
 @login_required
-@require_POST
+@require_http_methods(['POST'])
 def tenant_decision(request, visit_id):
     with transaction.atomic():
         visit = get_object_or_404(VisitRequest.objects.select_for_update().select_related('property'), visit_id=visit_id, requester=request.user, status='COMPLETED')
