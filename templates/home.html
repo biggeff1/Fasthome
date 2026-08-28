@@ -1,104 +1,38 @@
 {% extends 'base.html' %}
-{% block title %}Fasthome — Trouver ou louer un logement{% endblock %}
+{% block title %}Fasthome — Trouver un logement{% endblock %}
 {% block content %}
 <style>
-.home-page{padding:18px 0 60px}.home-hero{position:relative;overflow:hidden;border-radius:30px;padding:54px 48px;background:linear-gradient(135deg,#0b2239 0%,#164b7a 58%,#246b9f 100%);color:#fff;box-shadow:0 25px 70px rgba(11,34,57,.2);min-height:430px;display:flex;align-items:center}.home-hero:before{content:'';position:absolute;width:430px;height:430px;border-radius:50%;right:-120px;top:-190px;background:rgba(255,255,255,.08)}.home-hero:after{content:'';position:absolute;width:280px;height:280px;border-radius:50%;right:130px;bottom:-210px;background:rgba(201,154,62,.18)}.home-hero-content{position:relative;z-index:2;max-width:720px}.home-eyebrow{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);border-radius:999px;font-size:.7rem;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.home-eyebrow:before{content:'';width:7px;height:7px;border-radius:50%;background:#d7ae5d}.home-hero h1{font-family:Georgia,'Times New Roman',serif;font-size:clamp(2.4rem,5vw,4.4rem);line-height:1.02;letter-spacing:-.055em;margin:18px 0 15px;max-width:700px}.home-hero p{margin:0;max-width:640px;color:rgba(255,255,255,.8);font-size:1rem;line-height:1.65}.home-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}.home-actions .btn{min-height:48px;padding:12px 18px}.home-actions .btn-primary{background:#fff;color:#102a43;box-shadow:none}.home-actions .btn-light{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.24);color:#fff}.home-hero-note{margin-top:18px;color:rgba(255,255,255,.58);font-size:.72rem}.home-floating{position:absolute;z-index:2;right:42px;bottom:35px;width:265px;padding:18px;border-radius:20px;background:rgba(255,255,255,.96);color:#17364d;box-shadow:0 20px 50px rgba(0,0,0,.2);backdrop-filter:blur(12px)}.home-floating-label{font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#6d8190;font-weight:900}.home-floating strong{display:block;font-size:1.15rem;margin:5px 0}.home-floating span{font-size:.7rem;color:#6d8190}.home-floating-row{display:flex;justify-content:space-between;gap:8px;margin-top:13px;padding-top:12px;border-top:1px solid #e5ebef}.home-floating-row b{font-size:.75rem}.home-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:-30px 34px 25px;position:relative;z-index:5}.home-stat{background:rgba(255,255,255,.97);border:1px solid #dfe8ee;border-radius:18px;padding:18px 20px;box-shadow:0 15px 35px rgba(16,42,67,.09)}.home-stat strong{display:block;font-size:1.35rem;color:#122f45}.home-stat span{display:block;margin-top:4px;color:#718391;font-size:.72rem}.home-section{margin-top:28px}.home-section-head{display:flex;justify-content:space-between;align-items:end;gap:15px;margin-bottom:13px}.home-section-head h2{margin:0;font-family:Georgia,'Times New Roman',serif;font-size:1.65rem;color:#17364d;letter-spacing:-.03em}.home-section-head p{margin:4px 0 0;color:#738593;font-size:.76rem}.home-section-head .btn{font-size:.72rem;padding:8px 12px}.home-properties-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.home-property-card{position:relative;overflow:hidden;border-radius:20px;padding:0;display:flex;flex-direction:column;border:1px solid #dfe8ee;background:#fff;box-shadow:0 10px 30px rgba(16,42,67,.055)}.home-property-photo{aspect-ratio:1.5/1;background:#edf2f5;display:flex;align-items:center;justify-content:center;overflow:hidden}.home-property-photo img{width:100%;height:100%;object-fit:cover;transition:transform .35s ease}.home-property-card:hover .home-property-photo img{transform:scale(1.04)}.home-property-photo-link{display:block;overflow:hidden}.home-favorite{position:absolute;top:11px;right:11px;z-index:3;width:38px;height:38px;border:0;border-radius:50%;background:rgba(11,34,57,.55);display:grid;place-items:center;cursor:pointer;text-decoration:none}.home-favorite .heart{color:transparent;-webkit-text-stroke:1.7px #fff;font-size:1.15rem}.home-favorite.is-liked{background:#fff}.home-favorite.is-liked .heart{color:#c5363e;-webkit-text-stroke:1px #fff}.home-property-body{padding:15px;display:flex;flex-direction:column;flex:1}.home-property-body h3{margin:8px 0 4px;font-size:1rem;color:#17364d}.home-property-body p{margin:4px 0;color:#718391;font-size:.72rem}.home-property-card .badge{align-self:flex-start;font-size:.61rem;padding:5px 9px;background:#edf5f9;color:#246b9f}.home-property-card .btn{margin-top:13px;font-size:.7rem;padding:9px;border-radius:11px}.home-empty{grid-column:1/-1;padding:40px;text-align:center;border:1px dashed #ccd9e1;border-radius:18px;color:#738593}.home-choice{display:grid;grid-template-columns:1fr 1fr;gap:14px}.home-choice-card{position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:260px;padding:25px;border-radius:22px;text-decoration:none;border:1px solid #dfe8ee;background:#fff;box-shadow:0 10px 30px rgba(16,42,67,.045);color:#17364d}.home-choice-card:after{content:'';position:absolute;width:150px;height:150px;border-radius:50%;right:-55px;bottom:-70px;background:#edf5f9}.home-choice-icon{width:48px;height:48px;display:grid;place-items:center;border-radius:15px;background:#edf5f9;font-size:1.4rem;margin-bottom:18px}.home-choice-card h2{margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:1.45rem}.home-choice-card p{margin:0;color:#687b8a;font-size:.8rem;line-height:1.55;max-width:460px}.home-choice-steps{display:grid;gap:6px;margin:18px 0 0;padding:0;list-style:none}.home-choice-steps li{font-size:.73rem;padding-left:19px;position:relative;color:#526b7d}.home-choice-steps li:before{content:'✓';position:absolute;left:0;font-weight:900;color:#246b9f}.home-choice-action{position:relative;z-index:2;margin-top:auto;padding-top:18px;font-size:.73rem;font-weight:900;color:#246b9f}.home-process{margin-top:28px;padding:25px;border-radius:22px;background:linear-gradient(135deg,#f2f6f8,#f8fafb);border:1px solid #dfe8ee}.home-process h2{margin:0;font-family:Georgia,'Times New Roman',serif;font-size:1.45rem;color:#17364d}.home-process-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}.home-process-step{padding:15px;border-radius:15px;background:#fff;border:1px solid #e2e9ed}.home-process-number{font-size:.7rem;font-weight:900;color:#c99a3e}.home-process-step h3{margin:8px 0 5px;font-size:.8rem;color:#17364d}.home-process-step p{margin:0;color:#718391;font-size:.68rem;line-height:1.45}.home-trust{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.home-trust-item{padding:17px;border-radius:16px;border:1px solid #dfe8ee;background:#fff}.home-trust-item strong{display:block;color:#17364d;font-size:.8rem}.home-trust-item span{display:block;margin-top:5px;color:#718391;font-size:.7rem;line-height:1.45}.home-role-strip{display:flex;gap:8px;margin-top:10px}.home-role-chip{padding:7px 10px;border-radius:999px;background:#edf5f9;color:#246b9f;font-size:.65rem;font-weight:850}
-@media(max-width:900px){.home-floating{display:none}.home-hero{padding:42px 30px;min-height:390px}.home-properties-grid{grid-template-columns:repeat(2,1fr)}.home-process-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:650px){.home-page{padding-top:10px}.home-hero{padding:32px 21px;border-radius:23px;min-height:480px}.home-hero h1{font-size:2.35rem}.home-hero p{font-size:.84rem}.home-actions{display:grid;grid-template-columns:1fr;gap:7px}.home-actions .btn{width:100%}.home-stats{margin:-24px 10px 20px;grid-template-columns:1fr}.home-stat{padding:14px 16px}.home-section-head{align-items:flex-start;flex-direction:column}.home-properties-grid{grid-template-columns:1fr}.home-choice{grid-template-columns:1fr}.home-choice-card{min-height:220px;padding:20px}.home-process{padding:19px}.home-process-grid{grid-template-columns:1fr}.home-trust{grid-template-columns:1fr}}
+.home-page{padding:14px 0 60px}.market-hero{position:relative;overflow:hidden;border-radius:28px;padding:34px 30px;background:linear-gradient(135deg,#0b2239,#164b7a);color:#fff;box-shadow:0 22px 60px rgba(11,34,57,.16)}.market-hero h1{position:relative;z-index:2;margin:8px 0;font-family:Georgia,serif;font-size:clamp(2rem,4.5vw,3.4rem);line-height:1.05;letter-spacing:-.045em;max-width:700px}.market-hero p{position:relative;z-index:2;max-width:650px;margin:0;color:rgba(255,255,255,.78);font-size:.86rem;line-height:1.55}.market-kicker{position:relative;z-index:2;font-size:.67rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#d7ae5d}.market-search{position:relative;z-index:3;margin-top:24px;background:#fff;border-radius:18px;padding:8px;display:grid;grid-template-columns:1.35fr 1fr 1fr 1fr auto;gap:5px;box-shadow:0 18px 45px rgba(0,0,0,.18)}.search-cell{padding:10px 12px;border-radius:12px;min-width:0}.search-cell:hover{background:#f5f8fa}.search-label{display:block;color:#70818d;font-size:.59rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em}.search-value{display:block;margin-top:3px;color:#17364d;font-size:.73rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.search-button{border:0;border-radius:13px;padding:0 18px;background:#164b7a;color:#fff;font:inherit;font-size:.72rem;font-weight:850;cursor:pointer}.market-shortcuts{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px;position:relative;z-index:2}.market-shortcut{padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:.63rem;font-weight:800;text-decoration:none}.market-section{margin-top:28px}.market-head{display:flex;justify-content:space-between;align-items:end;gap:12px;margin-bottom:13px}.market-head h2{margin:0;font-family:Georgia,serif;font-size:1.55rem;color:#17364d}.market-head p{margin:4px 0 0;color:#718391;font-size:.72rem}.market-head .btn{font-size:.7rem;padding:8px 12px}.market-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.market-card{position:relative;overflow:hidden;border-radius:19px;padding:0;display:flex;flex-direction:column;border:1px solid #dfe8ee;background:#fff;box-shadow:0 9px 28px rgba(16,42,67,.05)}.market-photo{aspect-ratio:1.45/1;background:#edf2f5;display:grid;place-items:center;overflow:hidden}.market-photo img{width:100%;height:100%;object-fit:cover;transition:transform .3s ease}.market-card:hover .market-photo img{transform:scale(1.035)}.market-photo-link{display:block;overflow:hidden}.market-favorite{position:absolute;right:10px;top:10px;z-index:3;width:38px;height:38px;border:0;border-radius:50%;display:grid;place-items:center;background:rgba(11,34,57,.55);cursor:pointer;text-decoration:none}.market-favorite .heart{color:transparent;-webkit-text-stroke:1.7px #fff;font-size:1.1rem}.market-favorite.is-liked{background:#fff}.market-favorite.is-liked .heart{color:#c5363e;-webkit-text-stroke:1px #fff}.market-body{padding:14px;display:flex;flex-direction:column;flex:1}.market-badge{align-self:flex-start;padding:5px 9px;border-radius:999px;background:#edf5f9;color:#246b9f;font-size:.6rem;font-weight:900}.market-body h3{margin:8px 0 4px;color:#17364d;font-size:.98rem}.market-body p{margin:4px 0;color:#718391;font-size:.7rem}.market-body .btn{margin-top:12px;padding:9px;border-radius:10px;font-size:.68rem}.project-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.project-card{display:flex;flex-direction:column;min-height:205px;padding:22px;border-radius:20px;border:1px solid #dfe8ee;background:#fff;box-shadow:0 9px 28px rgba(16,42,67,.045);color:#17364d;text-decoration:none}.project-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:14px;background:#edf5f9;font-size:1.35rem}.project-card h2{margin:14px 0 7px;font-family:Georgia,serif;font-size:1.3rem}.project-card p{margin:0;color:#687b8a;font-size:.77rem;line-height:1.5}.project-action{margin-top:auto;padding-top:15px;color:#246b9f;font-size:.7rem;font-weight:900}.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.step{padding:15px;border-radius:16px;background:#fff;border:1px solid #dfe8ee}.step b{color:#c99a3e;font-size:.67rem}.step strong{display:block;margin-top:6px;color:#17364d;font-size:.72rem}.step span{display:block;margin-top:4px;color:#718391;font-size:.64rem;line-height:1.4}.trust{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.trust-item{padding:15px;border:1px solid #dfe8ee;border-radius:15px;background:#fff}.trust-item strong{display:block;color:#17364d;font-size:.76rem}.trust-item span{display:block;margin-top:4px;color:#718391;font-size:.66rem;line-height:1.4}.empty{grid-column:1/-1;padding:35px;text-align:center;border:1px dashed #ccd9e1;border-radius:18px;color:#738593}
+@media(max-width:900px){.market-search{grid-template-columns:1fr 1fr}.search-button{min-height:44px}.market-grid{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:650px){.home-page{padding-top:8px}.market-hero{padding:27px 18px;border-radius:22px}.market-hero h1{font-size:2.2rem}.market-search{grid-template-columns:1fr;gap:3px}.search-button{min-height:46px}.market-grid,.project-grid,.trust{grid-template-columns:1fr}.market-head{align-items:flex-start;flex-direction:column}.steps{grid-template-columns:1fr}.market-shortcuts{gap:5px}}
 </style>
-
 <main class="container home-page">
-  <section class="home-hero">
-    <div class="home-hero-content">
-      <div class="home-eyebrow">Le logement, autrement</div>
-      <h1>Trouvez votre prochain chez-vous avec Fasthome.</h1>
-      <p>Une expérience immobilière plus claire : recherchez selon vos vrais critères, découvrez des logements pertinents et avancez avec un parcours organisé.</p>
-      <div class="home-actions">
-        <a class="btn btn-primary" href="{% url 'matching' %}">⌕ Rechercher un logement</a>
-        <a class="btn btn-light" href="{% url 'property_create' %}">⌂ Proposer mon logement</a>
-      </div>
-      <div class="home-hero-note">Recherche ciblée · Visites organisées · Suivi centralisé</div>
-    </div>
-    <div class="home-floating">
-      <div class="home-floating-label">Expérience Fasthome</div>
-      <strong>Votre recherche, mieux organisée.</strong>
-      <span>Des critères jusqu'au suivi du dossier.</span>
-      <div class="home-floating-row"><b>Recherche</b><b>Visite</b><b>Suivi</b></div>
-    </div>
-  </section>
-
-  <section class="home-stats">
-    <div class="home-stat"><strong>Recherche ciblée</strong><span>Des logements adaptés à vos critères.</span></div>
-    <div class="home-stat"><strong>Parcours encadré</strong><span>Chaque étape reste claire et organisée.</span></div>
-    <div class="home-stat"><strong>Suivi centralisé</strong><span>Vos démarches restent au même endroit.</span></div>
-  </section>
-
-  <section class="home-section">
-    <div class="home-section-head">
-      <div><h2>Logements disponibles</h2><p>Découvrez une sélection de biens actuellement proposés sur Fasthome.</p></div>
-      {% if properties %}<a class="btn btn-light" href="{% url 'matching' %}">Voir tout →</a>{% endif %}
-    </div>
-    <div class="home-properties-grid">
-      {% for p in properties %}
-      <article class="home-property-card">
-        {% if request.user.is_authenticated %}
-        <form method="post" action="{% url 'toggle_favorite' p.property_id %}" class="favorite-form">
-          {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
-          <button class="home-favorite{% if p.pk in favorite_ids %} is-liked{% endif %}" type="submit" aria-label="Favori"><span class="heart">♥</span></button>
-        </form>
-        {% else %}<a class="home-favorite" href="{% url 'login' %}?next={{ request.path|urlencode }}"><span class="heart">♥</span></a>{% endif %}
-        <a href="{% url 'property_detail' property_id=p.property_id %}" class="home-property-photo-link">
-          <div class="home-property-photo">
-            {% with p.photos.first as photo %}{% if photo %}<img src="{{ photo.image.url }}" alt="Photo du logement" loading="lazy">{% else %}<span>⌂</span>{% endif %}{% endwith %}
-          </div>
-        </a>
-        <div class="home-property-body">
-          <span class="badge">Disponible</span>
-          <h3>{{ p.property_type }}</h3>
-          <p>⌖ {{ p.city_or_territory }}{% if p.neighborhood %} · {{ p.neighborhood }}{% endif %}</p>
-          <p>{{ p.bedroom_count }} chambre{{ p.bedroom_count|pluralize }} · {{ p.living_room_count }} salon{{ p.living_room_count|pluralize }}</p>
-          <a class="btn btn-light" href="{% url 'property_detail' property_id=p.property_id %}">Découvrir le logement →</a>
-        </div>
-      </article>
-      {% empty %}<p class="home-empty">Aucun logement disponible pour le moment.</p>{% endfor %}
-    </div>
-  </section>
-
-  <section class="home-section">
-    <div class="home-section-head"><div><h2>Quel est votre projet ?</h2><p>Fasthome adapte le parcours à votre objectif.</p></div></div>
-    <div class="home-choice">
-      <a class="home-choice-card" href="{% url 'matching' %}">
-        <div class="home-choice-icon">⌕</div><h2>Je cherche un logement</h2>
-        <p>Définissez votre budget, votre localisation et les caractéristiques importantes pour obtenir une recherche plus pertinente.</p>
-        <ul class="home-choice-steps"><li>Budget et localisation</li><li>Type et caractéristiques</li><li>Résultats ciblés</li></ul>
-        <span class="home-choice-action">Commencer ma recherche →</span>
-      </a>
-      <a class="home-choice-card" href="{% url 'property_create' %}">
-        <div class="home-choice-icon">⌂</div><h2>Je suis bailleur</h2>
-        <p>Présentez votre logement et suivez son parcours de vérification, de visite et de mise en location avec Fasthome.</p>
-        <ul class="home-choice-steps"><li>Déclarer le logement</li><li>Vérifier les informations</li><li>Suivre les demandes</li></ul>
-        <span class="home-choice-action">Présenter mon logement →</span>
-      </a>
-    </div>
-  </section>
-
-  <section class="home-process">
-    <h2>Un parcours simple, du besoin au logement</h2>
-    <div class="home-process-grid">
-      <div class="home-process-step"><div class="home-process-number">01</div><h3>Définissez</h3><p>Indiquez ce que vous recherchez et vos critères essentiels.</p></div>
-      <div class="home-process-step"><div class="home-process-number">02</div><h3>Découvrez</h3><p>Consultez les logements qui correspondent le mieux.</p></div>
-      <div class="home-process-step"><div class="home-process-number">03</div><h3>Visitez</h3><p>Demandez une visite et avancez dans un cadre organisé.</p></div>
-      <div class="home-process-step"><div class="home-process-number">04</div><h3>Avancez</h3><p>Retrouvez les prochaines étapes et le suivi de votre dossier.</p></div>
-    </div>
-  </section>
-
-  <section class="home-section">
-    <div class="home-section-head"><div><h2>Pourquoi Fasthome ?</h2><p>Une plateforme pensée pour réduire la complexité de la location.</p></div></div>
-    <div class="home-trust">
-      <div class="home-trust-item"><strong>🎯 Des recherches plus pertinentes</strong><span>Vos critères servent à mieux orienter les résultats.</span></div>
-      <div class="home-trust-item"><strong>🛡️ Un parcours structuré</strong><span>Les informations et étapes importantes sont organisées.</span></div>
-      <div class="home-trust-item"><strong>📋 Un suivi centralisé</strong><span>Visites, dossiers, documents et contrats restent liés au parcours.</span></div>
-    </div>
-  </section>
+<section class="market-hero">
+<div class="market-kicker">Fasthome · Marketplace immobilière</div>
+<h1>Trouvez le logement qui vous correspond.</h1>
+<p>Explorez les logements disponibles en RDC, recherchez selon vos critères et avancez simplement vers la visite et la location.</p>
+<form class="market-search" method="get" action="{% url 'matching' %}">
+<div class="search-cell"><span class="search-label">Où ?</span><span class="search-value">Province · Ville · Commune · Quartier</span></div>
+<div class="search-cell"><span class="search-label">Type</span><span class="search-value">Maison · Appartement · Studio</span></div>
+<div class="search-cell"><span class="search-label">Composition</span><span class="search-value">Chambres · Salons</span></div>
+<div class="search-cell"><span class="search-label">Budget</span><span class="search-value">Selon vos critères</span></div>
+<button class="search-button" type="submit">Rechercher</button>
+</form>
+<div class="market-shortcuts"><a class="market-shortcut" href="{% url 'matching' %}">🔎 Recherche avancée</a><a class="market-shortcut" href="{% url 'property_create' %}">🏠 Proposer un logement</a><a class="market-shortcut" href="{% url 'dashboard' %}">📊 Mes activités</a></div>
+</section>
+<section class="market-section"><div class="market-head"><div><h2>Logements disponibles</h2><p>Découvrez les biens actuellement proposés sur Fasthome.</p></div>{% if properties %}<a class="btn btn-light" href="{% url 'matching' %}">Voir tout →</a>{% endif %}</div>
+<div class="market-grid">{% for p in properties %}<article class="market-card">
+{% if request.user.is_authenticated %}<form method="post" action="{% url 'toggle_favorite' p.property_id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="market-favorite{% if p.pk in favorite_ids %} is-liked{% endif %}" type="submit" aria-label="Favori"><span class="heart">♥</span></button></form>{% else %}<a class="market-favorite" href="{% url 'login' %}?next={{ request.path|urlencode }}"><span class="heart">♥</span></a>{% endif %}
+<a class="market-photo-link" href="{% url 'property_detail' property_id=p.property_id %}"><div class="market-photo">{% with p.photos.first as photo %}{% if photo %}<img src="{{ photo.image.url }}" alt="Photo du logement" loading="lazy">{% else %}<span>⌂</span>{% endif %}{% endwith %}</div></a>
+<div class="market-body"><span class="market-badge">Disponible</span><h3>{{ p.property_type }}</h3><p>⌖ {{ p.city_or_territory }}{% if p.neighborhood %} · {{ p.neighborhood }}{% endif %}</p><p>{{ p.bedroom_count }} chambre{{ p.bedroom_count|pluralize }} · {{ p.living_room_count }} salon{{ p.living_room_count|pluralize }}</p><a class="btn btn-light" href="{% url 'property_detail' property_id=p.property_id %}">Découvrir →</a></div>
+</article>{% empty %}<p class="empty">Aucun logement disponible pour le moment.</p>{% endfor %}</div></section>
+<section class="market-section"><div class="market-head"><div><h2>Quel est votre projet ?</h2><p>Choisissez directement le parcours qui vous concerne.</p></div></div><div class="project-grid">
+<a class="project-card" href="{% url 'matching' %}"><div class="project-icon">🔎</div><h2>Je cherche un logement</h2><p>Budget, localisation, type et caractéristiques : définissez vos critères pour trouver les correspondances pertinentes.</p><span class="project-action">Commencer ma recherche →</span></a>
+<a class="project-card" href="{% url 'property_create' %}"><div class="project-icon">🏠</div><h2>Je veux publier un logement</h2><p>Déclarez votre bien, ajoutez ses informations et ses photos, puis suivez son parcours de vérification et de publication.</p><span class="project-action">Publier mon logement →</span></a>
+</div></section>
+<section class="market-section"><div class="market-head"><div><h2>Du besoin au logement</h2><p>Un parcours lisible, sans confondre les opérations.</p></div></div><div class="steps">
+<div class="step"><b>01</b><strong>Recherche</strong><span>Définissez vos critères.</span></div><div class="step"><b>02</b><strong>Correspondances</strong><span>Découvrez les logements pertinents.</span></div><div class="step"><b>03</b><strong>Visite</strong><span>Demandez une visite organisée.</span></div><div class="step"><b>04</b><strong>Dossier</strong><span>Suivez les prochaines étapes.</span></div><div class="step"><b>05</b><strong>Location</strong><span>Avancez jusqu'au bail.</span></div>
+</div></section>
+<section class="market-section"><div class="trust"><div class="trust-item"><strong>Recherche ciblée</strong><span>Les critères essentiels restent au centre de votre recherche.</span></div><div class="trust-item"><strong>Parcours encadré</strong><span>Les étapes sont organisées par Fasthome.</span></div><div class="trust-item"><strong>Mes activités</strong><span>Retrouvez vos démarches dans votre espace personnel.</span></div></div></section>
 </main>
 {% endblock %}
