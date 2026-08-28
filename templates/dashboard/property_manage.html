@@ -1,43 +1,87 @@
 {% extends 'base.html' %}
-{% block title %}Gérer {{ property.property_type }} — Fasthome{% endblock %}
+{% block title %}Modifier {{ property.property_type }} — Fasthome{% endblock %}
 {% block content %}
-<style>.manage-actions{display:flex;gap:8px;flex-wrap:wrap}.manage-actions .btn{min-height:43px}.check-summary{margin-top:10px;padding:12px;border-radius:12px;background:#f7f9fb}.check-summary strong{display:block;margin-bottom:5px}.check-summary ul{margin:6px 0 0 18px}.danger-zone{border:1px solid #f0d4d4;background:#fff8f8}.danger-zone h3{color:#a32121}@media(max-width:600px){.manage-actions{display:grid;grid-template-columns:1fr}.manage-actions .btn{width:100%}}</style>
-<main class="container">
-  <p><a href="{% url 'my_properties' %}" class="muted">← Mes logements</a></p>
-  <section class="section" style="padding-top:12px">
-    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
-      <div><div class="muted">Référence {{ property.property_id }}</div><h1 style="margin:4px 0">{{ property.property_type }}</h1><p class="muted">{{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p></div>
-      {% if not publication or publication.status == 'DRAFT' or publication.status == 'CORRECTION_REQUIRED' %}<a class="btn btn-primary" href="{% url 'property_edit' property.property_id %}">✏️ Modifier</a>{% endif %}
-    </div>
+<style>
+:root{--fh-blue:#2563eb;--fh-blue-soft:#e8f0fe;--fh-ink:#0b1a33;--fh-text:#1e293b;--fh-muted:#64748b;--fh-border:#edf2f7;--fh-bg:#f4f6fa}
+body{background:var(--fh-bg)}
+.fh-edit-shell{max-width:1180px;margin:0 auto;padding:18px 18px 90px;color:var(--fh-text)}
+.fh-topbar{display:flex;justify-content:space-between;align-items:center;gap:18px;background:#fff;border:1px solid var(--fh-border);border-radius:20px;padding:14px 20px;margin-bottom:20px}
+.fh-brand{display:flex;align-items:center;gap:10px}.fh-brand-icon{width:42px;height:42px;border-radius:14px;background:var(--fh-blue-soft);color:var(--fh-blue);display:flex;align-items:center;justify-content:center;font-size:20px}.fh-brand strong{font-size:20px;color:var(--fh-ink)}.fh-brand strong span{color:var(--fh-blue)}
+.fh-title h1{font-size:21px;line-height:1.2;margin:0;color:var(--fh-ink)}.fh-title p{margin:4px 0 0;color:var(--fh-muted);font-size:13px}
+.fh-avatar{width:40px;height:40px;border-radius:50%;background:var(--fh-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700}
+.fh-card{background:#fff;border:1px solid var(--fh-border);border-radius:20px;padding:22px;margin-bottom:18px}.fh-card h2{font-size:17px;color:var(--fh-ink);margin:0 0 6px}.fh-muted{color:var(--fh-muted);font-size:13px}.fh-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.fh-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.fh-item{border:1px solid var(--fh-border);border-radius:14px;padding:14px}.fh-item strong{color:var(--fh-ink);font-size:14px}.fh-item p{margin:6px 0 0;color:var(--fh-muted);font-size:13px}
+.fh-status{display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border-radius:999px;background:#f1f5f9;font-size:12px;font-weight:600}.fh-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:15px}.fh-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 17px;border-radius:12px;border:0;text-decoration:none!important;font-weight:600;font-size:13px;cursor:pointer}.fh-primary{background:var(--fh-blue);color:#fff!important}.fh-light{background:#f1f5f9;color:var(--fh-ink)!important}.fh-danger{background:#fff1f2;color:#be123c!important;border:1px solid #ffe4e6}.fh-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-top:14px}.fh-photo{overflow:hidden;border:1px solid var(--fh-border);border-radius:15px;background:#f8fafc}.fh-photo-img{aspect-ratio:1/1}.fh-photo-img img{width:100%;height:100%;object-fit:cover;display:block}.fh-photo-caption{padding:10px;font-size:12px;font-weight:600;color:var(--fh-ink)}.fh-check{margin-top:12px;padding:14px;border-radius:14px;background:#f8fafc}.fh-check strong{font-size:13px}.fh-check ul{margin:8px 0 0 18px;color:var(--fh-muted);font-size:13px}.fh-visit{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid var(--fh-border);border-radius:14px;padding:13px;margin-top:9px}.fh-back{display:inline-flex;align-items:center;gap:7px;color:var(--fh-muted);font-size:13px;text-decoration:none!important;margin-bottom:12px}.fh-mobile-nav{display:none}
+@media(max-width:760px){.fh-edit-shell{padding:10px 12px 86px}.fh-topbar{border-radius:16px;padding:12px 14px}.fh-brand{display:none}.fh-grid,.fh-list{grid-template-columns:1fr}.fh-card{padding:17px;border-radius:17px}.fh-title h1{font-size:18px}.fh-actions{display:grid;grid-template-columns:1fr}.fh-btn{width:100%}.fh-mobile-nav{display:flex;position:fixed;z-index:100;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--fh-border);padding:8px 10px 10px;justify-content:space-around}.fh-mobile-nav a{display:flex;flex-direction:column;align-items:center;gap:3px;color:#94a3b8;font-size:10px;text-decoration:none}.fh-mobile-nav a i{font-size:19px}.fh-mobile-nav a.active{color:var(--fh-blue)}.fh-mobile-nav .publish i{background:var(--fh-blue);color:#fff;border-radius:50%;padding:8px}}
+</style>
+
+<div class="fh-edit-shell">
+  <a class="fh-back" href="{% url 'my_properties' %}"><i class="fas fa-arrow-left"></i> Mes logements</a>
+
+  <div class="fh-topbar">
+    <div class="fh-brand"><div class="fh-brand-icon"><i class="fas fa-home"></i></div><strong>Fast<span>home</span></strong></div>
+    <div class="fh-title"><h1>Modifier le logement</h1><p>{{ property.property_type }} · Réf. {{ property.property_id }}</p></div>
+    <div class="fh-avatar">FH</div>
+  </div>
+
+  <section class="fh-card">
+    <h2>Situation du logement</h2>
+    <p class="fh-muted" style="margin:0 0 12px">Suivez ici l'état de votre logement et de sa publication.</p>
+    {% if property.status == 'AVAILABLE' %}<span class="fh-status">🟢 Disponible</span>
+    {% elif property.status == 'RENTED' %}<span class="fh-status">🔴 Loué</span>
+    {% elif publication and publication.status == 'CORRECTION_REQUIRED' %}<span class="fh-status">⚠️ À corriger</span>
+    {% elif property.status == 'UNDER_REVIEW' or publication and publication.status == 'SUBMITTED' or publication and publication.status == 'UNDER_REVIEW' %}<span class="fh-status">🟠 En vérification</span>
+    {% elif publication and publication.status == 'PUBLISHED' %}<span class="fh-status">🟢 Publication active</span>
+    {% else %}<span class="fh-status">✏️ Brouillon</span>{% endif %}
+    <p class="fh-muted" style="margin:10px 0 0">{% if not publication or publication.status == 'DRAFT' %}Votre logement est encore en brouillon. Vous pouvez modifier les informations puis vérifier la publication.{% elif publication.status == 'CORRECTION_REQUIRED' %}Une correction est demandée par Fasthome : <strong>{{ publication.correction_message }}</strong>{% elif publication.status == 'SUBMITTED' or publication.status == 'UNDER_REVIEW' %}La publication a été envoyée et est actuellement examinée par Fasthome.{% elif publication.status == 'PUBLISHED' %}Votre logement est publié et peut recevoir des demandes de visite.{% elif property.status == 'RENTED' %}Ce logement est actuellement loué.{% else %}Le logement n’est pas actuellement publié.{% endif %}</p>
   </section>
 
-  <section class="section" style="padding-top:0"><div class="list-item"><strong>Situation du logement</strong><div style="margin-top:10px">
-    {% if property.status == 'AVAILABLE' %}<span class="badge">🟢 Disponible</span>
-    {% elif property.status == 'RENTED' %}<span class="badge">🔴 Loué</span>
-    {% elif publication and publication.status == 'CORRECTION_REQUIRED' %}<span class="badge">⚠️ À corriger</span>
-    {% elif property.status == 'UNDER_REVIEW' or publication and publication.status == 'SUBMITTED' or publication and publication.status == 'UNDER_REVIEW' %}<span class="badge">🟠 En vérification</span>
-    {% elif publication and publication.status == 'PUBLISHED' %}<span class="badge">🟢 Publication active</span>
-    {% else %}<span class="badge">✏️ À compléter</span>{% endif %}
-    <p class="muted" style="margin-bottom:0">{% if not publication or publication.status == 'DRAFT' %}Votre publication est encore un brouillon. Complétez-la puis vérifiez-la avant de l’envoyer à Fasthome.{% elif publication.status == 'CORRECTION_REQUIRED' %}Fasthome demande une correction avant la publication : <strong>{{ publication.correction_message }}</strong>{% elif publication.status == 'SUBMITTED' or publication.status == 'UNDER_REVIEW' %}Votre publication a été envoyée et est actuellement examinée par Fasthome.{% elif publication.status == 'PUBLISHED' %}Votre logement est visible sur Fasthome et peut recevoir des demandes de visite.{% elif publication.status == 'RENTED' or property.status == 'RENTED' %}Ce logement est actuellement loué.{% else %}Le logement n’est pas actuellement publié.{% endif %}</p>
-  </div></div></section>
+  <section class="fh-card">
+    <h2>Informations du logement</h2>
+    <p class="fh-muted" style="margin:0 0 15px">Les informations enregistrées pour ce logement.</p>
+    <div class="fh-list">
+      <div class="fh-item"><strong><i class="fas fa-home"></i> Type</strong><p>{{ property.property_type }}</p></div>
+      <div class="fh-item"><strong><i class="fas fa-location-dot"></i> Localisation</strong><p>{{ property.province }} · {{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p></div>
+      <div class="fh-item"><strong><i class="fas fa-bed"></i> Composition</strong><p>{{ property.bedroom_count }} chambre{% if property.bedroom_count != 1 %}s{% endif %} · {{ property.living_room_count }} salon{% if property.living_room_count != 1 %}s{% endif %} · {{ property.bathroom_count }} salle{% if property.bathroom_count != 1 %}s{% endif %} de bain · {{ property.toilet_count }} toilette{% if property.toilet_count != 1 %}s{% endif %}</p></div>
+      <div class="fh-item"><strong><i class="fas fa-users"></i> Capacité</strong><p>Jusqu’à {{ property.max_occupants }} occupant{% if property.max_occupants != 1 %}s{% endif %}</p></div>
+      <div class="fh-item"><strong><i class="fas fa-money-bill-wave"></i> Loyer</strong><p>{% if property.monthly_rent %}Montant enregistré dans votre dossier{% else %}Non renseigné{% endif %}</p></div>
+    </div>
+    {% if not publication or publication.status == 'DRAFT' or publication.status == 'CORRECTION_REQUIRED' %}
+    <div class="fh-actions"><a class="fh-btn fh-primary" href="{% url 'property_edit' property.property_id %}"><i class="fas fa-pen"></i> Modifier les informations</a></div>
+    {% endif %}
+  </section>
 
   {% if publication and publication.status == 'DRAFT' or publication and publication.status == 'CORRECTION_REQUIRED' %}
-  <section class="section"><h2>Avant de l’envoyer</h2><div class="check-summary"><strong>{% if checklist %}⚠️ {{ checklist|length }} élément{{ checklist|length|pluralize }} à compléter{% else %}✓ Publication prête{% endif %}</strong>{% if checklist %}<ul>{% for key, message in checklist %}<li>{{ message }}</li>{% endfor %}</ul>{% else %}<p class="muted" style="margin:0">Tous les contrôles obligatoires sont satisfaisants. Vous pouvez effectuer la dernière vérification.</p>{% endif %}</div><div class="manage-actions" style="margin-top:12px"><a class="btn btn-primary" href="{% url 'property_review' property.property_id %}">🔎 Vérifier ma publication</a>{% if publication.status == 'DRAFT' %}<form method="post" action="{% url 'property_delete_draft' property.property_id %}" style="display:flex;flex:1" onsubmit="return confirm('Supprimer définitivement ce brouillon ? Cette action est irréversible.');">{% csrf_token %}<button class="btn btn-light" type="submit" style="width:100%">🗑️ Supprimer le brouillon</button></form>{% endif %}</div></section>
+  <section class="fh-card">
+    <h2>Avant de l’envoyer</h2>
+    <p class="fh-muted" style="margin:0">Vérifiez les éléments obligatoires avant de transmettre votre publication à Fasthome.</p>
+    <div class="fh-check"><strong>{% if checklist %}⚠️ {{ checklist|length }} élément{{ checklist|length|pluralize }} à compléter{% else %}✓ Publication prête{% endif %}</strong>{% if checklist %}<ul>{% for key, message in checklist %}<li>{{ message }}</li>{% endfor %}</ul>{% else %}<p class="fh-muted" style="margin:7px 0 0">Tous les contrôles obligatoires sont satisfaisants.</p>{% endif %}</div>
+    <div class="fh-actions"><a class="fh-btn fh-primary" href="{% url 'property_review' property.property_id %}"><i class="fas fa-magnifying-glass"></i> Vérifier ma publication</a>{% if publication.status == 'DRAFT' %}<form method="post" action="{% url 'property_delete_draft' property.property_id %}" onsubmit="return confirm('Supprimer définitivement ce brouillon ? Cette action est irréversible.');">{% csrf_token %}<button class="fh-btn fh-danger" type="submit"><i class="fas fa-trash"></i> Supprimer le brouillon</button></form>{% endif %}</div>
+  </section>
   {% endif %}
 
-  <section class="section"><h2>Informations du logement</h2><div class="grid">
-    <div class="list-item"><strong>Composition</strong><p class="muted">{{ property.bedroom_count }} chambre{% if property.bedroom_count != 1 %}s{% endif %} · {{ property.living_room_count }} salon{% if property.living_room_count != 1 %}s{% endif %} · {{ property.bathroom_count }} salle{% if property.bathroom_count != 1 %}s{% endif %} de bain · {{ property.toilet_count }} toilette{% if property.toilet_count != 1 %}s{% endif %}</p></div>
-    <div class="list-item"><strong>Capacité</strong><p class="muted">Jusqu’à {{ property.max_occupants }} occupant{% if property.max_occupants != 1 %}s{% endif %}</p></div>
-    <div class="list-item"><strong>Localisation</strong><p class="muted">{{ property.province }} · {{ property.city_or_territory }}{% if property.neighborhood %} · {{ property.neighborhood }}{% endif %}</p></div>
-    <div class="list-item"><strong>Loyer</strong><p class="muted">{% if property.monthly_rent %}Montant enregistré dans votre dossier{% else %}Non renseigné{% endif %}</p></div>
-  </div></section>
-
-  <section class="section"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h2 style="margin-bottom:4px">Photos</h2><p class="muted">{{ photos|length }} photo{% if photos|length != 1 %}s{% endif %} enregistrée{% if photos|length != 1 %}s{% endif %}.</p></div>{% if not publication or publication.status == 'DRAFT' or publication.status == 'CORRECTION_REQUIRED' %}<a class="btn btn-light" href="{% url 'property_edit' property.property_id %}">Gérer les photos</a>{% endif %}</div>
-    {% if photos %}<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-top:14px">{% for photo in photos %}<div class="card"><div class="photo" style="aspect-ratio:1/1"><img src="{{ photo.image.url }}" alt="{{ photo.get_category_display }}" style="width:100%;height:100%;object-fit:cover"></div><div class="card-body"><strong>{{ photo.get_category_display }}</strong></div></div>{% endfor %}</div>{% else %}<div class="list-item"><p class="muted">Aucune photo n’a encore été ajoutée.</p>{% if not publication or publication.status == 'DRAFT' or publication.status == 'CORRECTION_REQUIRED' %}<a class="btn btn-primary" href="{% url 'property_edit' property.property_id %}">Ajouter des photos</a>{% endif %}</div>{% endif %}
+  <section class="fh-card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap"><div><h2>Photos du logement</h2><p class="fh-muted" style="margin:0">{{ photos|length }} photo{% if photos|length != 1 %}s{% endif %} enregistrée{% if photos|length != 1 %}s{% endif %}.</p></div>{% if not publication or publication.status == 'DRAFT' or publication.status == 'CORRECTION_REQUIRED' %}<a class="fh-btn fh-light" href="{% url 'property_edit' property.property_id %}"><i class="fas fa-images"></i> Gérer les photos</a>{% endif %}</div>
+    {% if photos %}<div class="fh-photos">{% for photo in photos %}<div class="fh-photo"><div class="fh-photo-img"><img src="{{ photo.image.url }}" alt="{{ photo.get_category_display }}"></div><div class="fh-photo-caption">{{ photo.get_category_display }}</div></div>{% endfor %}</div>{% else %}<div class="fh-check"><p class="fh-muted" style="margin:0">Aucune photo n’a encore été ajoutée.</p>{% if not publication or publication.status == 'DRAFT' or publication.status == 'CORRECTION_REQUIRED' %}<div class="fh-actions"><a class="fh-btn fh-primary" href="{% url 'property_edit' property.property_id %}">Ajouter des photos</a></div>{% endif %}</div>{% endif %}
   </section>
 
-  <section class="section"><h2>Publication</h2><div class="list-item">{% if publication %}<p><strong>Référence :</strong> {{ publication.publication_id }}</p><p><strong>Statut :</strong> {{ publication.get_status_display }}</p>{% if publication.submitted_at %}<p class="muted">Soumise le {{ publication.submitted_at|date:'d/m/Y à H:i' }}</p>{% endif %}{% if publication.published_at %}<p class="muted">Publiée le {{ publication.published_at|date:'d/m/Y à H:i' }}</p>{% endif %}<div class="manage-actions">{% if publication.status == 'DRAFT' or publication.status == 'CORRECTION_REQUIRED' %}<a class="btn btn-primary" href="{% url 'property_review' property.property_id %}">🔎 Vérifier la publication</a>{% elif publication.status == 'PUBLISHED' %}<a class="btn btn-light" href="{% url 'property_detail' property.property_id %}">Voir la publication</a>{% endif %}</div>{% else %}<p>Ce logement n’a pas encore de publication.</p>{% endif %}</div></section>
+  <section class="fh-card">
+    <h2>Publication</h2>
+    {% if publication %}
+      <div class="fh-list">
+        <div class="fh-item"><strong>Référence</strong><p>{{ publication.publication_id }}</p></div>
+        <div class="fh-item"><strong>Statut</strong><p>{{ publication.get_status_display }}</p></div>
+      </div>
+      {% if publication.submitted_at %}<p class="fh-muted" style="margin:12px 0 0">Soumise le {{ publication.submitted_at|date:'d/m/Y à H:i' }}</p>{% endif %}
+      {% if publication.published_at %}<p class="fh-muted" style="margin:5px 0 0">Publiée le {{ publication.published_at|date:'d/m/Y à H:i' }}</p>{% endif %}
+      <div class="fh-actions">{% if publication.status == 'DRAFT' or publication.status == 'CORRECTION_REQUIRED' %}<a class="fh-btn fh-primary" href="{% url 'property_review' property.property_id %}">🔎 Vérifier la publication</a>{% elif publication.status == 'PUBLISHED' %}<a class="fh-btn fh-light" href="{% url 'property_detail' property.property_id %}">Voir la publication</a>{% endif %}</div>
+    {% else %}<p class="fh-muted" style="margin:0">Ce logement n’a pas encore de publication.</p>{% endif %}
+  </section>
 
-  <section class="section"><h2>Demandes de visite</h2>{% for visit in visit_requests %}<div class="list-item" style="margin-bottom:10px"><strong>{{ visit.visit_id }}</strong><br><span class="muted">{{ visit.requested_date }}{% if visit.requested_time_slot %} · {{ visit.requested_time_slot }}{% endif %} · {{ visit.get_status_display }}</span></div>{% empty %}<div class="list-item"><p class="muted">Aucune demande de visite pour le moment.</p></div>{% endfor %}</section>
-</main>
+  <section class="fh-card">
+    <h2>Demandes de visite</h2>
+    {% for visit in visit_requests %}<div class="fh-visit"><div><strong>{{ visit.visit_id }}</strong><div class="fh-muted">{{ visit.requested_date }}{% if visit.requested_time_slot %} · {{ visit.requested_time_slot }}{% endif %}</div></div><span class="fh-status">{{ visit.get_status_display }}</span></div>{% empty %}<div class="fh-check"><p class="fh-muted" style="margin:0">Aucune demande de visite pour le moment.</p></div>{% endfor %}
+  </section>
+</div>
+
+<nav class="fh-mobile-nav"><a href="{% url 'my_properties' %}" class="active"><i class="fas fa-building"></i><span>Logements</span></a><a href="{% url 'property_edit' property.property_id %}"><i class="fas fa-pen"></i><span>Modifier</span></a><a class="publish" href="{% url 'property_review' property.property_id %}"><i class="fas fa-check"></i><span>Vérifier</span></a></nav>
 {% endblock %}
