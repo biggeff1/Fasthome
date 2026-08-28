@@ -1,25 +1,90 @@
 {% extends 'base.html' %}
 {% block title %}Notifications — Fasthome{% endblock %}
 {% block content %}
-<main class="container" style="padding:18px 10px 45px">
-  <section class="page-hero" style="margin-bottom:20px"><div class="actions"><div><span class="chip" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.18)">CENTRE D'INFORMATION</span><h1 style="color:#fff;margin:13px 0 7px">Vos notifications</h1><p style="margin:0">Les événements importants de votre parcours Fasthome, réunis au même endroit.</p></div><div style="font-size:2.4rem">🔔</div></div></section>
-  <section class="card" style="margin-bottom:18px"><div class="actions"><div><strong>{{ unread_count|default:0 }} notification{{ unread_count|default:0|pluralize }} à traiter</strong><p class="muted" style="margin:3px 0 0">Les messages non lus restent visuellement prioritaires.</p></div><span class="spacer"></span>{% if unread_count %}<form method="post" action="{% url 'mark_all_notifications_read' %}">{% csrf_token %}<button class="btn btn-light" type="submit">✓ Tout marquer comme lu</button></form>{% endif %}</div></section>
-  <section class="grid" style="gap:12px">
-  {% for n in items %}
-    <article class="notification-card {% if not n.is_read %}is-unread{% endif %}">
-      <div class="notification-dot" aria-hidden="true"></div>
+<main class="container fh-notifications" style="padding:18px 10px 45px">
+  <section class="page-hero fh-notifications-hero" style="margin-bottom:20px">
+    <div class="actions">
       <div>
-        <div class="actions"><span class="badge">{{ n.get_level_display }}</span>{% if not n.is_read %}<span class="status">● Nouvelle</span>{% endif %}</div>
-        <h3 style="margin:9px 0 5px">{{ n.title }}</h3>
-        <p style="margin:0">{{ n.message }}</p>
-        <div class="actions" style="margin-top:11px"><small class="muted">{{ n.created_at|date:"d/m/Y à H:i" }}</small><span class="spacer"></span><form class="notification-open-form" method="post" action="{% url 'mark_notification_read' notification_id=n.notification_id %}" data-next="{{ n.action_url }}">{% csrf_token %}<button class="btn btn-outline" type="submit">{% if n.is_read %}Ouvrir{% else %}Voir le détail{% endif %} →</button></form></div>
+        <span class="chip" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.18)">CENTRE D'INFORMATION</span>
+        <h1 style="color:#fff;margin:13px 0 7px">Vos notifications</h1>
+        <p style="margin:0">Les événements importants de votre parcours Fasthome, réunis au même endroit.</p>
       </div>
-    </article>
-  {% empty %}
-    <div class="empty-state"><div style="font-size:2.2rem">✓</div><h2>Tout est calme</h2><p>Aucune notification pour le moment. Les nouveaux événements apparaîtront ici.</p></div>
-  {% endfor %}
+      <div class="fh-notification-bell" aria-hidden="true">🔔</div>
+    </div>
+  </section>
+
+  <section class="card fh-notification-summary" style="margin-bottom:18px">
+    <div class="actions">
+      <div>
+        <strong>{{ unread_count|default:0 }} notification{{ unread_count|default:0|pluralize }} à traiter</strong>
+        <p class="muted" style="margin:3px 0 0">Les messages non lus restent visuellement prioritaires.</p>
+      </div>
+      <span class="spacer"></span>
+      {% if unread_count %}
+        <form method="post" action="{% url 'mark_all_notifications_read' %}">
+          {% csrf_token %}
+          <button class="btn btn-light" type="submit">✓ Tout marquer comme lu</button>
+        </form>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="grid fh-notification-list" style="gap:12px">
+    {% for n in items %}
+      <article class="notification-card fh-notification-card {% if not n.is_read %}is-unread{% endif %}">
+        <div class="notification-dot" aria-hidden="true"></div>
+        <div class="fh-notification-content">
+          <div class="actions fh-notification-meta">
+            <span class="badge">{{ n.get_level_display }}</span>
+            {% if not n.is_read %}<span class="status">● Nouvelle</span>{% endif %}
+          </div>
+          <h3>{{ n.title }}</h3>
+          <p>{{ n.message }}</p>
+          <div class="actions fh-notification-footer">
+            <small class="muted">{{ n.created_at|date:"d/m/Y à H:i" }}</small>
+            <span class="spacer"></span>
+            <form class="notification-open-form" method="post" action="{% url 'mark_notification_read' notification_id=n.notification_id %}" data-next="{{ n.action_url }}">
+              {% csrf_token %}
+              <button class="btn btn-outline" type="submit">{% if n.is_read %}Ouvrir{% else %}Voir le détail{% endif %} →</button>
+            </form>
+          </div>
+        </div>
+      </article>
+    {% empty %}
+      <div class="empty-state fh-notification-empty">
+        <div style="font-size:2.2rem">✓</div>
+        <h2>Tout est calme</h2>
+        <p>Aucune notification pour le moment. Les nouveaux événements apparaîtront ici.</p>
+      </div>
+    {% endfor %}
   </section>
 </main>
+
+<style>
+.fh-notifications{max-width:1120px}
+.fh-notifications-hero{overflow:hidden;position:relative}
+.fh-notifications-hero:after{content:'';position:absolute;width:180px;height:180px;border-radius:50%;right:-55px;top:-75px;background:rgba(255,255,255,.06);pointer-events:none}
+.fh-notification-bell{font-size:2.5rem;filter:drop-shadow(0 8px 16px rgba(0,0,0,.16));animation:fh-bell-in .45s ease both}
+.fh-notification-summary{padding:17px 20px}
+.fh-notification-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+.fh-notification-card{position:relative;display:flex;gap:14px;padding:18px 20px;min-height:165px;background:var(--fh-surface);border:1px solid var(--fh-border);border-radius:18px;box-shadow:var(--fh-shadow);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.fh-notification-card:hover{transform:translateY(-2px);box-shadow:var(--fh-shadow-hover);border-color:#d6dee8}
+.fh-notification-card.is-unread{border-left:4px solid var(--fh-gold);background:linear-gradient(135deg,var(--fh-surface),rgba(199,154,69,.045))}
+.fh-notification-card .notification-dot{flex:0 0 8px;width:8px;height:8px;margin-top:7px;border-radius:50%;background:#b7c1cb;box-shadow:0 0 0 5px rgba(183,193,203,.12)}
+.fh-notification-card.is-unread .notification-dot{background:var(--fh-gold);box-shadow:0 0 0 5px rgba(199,154,69,.13)}
+.fh-notification-content{min-width:0;flex:1;display:flex;flex-direction:column}
+.fh-notification-meta{gap:8px}
+.fh-notification-card h3{margin:10px 0 5px;font-size:1.05rem;line-height:1.3;letter-spacing:-.01em}
+.fh-notification-card p{margin:0;line-height:1.55;color:var(--fh-muted)}
+.fh-notification-footer{margin-top:auto;padding-top:15px;gap:10px}
+.fh-notification-footer small{font-size:.76rem}
+.fh-notification-empty{grid-column:1/-1}
+@keyframes fh-bell-in{from{opacity:0;transform:scale(.82) rotate(-8deg)}to{opacity:1;transform:scale(1) rotate(0)}}
+@media(max-width:760px){.fh-notification-list{grid-template-columns:1fr}.fh-notification-card{min-height:0;padding:16px}.fh-notification-summary{padding:15px}.fh-notification-summary .actions{align-items:flex-start;flex-wrap:wrap}.fh-notification-summary .spacer{display:none}.fh-notification-summary form{width:100%}.fh-notification-summary form .btn{width:100%}.fh-notification-footer{align-items:flex-end}.fh-notification-bell{font-size:2rem}}
+@media(max-width:480px){.fh-notifications{padding-left:8px!important;padding-right:8px!important}.fh-notifications-hero{margin-left:0;margin-right:0}.fh-notification-card{gap:10px}.fh-notification-card .notification-dot{flex-basis:7px;width:7px}.fh-notification-footer{flex-wrap:wrap}.fh-notification-footer .spacer{display:none}.fh-notification-footer form{width:100%}.fh-notification-footer .btn{width:100%}}
+html[data-theme=dark] .fh-notification-card.is-unread{background:linear-gradient(135deg,var(--fh-surface),rgba(199,154,69,.08))}
+</style>
+
 <script>
 document.querySelectorAll('.notification-open-form').forEach(form=>form.addEventListener('submit',async event=>{event.preventDefault();const next=form.dataset.next||'{% url 'notifications' %}';try{await fetch(form.action,{method:'POST',body:new FormData(form),headers:{'X-Requested-With':'XMLHttpRequest'}})}finally{window.location.href=next}}));
 </script>
